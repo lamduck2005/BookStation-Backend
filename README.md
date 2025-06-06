@@ -76,10 +76,12 @@
   - `AttendanceSummaryResponse`
 
 ### 5.8 Đặt tên package nhiều từ
-- Viết liền: `userstaff`
-- Hoặc tách rõ nghĩa: `user.staff`
-- **Không dùng:** `user_staff`, `UserStaff`, `userStaff`, `user-staff`, `user staff`
-
+Đúng:
+Sử dụng dấu gạch ngang (-) để phân tách các từ, giúp tên package rõ ràng và dễ đọc.
+Ví dụ: user-management, order-processing.
+Sai:
+Không sử dụng gạch dưới (_), chữ hoa (CamelCase), hoặc ký tự không hợp lệ khác.
+Ví dụ sai: user_management, userManagement, user-staff, user staff.
 ### 5.9 Lưu ý chung
 - Không dùng tiếng Việt, không viết tắt khó hiểu.
 - Tên phải rõ ràng, mô tả đúng chức năng.
