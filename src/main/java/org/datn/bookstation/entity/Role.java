@@ -27,4 +27,9 @@ public class Role {
     @Column(name = "description")
     private String description;
 
+    @Size(max = 50)
+    @Nationalized
+    @Column(name = "status", length = 50)
+    private String status;
+
 }

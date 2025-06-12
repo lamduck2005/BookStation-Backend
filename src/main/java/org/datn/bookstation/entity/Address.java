@@ -61,4 +61,9 @@ public class Address {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    @Size(max = 50)
+    @Nationalized
+    @Column(name = "status", length = 50)
+    private String status;
+
 }

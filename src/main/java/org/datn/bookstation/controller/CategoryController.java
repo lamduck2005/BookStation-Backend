@@ -1,6 +1,7 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.service.impl.CategoryServiceImpl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;

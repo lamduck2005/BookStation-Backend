@@ -2,6 +2,7 @@ package org.datn.bookstation.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
@@ -48,5 +49,10 @@ public class Point {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Size(max = 50)
+    @Nationalized
+    @Column(name = "status", length = 50)
+    private String status;
 
 }

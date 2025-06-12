@@ -72,4 +72,9 @@ public class Book {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    @Size(max = 255)
+    @NotNull
+    @Column(name = "book_code", nullable = false)
+    private String bookCode;
+
 }

@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.service.AuthorService;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class AuthorServiceImpl implements AuthorService {
         try {
             author.setCreatedAt(Instant.now());
             author.setCreatedBy(1);
+            author.setStatus("Hoạt Động");
             return authorRepository.save(author);
         } catch (Exception e) {
             e.printStackTrace();

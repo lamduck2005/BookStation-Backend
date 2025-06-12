@@ -43,4 +43,9 @@ public class Rank {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @Size(max = 50)
+    @Nationalized
+    @Column(name = "status", length = 50)
+    private String status;
+
 }

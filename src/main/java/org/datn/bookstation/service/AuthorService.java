@@ -1,5 +1,7 @@
 package org.datn.bookstation.service;
 
+import org.datn.bookstation.entity.Author;
+
 import java.util.List;
 
 public interface AuthorService {

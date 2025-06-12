@@ -66,4 +66,10 @@ public class Order {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    @Size(max = 50)
+    @NotNull
+    @Nationalized
+    @Column(name = "code", nullable = false, length = 50)
+    private String code;
+
 }
