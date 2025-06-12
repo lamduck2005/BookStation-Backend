@@ -17,6 +17,7 @@ import java.time.Instant;
 public class Category {
     @Id
     @Column(name = "category_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @Size(max = 100)

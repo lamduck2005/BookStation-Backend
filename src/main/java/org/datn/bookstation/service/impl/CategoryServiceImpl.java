@@ -1,5 +1,6 @@
 package org.datn.bookstation.service.impl;
 
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.repository.CategoryRepository;
@@ -25,7 +26,8 @@ public class CategoryServiceImpl implements CategoryService {
         category.setId(null);
         category.setCreatedAt(Instant.now());
         category.setCreatedBy(1);
-        //lấy từ sesion xuống để cho id user vòa dây
+        category.setStatus("Hoạt Động");
+
         return categoryRepository.save(category);
     }
 
@@ -42,8 +44,10 @@ public class CategoryServiceImpl implements CategoryService {
             Category categoryById = categoryRepository.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
             categoryById.setCategoryName(category.getCategoryName());
             categoryById.setDescription(category.getDescription());
+            categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedAt(Instant.now());
             categoryById.setUpdatedBy(null);
+            categoryById.setParentCategory(null);
             categoryById.setId(id);
             return categoryRepository.save(categoryById);
         } catch (Exception e) {
