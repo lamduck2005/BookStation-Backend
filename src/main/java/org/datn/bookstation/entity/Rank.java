@@ -1,5 +1,6 @@
 package org.datn.bookstation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -13,11 +14,13 @@ import java.time.Instant;
 
 @Getter
 @Setter
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "rank")
 public class Rank {
     @Id
     @Column(name = "id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -43,9 +46,8 @@ public class Rank {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @Column(name = "status")
+    private Byte status;
+
 
 }
