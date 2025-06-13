@@ -18,6 +18,7 @@ import java.time.Instant;
 public class Point {
     @Id
     @Column(name = "id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -50,9 +51,7 @@ public class Point {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @Column(name = "status")
+    private Byte status;
 
 }
