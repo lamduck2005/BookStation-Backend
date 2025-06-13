@@ -33,21 +33,23 @@ public class PointController {
         }
         ApiResponse<Point> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", point);
         return ResponseEntity.ok(response);
-    }
-
-    @PostMapping
+    }    @PostMapping
     public ResponseEntity<ApiResponse<Point>> add(@RequestBody PointRequest pointRequest) {
         ApiResponse<Point> response = pointService.add(pointRequest);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Point>> update(@PathVariable Integer id, @RequestBody Point point) {
-        Point updated = pointService.update(point, id);
-        ApiResponse<Point> response = new ApiResponse<>(HttpStatus.OK.value(), "Updated", updated);
+    } 
+       @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Point>> update(@PathVariable Integer id, @RequestBody PointRequest pointRequest) {
+        ApiResponse<Point> response = pointService.update(pointRequest, id);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
         return ResponseEntity.ok(response);
     }
 
