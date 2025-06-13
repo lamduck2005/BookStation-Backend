@@ -23,6 +23,10 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category add(Category category) {
+        if (category.getParentCategory()!=null){
+            Category ParentCategory = categoryRepository.findById(category.getParentCategory().getId()).get();
+            category.setParentCategory(ParentCategory);
+        }
         category.setId(null);
         category.setCreatedAt(Instant.now());
         category.setCreatedBy(1);
@@ -46,8 +50,8 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setDescription(category.getDescription());
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedAt(Instant.now());
-            categoryById.setUpdatedBy(null);
-            categoryById.setParentCategory(null);
+            categoryById.setUpdatedBy(1);
+            categoryById.setParentCategory(category.getParentCategory());
             categoryById.setId(id);
             return categoryRepository.save(categoryById);
         } catch (Exception e) {

@@ -20,6 +20,7 @@ public class CategoryController {
     }
     @PostMapping()
     public ResponseEntity<Category> add(@RequestBody Category category){
+        System.out.println(category.toString());
         return ResponseEntity.ok(categoryService.add(category));
     }
     @PutMapping("/{id}")
