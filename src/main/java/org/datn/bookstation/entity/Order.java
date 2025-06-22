@@ -17,7 +17,7 @@ import java.time.Instant;
 @Table(name = "\"order\"")
 public class Order {
     @Id
-    @Column(name = "order_id", nullable = false)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)

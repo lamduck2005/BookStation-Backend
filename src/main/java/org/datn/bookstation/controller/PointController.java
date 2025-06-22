@@ -3,24 +3,30 @@ package org.datn.bookstation.controller;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.PointRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.PointResponse;
 import org.datn.bookstation.entity.Point;
 import org.datn.bookstation.service.PointService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/points")
 public class PointController {
     private final PointService pointService;
-
+    
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Point>>> getAll() {
-        List<Point> points = pointService.getAll();
-        ApiResponse<List<Point>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", points);
+    public ResponseEntity<ApiResponse<PaginationResponse<PointResponse>>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String orderCode,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) Byte status,
+            @RequestParam(required = false) Integer pointSpent) {
+        PaginationResponse<PointResponse> points = pointService.getAllWithPagination(page, size, orderCode, email, status, pointSpent);
+        ApiResponse<PaginationResponse<PointResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", points);
         return ResponseEntity.ok(response);
     }
 

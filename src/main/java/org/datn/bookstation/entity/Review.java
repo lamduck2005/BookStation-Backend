@@ -16,7 +16,8 @@ import java.time.Instant;
 @Table(name = "review")
 public class Review {
     @Id
-    @Column(name = "review_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -16,7 +16,8 @@ import java.time.Instant;
 @Table(name = "category")
 public class Category {
     @Id
-    @Column(name = "category_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @Size(max = 100)

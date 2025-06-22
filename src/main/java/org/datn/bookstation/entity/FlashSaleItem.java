@@ -17,6 +17,7 @@ import java.time.Instant;
 @Table(name = "flash_sale_item")
 public class FlashSaleItem {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Integer id;
 

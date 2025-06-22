@@ -35,7 +35,8 @@ public class RankController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping    public ResponseEntity<ApiResponse<Rank>> add(@RequestBody RankRequest rankRequest) {
+    @PostMapping    
+    public ResponseEntity<ApiResponse<Rank>> add(@RequestBody RankRequest rankRequest) {
         ApiResponse<Rank> response = rankService.add(rankRequest);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
