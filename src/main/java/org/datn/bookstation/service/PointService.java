@@ -10,6 +10,6 @@ public interface PointService {
     List<Point> getAll();
     Point getById(Integer id);
     ApiResponse<Point> add(PointRequest pointRequest);
-    Point update(Point point, Integer id);
+    ApiResponse<Point> update(PointRequest pointRequest, Integer id);
     void delete(Integer id);
 }

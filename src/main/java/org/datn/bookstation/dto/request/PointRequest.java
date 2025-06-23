@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 @Data
 public class PointRequest {
     private String email;
-    private Long order; // nullable, có thể null hoặc id đơn hàng
+    private Integer orderId;
     private Integer pointEarned;
     private BigDecimal minSpent;
     private Integer pointSpent;
