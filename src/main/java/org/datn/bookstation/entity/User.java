@@ -70,8 +70,9 @@ public class User {
     @Column(name = "total_point")
     private Integer totalPoint;
 
-    @Column(name = "current_rank_id")
-    private Integer currentRankId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_rank_id")
+    private Rank currentRank;
 
     @Column(name = "total_spent", precision = 10, scale = 2)
     private BigDecimal totalSpent;

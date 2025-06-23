@@ -23,10 +23,6 @@ public class Rank {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
-
     @Size(max = 100)
     @Nationalized
     @Column(name = "rank_name", length = 100)

@@ -41,7 +41,6 @@ public class RankServiceImpl implements RankService {
             return new ApiResponse<>(404, "User with email does not exist", null);
         }
         Rank rank = rankMapper.toRank(rankRequest);
-        rank.setUser(user);
         rank.setCreatedAt(java.time.Instant.now());
         Rank saved = rankRepository.save(rank);
         return new ApiResponse<>(201, "Created", saved);
