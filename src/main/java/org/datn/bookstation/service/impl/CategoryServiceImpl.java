@@ -1,6 +1,5 @@
 package org.datn.bookstation.service.impl;
 
-import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.repository.CategoryRepository;
@@ -20,6 +19,16 @@ public class CategoryServiceImpl implements CategoryService {
     public List<Category> getAll() {
         return categoryRepository.findAll();
     }
+
+//    @Override
+//    public List<ParentCategoryResponse> getAllParentCategory() {
+//        return categoryRepository.getAllParentCategoryRequests();
+//    }
+
+//    @Override
+//    public List<Object[]> findCategoryHierarchy() {
+//        return categoryRepository.findCategoryHierarchy();
+//    }
 
     @Override
     public Category add(Category category) {
