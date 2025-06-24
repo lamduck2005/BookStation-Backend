@@ -14,7 +14,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
 
     @Override
-    public Optional<Order> findByCode(String code) {
-        return orderRepository.findByCode(code);
+    public Optional<Integer> findIdByCode(String code) {
+        return orderRepository.findIdByCode(code);
     }
 }

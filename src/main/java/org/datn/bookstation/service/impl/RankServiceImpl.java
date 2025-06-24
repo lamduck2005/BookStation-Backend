@@ -10,6 +10,14 @@ import org.springframework.stereotype.Service;
 import org.datn.bookstation.dto.request.RankRequest;
 import org.datn.bookstation.mapper.RankMapper;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.RankResponse;
+import org.datn.bookstation.mapper.RankResponseMapper;
+import org.datn.bookstation.specification.RankSpecification;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +28,7 @@ public class RankServiceImpl implements RankService {
     private final RankRepository rankRepository;
     private final RankMapper rankMapper;
     private final UserRepository userRepository;
+    private final RankResponseMapper rankResponseMapper;
 
     @Override
     public List<Rank> getAll() {
@@ -58,5 +67,36 @@ public class RankServiceImpl implements RankService {
     @Override
     public void delete(Integer id) {
         rankRepository.deleteById(id);
+    }
+
+    @Override
+    public PaginationResponse<RankResponse> getAllWithPagination(int page, int size, String name, Byte status) {
+        Pageable pageable = PageRequest.of(page, size);
+        Specification<Rank> spec = RankSpecification.filterBy(name, status);
+        Page<Rank> rankPage = rankRepository.findAll(spec, pageable);
+        List<RankResponse> responses = rankPage.getContent().stream().map(rankResponseMapper::toResponse).toList();
+        return new PaginationResponse<>(
+            responses,
+            rankPage.getNumber(),
+            rankPage.getSize(),
+            rankPage.getTotalElements(),
+            rankPage.getTotalPages()
+        );
+    }
+
+    @Override
+    public ApiResponse<Rank> toggleStatus(Integer id) {
+        Rank rank = rankRepository.findById(id).orElse(null);
+        if (rank == null) {
+            return new ApiResponse<>(404, "Rank not found", null);
+        }
+        if (rank.getStatus() == null) {
+            rank.setStatus((byte) 1);
+        } else {
+            rank.setStatus((byte) (rank.getStatus() == 1 ? 0 : 1));
+        }
+        rank.setUpdatedAt(Instant.now());
+        rankRepository.save(rank);
+        return new ApiResponse<>(200, "Status updated", rank);
     }
 }

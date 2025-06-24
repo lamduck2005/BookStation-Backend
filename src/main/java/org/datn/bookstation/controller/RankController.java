@@ -3,13 +3,14 @@ package org.datn.bookstation.controller;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.RankRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.RankResponse;
 import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.service.RankService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 @RestController
 @AllArgsConstructor
@@ -18,9 +19,13 @@ public class RankController {
     private final RankService rankService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Rank>>> getAll() {
-        List<Rank> ranks = rankService.getAll();
-        ApiResponse<List<Rank>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", ranks);
+    public ResponseEntity<ApiResponse<PaginationResponse<RankResponse>>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Byte status) {
+        PaginationResponse<RankResponse> ranks = rankService.getAllWithPagination(page, size, name, status);
+        ApiResponse<PaginationResponse<RankResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", ranks);
         return ResponseEntity.ok(response);
     }
 
@@ -55,5 +60,14 @@ public class RankController {
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         rankService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/toggle-status")
+    public ResponseEntity<ApiResponse<Rank>> toggleStatus(@PathVariable Integer id) {
+        ApiResponse<Rank> response = rankService.toggleStatus(id);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+        return ResponseEntity.ok(response);
     }
 }

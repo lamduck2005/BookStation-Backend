@@ -17,8 +17,8 @@ public class OrderController {
 
     @GetMapping("/id")
     public ResponseEntity<Integer> getOrderIdByCode(@RequestParam String orderCode) {
-        return orderService.findByCode(orderCode)
-            .map(order -> ResponseEntity.ok(order.getId()))
+        return orderService.findIdByCode(orderCode)
+            .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 }
