@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+
+import org.datn.bookstation.entity.enums.OrderStatus;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
@@ -44,7 +46,11 @@ public class Order {
     @Nationalized
     @Column(name = "status", length = 50)
     private String status;
-
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_status", length = 20)
+    private OrderStatus orderStatus;
+    
     @Size(max = 20)
     @NotNull
     @Nationalized
@@ -71,5 +77,6 @@ public class Order {
     @Nationalized
     @Column(name = "code", nullable = false, length = 50)
     private String code;
+
 
 }
