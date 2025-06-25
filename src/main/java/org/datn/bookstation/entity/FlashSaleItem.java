@@ -3,67 +3,73 @@ package org.datn.bookstation.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
+
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
-@Getter
-@Setter
 @Entity
 @Table(name = "flash_sale_item")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class FlashSaleItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private Integer id;
+    Integer id;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "flash_sale_id", nullable = false)
-    private FlashSale flashSale;
+    FlashSale flashSale;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "book_id", nullable = false)
-    private Book book;
+    Book book;
 
     @NotNull
-    @Column(name = "discount_price", nullable = false, precision = 10, scale = 2)
-    private BigDecimal discountPrice;
+    @Column(name = "discount_price", nullable = false, precision = 10, scale = 3)
+    BigDecimal discountPrice;
 
     @NotNull
-    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal discountPercentage;
+    @Column(name = "discount_percentage", nullable = false, precision = 3, scale = 2)
+    BigDecimal discountPercentage;
 
     @NotNull
     @Column(name = "stock_quantity", nullable = false)
-    private Integer stockQuantity;
+    Integer stockQuantity;
 
     @Column(name = "max_purchase_per_user")
-    private Integer maxPurchasePerUser;
+    Integer maxPurchasePerUser;
 
     @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
-    private Integer createdBy;
+    Long createdBy;
 
     @Column(name = "updated_by")
-    private Integer updatedBy;
+    Long updatedBy;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    Byte status;
 
 }
