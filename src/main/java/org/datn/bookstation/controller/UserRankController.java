@@ -12,7 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 @RestController
 @AllArgsConstructor
@@ -30,7 +29,7 @@ public class UserRankController {
             @RequestParam(required = false) String userEmail,
             @RequestParam(required = false) String rankName) {
         PaginationResponse<UserRankResponse> data = userRankService.getAllWithPagination(page, size, userId, rankId, status, userEmail, rankName);
-        ApiResponse<PaginationResponse<UserRankResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", data);
+        ApiResponse<PaginationResponse<UserRankResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", data);
         return ResponseEntity.ok(response);
     }
 
@@ -38,12 +37,10 @@ public class UserRankController {
     public ResponseEntity<ApiResponse<UserRank>> getById(@PathVariable Integer id) {
         UserRank userRank = userRankService.getById(id);
         if (userRank == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Not found", null));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
-        return ResponseEntity.ok(new ApiResponse<>(200, "Success", userRank));
+        return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", userRank));
     }
-
-  
 
     @PostMapping
     public ResponseEntity<ApiResponse<UserRankSimpleResponse>> addUserRank(@RequestBody UserRankRequest request) {
@@ -63,31 +60,22 @@ public class UserRankController {
             userRank.getCreatedAt(),
             userRank.getUpdatedAt()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Created", simpleResponse));
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", simpleResponse));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserRank>> update(@PathVariable Integer id, @RequestBody UserRankRequest request) {
         ApiResponse<UserRank> response = userRankService.update(request, id);
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         userRankService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/{id}/toggle")
-    public ResponseEntity<ApiResponse<UserRank>> toggleStatus(@PathVariable Integer id) {
-        ApiResponse<UserRank> response = userRankService.toggleStatus(id);
-        if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-        }
-        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/rank/{rankId}")
@@ -98,14 +86,23 @@ public class UserRankController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String userName) {
         PaginationResponse<UserRankSimpleResponse> data = userRankService.getByRankIdWithFilter(page, size, rankId, email, userName);
-        return ResponseEntity.ok(new ApiResponse<>(200, "Success", data));
+        return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", data));
     }
 
     @PatchMapping("/{id}/toggle-status")
     public ResponseEntity<ApiResponse<UserRankSimpleResponse>> toggleUserRankStatus(@PathVariable Integer id) {
         ApiResponse<UserRank> response = userRankService.toggleStatus(id);
+        // Kiểm tra lỗi 404 (không tìm thấy UserRank)
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, response.getMessage(), null));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
+        }
+        // Kiểm tra lỗi 409 (conflict - user đã có rank hoạt động khác)
+        if (response.getStatus() == 409) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiResponse<>(409, response.getMessage(), null));
+        }
+        // Kiểm tra data null (trường hợp bất thường)
+        if (response.getData() == null) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(500, "Lỗi hệ thống", null));
         }
         UserRank userRank = response.getData();
         UserRankSimpleResponse simpleResponse = new UserRankSimpleResponse(
@@ -116,6 +113,6 @@ public class UserRankController {
             userRank.getCreatedAt(),
             userRank.getUpdatedAt()
         );
-        return ResponseEntity.ok(new ApiResponse<>(200, "Toggled status", simpleResponse));
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", simpleResponse));
     }
 }

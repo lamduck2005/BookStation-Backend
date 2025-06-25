@@ -29,7 +29,7 @@ public class RankController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Byte status) {
         PaginationResponse<RankResponse> ranks = rankService.getAllWithPagination(page, size, name, status);
-        ApiResponse<PaginationResponse<RankResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", ranks);
+        ApiResponse<PaginationResponse<RankResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", ranks);
         return ResponseEntity.ok(response);
     }
 
@@ -37,10 +37,10 @@ public class RankController {
     public ResponseEntity<ApiResponse<Rank>> getById(@PathVariable Integer id) {
         Rank rank = rankService.getById(id);
         if (rank == null) {
-            ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Not found", null);
+            ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Không tìm thấy", null);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-        ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.OK.value(), "Success", rank);
+        ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", rank);
         return ResponseEntity.ok(response);
     }
 
@@ -48,18 +48,18 @@ public class RankController {
     public ResponseEntity<ApiResponse<Rank>> add(@RequestBody RankRequest rankRequest) {
         ApiResponse<Rank> response = rankService.add(rankRequest);
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
         if (response.getStatus() == 400) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, "Tên hạng đã tồn tại", null));
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Rank>> update(@PathVariable Integer id, @RequestBody Rank rank) {
         Rank updated = rankService.update(rank, id);
-        ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.OK.value(), "Updated", updated);
+        ApiResponse<Rank> response = new ApiResponse<>(HttpStatus.OK.value(), "Cập nhật thành công", updated);
         return ResponseEntity.ok(response);
     }
 
@@ -73,17 +73,17 @@ public class RankController {
     public ResponseEntity<ApiResponse<Rank>> toggleStatus(@PathVariable Integer id) {
         ApiResponse<Rank> response = rankService.toggleStatus(id);
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
     }
 
     @GetMapping("/dropdown")
     public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownRanks() {
-        List<DropdownOptionResponse> dropdown = rankService.getAll().stream()
+        List<DropdownOptionResponse> dropdown = rankService.getAllActiveRanks().stream()
             .map(rank -> new DropdownOptionResponse(rank.getId(), rank.getRankName()))
             .collect(Collectors.toList());
-        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "get list rank dropdown Success", dropdown);
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách hạng thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 }

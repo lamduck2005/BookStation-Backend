@@ -51,16 +51,28 @@ public class UserRankServiceImpl implements UserRankService {
         if (user == null || rank == null) {
             return new ApiResponse<>(404, "User or Rank not found", null);
         }
-        // Check duplicate
-        List<UserRank> existing = userRankRepository.findByRankId(request.getRankId());
-        boolean isDuplicate = existing.stream().anyMatch(ur -> ur.getUser() != null && ur.getUser().getId().equals(request.getUserId()));
+        // Check duplicate for same user and rank
+        List<UserRank> existingSameRank = userRankRepository.findByRankId(request.getRankId());
+        boolean isDuplicate = existingSameRank.stream().anyMatch(ur -> ur.getUser() != null && ur.getUser().getId().equals(request.getUserId()));
         if (isDuplicate) {
             return new ApiResponse<>(409, "UserRank already exists for this user and rank", null);
         }
+        // New logic: Prevent multiple active ranks for a user
+        Byte reqStatus = request.getStatus() != null ? request.getStatus() : 1;
+        if (reqStatus == 1) {
+            // Tìm tất cả UserRank của user này có status = 1
+            List<UserRank> activeRanks = userRankRepository.findAll().stream()
+                .filter(ur -> ur.getUser() != null && ur.getUser().getId().equals(request.getUserId()) && ur.getStatus() != null && ur.getStatus() == 1)
+                .collect(Collectors.toList());
+            if (!activeRanks.isEmpty()) {
+                return new ApiResponse<>(409, "Người dùng đã có một hạng đang hoạt động. Không thể tạo thêm hạng hoạt động mới.", null);
+            }
+        }
+        // Nếu status = 0 thì vẫn cho phép tạo mới
         UserRank userRank = userRankMapper.toUserRank(request);
         userRank.setUser(user);
         userRank.setRank(rank);
-        userRank.setStatus(request.getStatus() != null ? request.getStatus() : 1);
+        userRank.setStatus(reqStatus);
         userRank.setCreatedAt(Instant.now().toEpochMilli());
         UserRank saved = userRankRepository.save(userRank);
         return new ApiResponse<>(201, "Created", saved);
@@ -96,6 +108,29 @@ public class UserRankServiceImpl implements UserRankService {
         if (userRank == null) {
             return new ApiResponse<>(404, "UserRank not found", null);
         }
+        
+        // Kiểm tra xem UserRank này sẽ chuyển sang trạng thái hoạt động (1) hay không
+        // willBeActive = true nếu status hiện tại là null hoặc 0 (sẽ chuyển thành 1)
+        boolean willBeActive = userRank.getStatus() == null || userRank.getStatus() == 0;
+        
+        if (willBeActive) {
+            Integer userId = userRank.getUser() != null ? userRank.getUser().getId() : null;
+            if (userId != null) {
+                // Tìm tất cả UserRank khác của cùng user đang có status = 1 (hoạt động)
+                // Loại trừ UserRank hiện tại (id khác nhau)
+                List<UserRank> activeRanks = userRankRepository.findAll().stream()
+                    .filter(ur -> ur.getUser() != null && ur.getUser().getId().equals(userId)
+                        && ur.getStatus() != null && ur.getStatus() == 1 && !ur.getId().equals(id))
+                    .collect(Collectors.toList());
+                
+                // Nếu đã có UserRank khác đang hoạt động, trả về lỗi 409 (Conflict)
+                if (!activeRanks.isEmpty()) {
+                    return new ApiResponse<>(409, "Người dùng đã có một hạng đang hoạt động. Không thể bật thêm hạng hoạt động cho user này.", null);
+                }
+            }
+        }
+        
+        // Toggle status: 1 -> 0 hoặc (null/0) -> 1
         userRank.setStatus(userRank.getStatus() != null && userRank.getStatus() == 1 ? (byte)0 : (byte)1);
         userRank.setUpdatedAt(Instant.now().toEpochMilli());
         UserRank saved = userRankRepository.save(userRank);

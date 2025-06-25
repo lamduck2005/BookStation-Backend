@@ -33,6 +33,13 @@ public class RankServiceImpl implements RankService {
     }
 
     @Override
+    public List<Rank> getAllActiveRanks() {
+        return rankRepository.findAll().stream()
+            .filter(rank -> rank.getStatus() != null && rank.getStatus() == 1)
+            .toList();
+    }
+
+    @Override
     public Rank getById(Integer id) {
         return rankRepository.findById(id).orElse(null);
     }
@@ -40,20 +47,20 @@ public class RankServiceImpl implements RankService {
     @Override
     public ApiResponse<Rank> add(RankRequest rankRequest) {
         if (rankRepository.existsByRankName(rankRequest.getRankName())) {
-            return new ApiResponse<>(400, "Rank name already exists", null);
+            return new ApiResponse<>(400, "Tên hạng đã tồn tại", null);
         }
         Rank rank = rankMapper.toRank(rankRequest);
-        rank.setCreatedAt(java.time.Instant.now());
+        rank.setCreatedAt(java.time.Instant.now().toEpochMilli());
         Rank saved = rankRepository.save(rank);
-        return new ApiResponse<>(201, "Created", saved);
+        return new ApiResponse<>(201, "Tạo mới thành công", saved);
     }
 
     @Override
     public Rank update(Rank rank, Integer id) {
-        Rank existing = rankRepository.findById(id).orElseThrow(() -> new RuntimeException("Rank not found"));
+        Rank existing = rankRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy hạng"));
         rank.setId(id);
         rank.setCreatedAt(existing.getCreatedAt());
-        rank.setUpdatedAt(Instant.now());
+        rank.setUpdatedAt(Instant.now().toEpochMilli());
         return rankRepository.save(rank);
     }
 
@@ -81,15 +88,15 @@ public class RankServiceImpl implements RankService {
     public ApiResponse<Rank> toggleStatus(Integer id) {
         Rank rank = rankRepository.findById(id).orElse(null);
         if (rank == null) {
-            return new ApiResponse<>(404, "Rank not found", null);
+            return new ApiResponse<>(404, "Không tìm thấy", null);
         }
         if (rank.getStatus() == null) {
             rank.setStatus((byte) 1);
         } else {
             rank.setStatus((byte) (rank.getStatus() == 1 ? 0 : 1));
         }
-        rank.setUpdatedAt(Instant.now());
+        rank.setUpdatedAt(Instant.now().toEpochMilli());
         rankRepository.save(rank);
-        return new ApiResponse<>(200, "Status updated", rank);
+        return new ApiResponse<>(200, "Cập nhật trạng thái thành công", rank);
     }
 }

@@ -77,9 +77,9 @@ public class PointServiceImpl implements PointService {
         
         // Update user's total points
         user.setTotalPoint(currentTotalPoints);
-        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now().toEpochMilli());
         userRepository.save(user);
-          point.setCreatedAt(java.time.Instant.now());
+          point.setCreatedAt(java.time.Instant.now().toEpochMilli());
         Point saved = pointRepository.save(point);
         return new ApiResponse<>(201, "Created", saved);
     }    @Override
@@ -127,7 +127,7 @@ public class PointServiceImpl implements PointService {
         updatedPoint.setId(id);
         updatedPoint.setUser(user);
         updatedPoint.setCreatedAt(existingPoint.getCreatedAt());
-        updatedPoint.setUpdatedAt(Instant.now());
+        updatedPoint.setUpdatedAt(Instant.now().toEpochMilli());
         
         // Set order if orderId is provided
         if (pointRequest.getOrderId() != null) {
@@ -137,7 +137,7 @@ public class PointServiceImpl implements PointService {
         
         // Update user's total points
         user.setTotalPoint(currentTotalPoints);
-        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now().toEpochMilli());
         userRepository.save(user);
         
         // Save updated point record
@@ -167,7 +167,7 @@ public class PointServiceImpl implements PointService {
             
             // Update user
             user.setTotalPoint(currentTotalPoints);
-            user.setUpdatedAt(Instant.now());
+            user.setUpdatedAt(Instant.now().toEpochMilli());
             userRepository.save(user);
         }
         

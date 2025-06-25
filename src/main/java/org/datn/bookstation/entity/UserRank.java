@@ -15,11 +15,11 @@ public class UserRank {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "rank_id")
+    @JoinColumn(name = "rank_id", nullable = false)
     private Rank rank;
 
     private Byte status; // 1: active, 0: inactive

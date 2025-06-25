@@ -6,11 +6,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -35,12 +33,11 @@ public class Rank {
     private BigDecimal pointMultiplier;
 
     @NotNull
-    @ColumnDefault("getdate()")
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    @Column(name = "created_at")
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @Column(name = "status")
     private Byte status;

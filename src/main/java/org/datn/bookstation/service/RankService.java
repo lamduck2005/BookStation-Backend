@@ -10,6 +10,7 @@ import java.util.List;
 
 public interface RankService {
     List<Rank> getAll();
+    List<Rank> getAllActiveRanks();
     Rank getById(Integer id);
     ApiResponse<Rank> add(RankRequest rankRequest);
     Rank update(Rank rank, Integer id);

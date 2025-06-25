@@ -57,22 +57,17 @@ public class User {
     private String status;
 
     @NotNull
-    @ColumnDefault("getdate()")
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    @Column(name = "created_at")
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @Column(name = "updated_by")
     private Integer updatedBy;
 
     @Column(name = "total_point")
     private Integer totalPoint;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "current_rank_id")
-    private Rank currentRank;
 
     @Column(name = "total_spent", precision = 10, scale = 2)
     private BigDecimal totalSpent;
