@@ -2,9 +2,7 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.entity.Rank;
-import org.datn.bookstation.entity.User;
 import org.datn.bookstation.repository.RankRepository;
-import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.service.RankService;
 import org.springframework.stereotype.Service;
 import org.datn.bookstation.dto.request.RankRequest;
@@ -27,7 +25,6 @@ import java.util.List;
 public class RankServiceImpl implements RankService {
     private final RankRepository rankRepository;
     private final RankMapper rankMapper;
-    private final UserRepository userRepository;
     private final RankResponseMapper rankResponseMapper;
 
     @Override
@@ -42,12 +39,8 @@ public class RankServiceImpl implements RankService {
 
     @Override
     public ApiResponse<Rank> add(RankRequest rankRequest) {
-        if (rankRequest.getEmail() == null || rankRequest.getEmail().isEmpty()) {
-            return new ApiResponse<>(404, "Email is required", null);
-        }
-        User user = userRepository.findByEmail(rankRequest.getEmail()).orElse(null);
-        if (user == null) {
-            return new ApiResponse<>(404, "User with email does not exist", null);
+        if (rankRepository.existsByRankName(rankRequest.getRankName())) {
+            return new ApiResponse<>(400, "Rank name already exists", null);
         }
         Rank rank = rankMapper.toRank(rankRequest);
         rank.setCreatedAt(java.time.Instant.now());

@@ -5,11 +5,15 @@ import org.datn.bookstation.dto.request.RankRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.RankResponse;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.service.RankService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 @RestController
@@ -46,6 +50,9 @@ public class RankController {
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -68,6 +75,15 @@ public class RankController {
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownRanks() {
+        List<DropdownOptionResponse> dropdown = rankService.getAll().stream()
+            .map(rank -> new DropdownOptionResponse(rank.getId(), rank.getRankName()))
+            .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "get list rank dropdown Success", dropdown);
         return ResponseEntity.ok(response);
     }
 }
