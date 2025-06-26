@@ -32,7 +32,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category add(Category category) {
-        if (category.getParentCategory()!=null){
+        if (category.getParentCategory()!=null&&categoryRepository.getByParentCategoryIsNull(category.getId())!=null){
             Category ParentCategory = categoryRepository.findById(category.getParentCategory().getId()).get();
             category.setParentCategory(ParentCategory);
         }
@@ -60,8 +60,18 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedAt(Instant.now());
             categoryById.setUpdatedBy(1);
-            categoryById.setParentCategory(category.getParentCategory());
+            if (category.getParentCategory()==null){
+                categoryById.setParentCategory(null);
+                System.out.println("...");
+            }
+            else if (categoryRepository.getByParentCategoryIsNull(category.getParentCategory().getId())!=null){
+                categoryById.setParentCategory(category.getParentCategory());
+
+            }else {
+                return null;
+            }
             categoryById.setId(id);
+            System.out.println();
             return categoryRepository.save(categoryById);
         } catch (Exception e) {
             throw new RuntimeException("update category failed" + e.getMessage());
