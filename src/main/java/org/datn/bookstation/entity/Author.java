@@ -18,7 +18,7 @@ import java.time.LocalDate;
 public class Author {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
+    @Column(name = "author_id", nullable = false)
     private Integer id;
 
     @Size(max = 100)
@@ -50,9 +50,6 @@ public class Author {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+
 
 }

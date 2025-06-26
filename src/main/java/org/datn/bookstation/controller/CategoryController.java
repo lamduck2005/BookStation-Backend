@@ -19,36 +19,37 @@ public class CategoryController {
     private final CategoryServiceImpl categoryService;
     private final CategoryRepository categoryRepository;
     private final CategoryMap categoryMapper;
+
     @GetMapping()
-    public ResponseEntity<List<Category>> getAll(){
+    public ResponseEntity<List<Category>> getAll() {
         return ResponseEntity.ok(categoryService.getAll());
     }
-//    @GetMapping("/findCategoryHierarchy")
-//    public ResponseEntity<List<Object[]>> findCategoryHierarchy(){
-//        return ResponseEntity.ok(categoryService.findCategoryHierarchy());
-//    }
-        @GetMapping("/parentcategories")
-    public ResponseEntity<List<ParentCategoryResponse>> getAllParentCategory(){
+
+    @GetMapping("/parentcategories")
+    public ResponseEntity<List<ParentCategoryResponse>> getAllParentCategory() {
         List<Category> categories = categoryService.getAll();
         return ResponseEntity.ok(categoryMapper.mapToCategoryTreeList(categories));
     }
 
     @PostMapping()
-    public ResponseEntity<Category> add(@RequestBody Category category){
+    public ResponseEntity<Category> add(@RequestBody Category category) {
         System.out.println(category.toString());
         return ResponseEntity.ok(categoryService.add(category));
     }
+
     @PutMapping("/{id}")
-    public ResponseEntity<Category> update(@PathVariable Integer id,@RequestBody Category category){
+    public ResponseEntity<Category> update(@PathVariable Integer id, @RequestBody Category category) {
         System.out.println(category);
         return ResponseEntity.ok(categoryService.update(category, id));
     }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<Category> delete(@PathVariable Integer id){
+    public ResponseEntity<Category> delete(@PathVariable Integer id) {
         return ResponseEntity.ok(categoryService.delete(id));
     }
+
     @GetMapping("/{id}")
-    public ResponseEntity<Category> getById(@PathVariable Integer id){
+    public ResponseEntity<Category> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(categoryService.getById(id));
     }
 }

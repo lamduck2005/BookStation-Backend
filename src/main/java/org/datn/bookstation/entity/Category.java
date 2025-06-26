@@ -17,7 +17,7 @@ import java.time.Instant;
 public class Category {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
+    @Column(name = "category_id", nullable = false)
     private Integer id;
 
     @Size(max = 100)
@@ -36,7 +36,6 @@ public class Category {
     private Category parentCategory;
 
     @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
