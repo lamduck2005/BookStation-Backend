@@ -50,10 +50,10 @@ public class Voucher {
     @Column(name = "max_discount_value", precision = 10, scale = 2)
     private BigDecimal maxDiscountValue;
 
-    @Size(max = 50)
+
     @Nationalized
     @Column(name = "status", length = 50)
-    private String status;
+    private byte status;
 
     @NotNull
     @ColumnDefault("getdate()")
@@ -65,9 +65,9 @@ public class Voucher {
 
     @NotNull
     @Column(name = "created_by", nullable = false)
-    private Integer createdBy;
+    private String createdBy;
 
     @Column(name = "updated_by")
-    private Integer updatedBy;
+    private String updatedBy;
 
 }

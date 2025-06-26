@@ -46,10 +46,10 @@ public class Supplier {
     @Column(name = "address")
     private String address;
 
-    @Size(max = 50)
+
     @Nationalized
     @Column(name = "status", length = 50)
-    private String status;
+    private byte status;
 
     @NotNull
     @ColumnDefault("getdate()")
@@ -61,9 +61,9 @@ public class Supplier {
 
     @NotNull
     @Column(name = "created_by", nullable = false)
-    private Integer createdBy;
+    private String createdBy;
 
     @Column(name = "updated_by")
-    private Integer updatedBy;
+    private String updatedBy;
 
 }
