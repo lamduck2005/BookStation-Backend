@@ -2,6 +2,8 @@ package org.datn.bookstation.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
@@ -20,7 +22,8 @@ import java.time.Instant;
 @Table(name = "voucher")
 public class Voucher {
     @Id
-    @Column(name = "voucher_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @Size(max = 20)
@@ -47,10 +50,10 @@ public class Voucher {
     @Column(name = "max_discount_value", precision = 10, scale = 2)
     private BigDecimal maxDiscountValue;
 
-    @Size(max = 50)
+
     @Nationalized
     @Column(name = "status", length = 50)
-    private String status;
+    private byte status;
 
     @NotNull
     @ColumnDefault("getdate()")
@@ -62,9 +65,9 @@ public class Voucher {
 
     @NotNull
     @Column(name = "created_by", nullable = false)
-    private Integer createdBy;
+    private String createdBy;
 
     @Column(name = "updated_by")
-    private Integer updatedBy;
+    private String updatedBy;
 
 }

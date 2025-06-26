@@ -16,7 +16,8 @@ import java.time.Instant;
 @Table(name = "cart")
 public class Cart {
     @Id
-    @Column(name = "cart_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
