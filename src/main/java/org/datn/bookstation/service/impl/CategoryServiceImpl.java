@@ -32,9 +32,11 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category add(Category category) {
-        if (category.getParentCategory()!=null&&categoryRepository.getByParentCategoryIsNull(category.getId())!=null){
+        if (category.getParentCategory() != null && categoryRepository.getByParentCategoryIsNull(category.getId()) != null) {
             Category ParentCategory = categoryRepository.findById(category.getParentCategory().getId()).get();
             category.setParentCategory(ParentCategory);
+        }else {
+            category.setParentCategory(null);
         }
         category.setId(null);
         category.setCreatedAt(Instant.now());
@@ -50,9 +52,8 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
 
-
     @Override
-    public Category update( Category category,Integer id) {
+    public Category update(Category category, Integer id) {
         try {
             Category categoryById = categoryRepository.findById(id).orElseThrow(() -> new RuntimeException("Category not found"));
             categoryById.setCategoryName(category.getCategoryName());
@@ -60,14 +61,13 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedAt(Instant.now());
             categoryById.setUpdatedBy(1);
-            if (category.getParentCategory()==null){
+            if (category.getParentCategory() == null) {
                 categoryById.setParentCategory(null);
                 System.out.println("...");
-            }
-            else if (categoryRepository.getByParentCategoryIsNull(category.getParentCategory().getId())!=null){
+            } else if (categoryRepository.getByParentCategoryIsNull(category.getParentCategory().getId()) != null) {
                 categoryById.setParentCategory(category.getParentCategory());
 
-            }else {
+            } else {
                 return null;
             }
             categoryById.setId(id);

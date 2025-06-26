@@ -22,19 +22,19 @@ public class AuthorController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Author> getById(@PathVariable Integer id) {
-        return authorService.getById(id);
+    public ResponseEntity<ApiResponse<Author>> getById(@PathVariable Integer id) {
+        return ResponseEntity.ok(authorService.getById(id));
     }
 
     @PostMapping
-    public ApiResponse<Author> add(@RequestBody Author author) {
+    public ResponseEntity<ApiResponse<Author>> add(@RequestBody Author author) {
         System.out.println(author);
-        return authorService.add(author);
+        return ResponseEntity.ok(authorService.add(author));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<Author> update(@PathVariable Integer id, @RequestBody Author author) {
-        return authorService.update(author, id);
+    public ResponseEntity<ApiResponse<Author>> update(@PathVariable Integer id, @RequestBody Author author) {
+        return ResponseEntity.ok(authorService.update(author, id));
     }
 
     @DeleteMapping("/{id}")
