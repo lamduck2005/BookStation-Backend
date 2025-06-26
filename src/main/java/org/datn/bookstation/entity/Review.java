@@ -2,61 +2,60 @@ package org.datn.bookstation.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
+import lombok.experimental.FieldDefaults;
+
+import org.datn.bookstation.entity.enums.ReviewStatus;
 import org.hibernate.annotations.Nationalized;
 
-import java.time.Instant;
 
-@Getter
-@Setter
 @Entity
 @Table(name = "review")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class Review {
     @Id
-    @Column(name = "review_id", nullable = false)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
+    Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id")
-    private Book book;
+    Book book;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    private User user;
+    User user;
 
-    @Column(name = "rating")
-    private Integer rating;
+    Integer rating;
 
     @Nationalized
     @Lob
-    @Column(name = "comment")
-    private String comment;
+    String comment;
 
     @NotNull
     @Column(name = "review_date", nullable = false)
-    private Instant reviewDate;
+    Long reviewDate;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_status", length = 20)
+    ReviewStatus reviewStatus;
 
-    @NotNull
-    @ColumnDefault("getdate()")
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    Long createdAt;
 
-    @Column(name = "updated_at")
-    private Instant updatedAt;
+    Long updatedAt;
 
-    @NotNull
-    @Column(name = "created_by", nullable = false)
-    private Integer createdBy;
+    Long createdBy;
 
-    @Column(name = "updated_by")
-    private Integer updatedBy;
+    Long updatedBy;
 
 }

@@ -16,7 +16,8 @@ import java.time.Instant;
 @Table(name = "supplier")
 public class Supplier {
     @Id
-    @Column(name = "supplier_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @Size(max = 100)

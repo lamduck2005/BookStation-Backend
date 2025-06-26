@@ -1,12 +1,10 @@
 package org.datn.bookstation.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.ToString;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
@@ -15,12 +13,11 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@ToString
 @Table(name = "category")
 public class Category {
     @Id
-    @Column(name = "category_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
     @Size(max = 100)
@@ -34,11 +31,12 @@ public class Category {
     @Column(name = "description")
     private String description;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_category_id")
     private Category parentCategory;
 
     @NotNull
+    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

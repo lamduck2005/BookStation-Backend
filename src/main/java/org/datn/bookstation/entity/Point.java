@@ -4,11 +4,9 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -43,12 +41,11 @@ public class Point {
     private String description;
 
     @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @Column(name = "status")
     private Byte status;

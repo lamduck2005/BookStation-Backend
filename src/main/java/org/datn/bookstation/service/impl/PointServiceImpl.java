@@ -1,7 +1,8 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
-
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.PointResponse;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.Point;
 import org.datn.bookstation.entity.User;
@@ -9,12 +10,19 @@ import org.datn.bookstation.mapper.PointMapper;
 import org.datn.bookstation.repository.PointRepository;
 import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.service.PointService;
+import org.datn.bookstation.specification.PointSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.datn.bookstation.dto.request.PointRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -69,9 +77,9 @@ public class PointServiceImpl implements PointService {
         
         // Update user's total points
         user.setTotalPoint(currentTotalPoints);
-        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now().toEpochMilli());
         userRepository.save(user);
-          point.setCreatedAt(java.time.Instant.now());
+          point.setCreatedAt(java.time.Instant.now().toEpochMilli());
         Point saved = pointRepository.save(point);
         return new ApiResponse<>(201, "Created", saved);
     }    @Override
@@ -119,7 +127,7 @@ public class PointServiceImpl implements PointService {
         updatedPoint.setId(id);
         updatedPoint.setUser(user);
         updatedPoint.setCreatedAt(existingPoint.getCreatedAt());
-        updatedPoint.setUpdatedAt(Instant.now());
+        updatedPoint.setUpdatedAt(Instant.now().toEpochMilli());
         
         // Set order if orderId is provided
         if (pointRequest.getOrderId() != null) {
@@ -129,7 +137,7 @@ public class PointServiceImpl implements PointService {
         
         // Update user's total points
         user.setTotalPoint(currentTotalPoints);
-        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now().toEpochMilli());
         userRepository.save(user);
         
         // Save updated point record
@@ -159,10 +167,26 @@ public class PointServiceImpl implements PointService {
             
             // Update user
             user.setTotalPoint(currentTotalPoints);
-            user.setUpdatedAt(Instant.now());
+            user.setUpdatedAt(Instant.now().toEpochMilli());
             userRepository.save(user);
         }
         
         pointRepository.deleteById(id);
+    }    @Override
+    public PaginationResponse<PointResponse> getAllWithPagination(int page, int size, String orderCode, String email, Byte status, Integer pointSpent) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Specification<Point> specification = PointSpecification.filterBy(orderCode, email, status, pointSpent);
+        Page<Point> pointPage = pointRepository.findAll(specification, pageable);
+        List<PointResponse> pointResponses = pointPage.getContent().stream()
+                .map(pointMapper::toPointResponse)
+                .collect(Collectors.toList());
+        PaginationResponse<PointResponse> response = PaginationResponse.<PointResponse>builder()
+                .content(pointResponses)
+                .pageNumber(pointPage.getNumber())
+                .pageSize(pointPage.getSize())
+                .totalElements(pointPage.getTotalElements())
+                .totalPages(pointPage.getTotalPages())
+                .build();
+        return response;
     }
 }
