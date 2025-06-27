@@ -162,6 +162,9 @@ INSERT INTO event (event_name, description, event_type, event_category_id, statu
 
 PRINT 'EVENT inserted: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows';
 
+-- Lấy IDs của các events đã insert
+DECLARE @event8 INT = (SELECT id FROM event WHERE event_name LIKE N'%Workshop "Viết truyện ngắn"%');
+
 -- =====================================================
 -- 3. EVENT_GIFT - Quà tặng sự kiện
 -- =====================================================
@@ -241,30 +244,155 @@ PRINT 'EVENT_GIFT inserted: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows';
 
 PRINT '=== INSERTING EVENT_PARTICIPANT ===';
 
--- Lấy gift IDs
-DECLARE @gift1 INT = (SELECT TOP 1 id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%Voucher%100K%');
-DECLARE @gift2 INT = (SELECT TOP 1 id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%bookmark%');
-DECLARE @gift3 INT = (SELECT TOP 1 id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%Điểm thưởng%');
-
 -- Insert participants (giả sử có user với ID 1-10 trong hệ thống)
-INSERT INTO event_participant (event_id, user_id, joined_at, is_winner, gift_received_id, gift_claimed_at, 
-                               completion_status, notes) VALUES
+INSERT INTO event_participant (event_id, user_id, joined_at, is_winner, completion_status, notes) VALUES
 
 -- Người tham gia "Thử thách đọc 30 ngày"
-(@event1, 1, 1701475200000, 1, @gift1, 1702080000000, 'COMPLETED', N'Đã hoàn thành đọc 7 cuốn sách và viết đầy đủ review'),
-(@event1, 2, 1701561600000, 1, @gift3, 1702166400000, 'COMPLETED', N'Hoàn thành 5 cuốn sách đúng yêu cầu'),
-(@event1, 3, 1701648000000, 0, NULL, NULL, 'IN_PROGRESS', N'Đang đọc cuốn sách thứ 4'),
-(@event1, 4, 1701734400000, 1, @gift2, NULL, 'COMPLETED', N'Đã hoàn thành nhưng chưa claim quà'),
+(@event1, 1, 1701475200000, 1, 'COMPLETED', N'Đã hoàn thành đọc 7 cuốn sách và viết đầy đủ review'),
+(@event1, 2, 1701561600000, 1, 'COMPLETED', N'Hoàn thành 5 cuốn sách đúng yêu cầu'),
+(@event1, 3, 1701648000000, 0, 'IN_PROGRESS', N'Đang đọc cuốn sách thứ 4'),
+(@event1, 4, 1701734400000, 1, 'COMPLETED', N'Đã hoàn thành và sẽ claim quà qua hệ thống EventGiftClaim'),
 
 -- Người tham gia các sự kiện khác
-(@event2, 1, 1703692800000, 0, NULL, NULL, 'JOINED', N'Đã đăng ký tham dự buổi gặp mặt'),
-(@event2, 5, 1703779200000, 0, NULL, NULL, 'JOINED', N'Rất mong được gặp tác giả yêu thích'),
-(@event3, 2, 1700409600000, 1, NULL, 1700510400000, 'COMPLETED', N'Tham gia đầy đủ workshop và nhận chứng chỉ'),
-(@event4, 1, 1700841600000, 1, NULL, 1700928000000, 'COMPLETED', N'Mua đơn hàng 1.2M, nhận voucher 200K'),
-(@event5, 2, 1703606400000, 0, NULL, NULL, 'JOINED', N'Đăng ký sớm để được ưu đãi đặc biệt'),
-(@event6, 5, 1702944000000, 0, NULL, NULL, 'IN_PROGRESS', N'Đã nộp 2 bài review, chuẩn bị nộp thêm');
+(@event2, 1, 1703692800000, 0, 'JOINED', N'Đã đăng ký tham dự buổi gặp mặt'),
+(@event2, 5, 1703779200000, 0, 'JOINED', N'Rất mong được gặp tác giả yêu thích'),
+(@event3, 2, 1700409600000, 1, 'COMPLETED', N'Tham gia đầy đủ workshop và nhận chứng chỉ'),
+(@event4, 1, 1700841600000, 1, 'COMPLETED', N'Mua đơn hàng 1.2M, nhận voucher 200K'),
+(@event5, 2, 1703606400000, 0, 'JOINED', N'Đăng ký sớm để được ưu đãi đặc biệt'),
+(@event6, 5, 1702944000000, 0, 'IN_PROGRESS', N'Đã nộp 2 bài review, chuẩn bị nộp thêm');
 
 PRINT 'EVENT_PARTICIPANT inserted: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows';
+
+-- =====================================================
+-- 5. EVENT_GIFT_CLAIM - Yêu cầu nhận quà
+-- =====================================================
+
+PRINT '=== INSERTING EVENT_GIFT_CLAIM ===';
+
+-- Lấy IDs cần thiết cho event_gift_claim
+DECLARE @participant1_event1 INT = (SELECT id FROM event_participant WHERE event_id = @event1 AND user_id = 1);
+DECLARE @participant2_event1 INT = (SELECT id FROM event_participant WHERE event_id = @event1 AND user_id = 2);
+DECLARE @participant4_event1 INT = (SELECT id FROM event_participant WHERE event_id = @event1 AND user_id = 4);
+DECLARE @participant2_event3 INT = (SELECT id FROM event_participant WHERE event_id = @event3 AND user_id = 2);
+DECLARE @participant1_event4 INT = (SELECT id FROM event_participant WHERE event_id = @event4 AND user_id = 1);
+
+DECLARE @gift1_voucher100k INT = (SELECT id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%Voucher giảm giá 100K%');
+DECLARE @gift2_bookmark INT = (SELECT id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%Bộ bookmark cao cấp%');
+DECLARE @gift3_points INT = (SELECT id FROM event_gift WHERE event_id = @event1 AND gift_name LIKE N'%Điểm thưởng 500 điểm%');
+DECLARE @gift7_certificate INT = (SELECT id FROM event_gift WHERE event_id = @event3 AND gift_name LIKE N'%Chứng chỉ hoàn thành%');
+DECLARE @gift8_speedbook INT = (SELECT id FROM event_gift WHERE event_id = @event3 AND gift_name LIKE N'%Speed Reading Mastery%');
+DECLARE @gift9_voucher200k INT = (SELECT id FROM event_gift WHERE event_id = @event4 AND gift_name LIKE N'%Voucher giảm giá 200K%');
+
+INSERT INTO event_gift_claim (event_participant_id, event_gift_id, claimed_at, claim_status, delivery_method, 
+                              store_pickup_code, pickup_store_id, staff_confirmed_by, auto_delivered, completed_at, notes) VALUES
+
+-- Các yêu cầu nhận quà đã hoàn thành
+(@participant1_event1, @gift1_voucher100k, 1701562800000, 'COMPLETED', 'AUTO_DELIVERY', NULL, NULL, NULL, 1, 1701562860000, 
+    N'Voucher đã được tự động cấp vào tài khoản'),
+
+(@participant2_event1, @gift3_points, 1701650000000, 'COMPLETED', 'AUTO_DELIVERY', NULL, NULL, NULL, 1, 1701650060000, 
+    N'500 điểm đã được cộng vào tài khoản'),
+
+(@participant2_event3, @gift7_certificate, 1700510460000, 'COMPLETED', 'STORE_PICKUP', 'CERT2024001', 1, 5, 0, 1700596860000, 
+    N'Đã nhận chứng chỉ tại cửa hàng BookStation Central'),
+
+(@participant2_event3, @gift8_speedbook, 1700510520000, 'COMPLETED', 'STORE_PICKUP', 'BOOK2024001', 1, 5, 0, 1700596920000, 
+    N'Đã nhận sách tại cửa hàng cùng với chứng chỉ'),
+
+(@participant1_event4, @gift9_voucher200k, 1700841660000, 'COMPLETED', 'AUTO_DELIVERY', NULL, NULL, NULL, 1, 1700841720000, 
+    N'Voucher Black Friday đã được cấp tự động'),
+
+-- Các yêu cầu đang chờ xử lý
+(@participant4_event1, @gift2_bookmark, 1701820000000, 'PENDING', 'STORE_PICKUP', 'BOOK2024002', 2, NULL, 0, NULL, 
+    N'Chờ nhận bộ bookmark tại cửa hàng BookStation Flagship'),
+
+(@participant1_event1, @gift2_bookmark, 1701821000000, 'APPROVED', 'ONLINE_SHIPPING', NULL, NULL, NULL, 0, NULL, 
+    N'Đã duyệt, chuẩn bị giao hàng qua đơn vận chuyển');
+
+PRINT 'EVENT_GIFT_CLAIM inserted: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows';
+
+-- =====================================================
+-- 6. EVENT_HISTORY - Lịch sử sự kiện
+-- =====================================================
+
+PRINT '=== INSERTING EVENT_HISTORY ===';
+
+INSERT INTO event_history (event_id, action_type, description, performed_by, created_at, old_values, new_values) VALUES
+
+-- Lịch sử cho sự kiện "Thử thách đọc 30 ngày"
+(@event1, 'CREATED', N'Tạo sự kiện "Thử thách đọc 30 ngày - Tháng 12/2024"', 1, 1701388800000, NULL, 
+    N'{"event_name":"Thử thách đọc 30 ngày - Tháng 12/2024","status":"DRAFT","max_participants":1000}'),
+
+(@event1, 'PUBLISHED', N'Xuất bản sự kiện và mở đăng ký cho người dùng', 1, 1701475200000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+(@event1, 'STARTED', N'Sự kiện chính thức bắt đầu', 1, 1701475200000, 
+    N'{"status":"PUBLISHED"}', N'{"status":"ONGOING"}'),
+
+(@event1, 'UPDATED', N'Cập nhật số lượng người tham gia: 156/1000', NULL, 1703001600000, 
+    N'{"current_participants":120}', N'{"current_participants":156}'),
+
+-- Lịch sử cho sự kiện "Gặp gỡ tác giả Nguyễn Nhật Ánh"
+(@event2, 'CREATED', N'Tạo sự kiện gặp gỡ tác giả Nguyễn Nhật Ánh', 1, 1703606400000, NULL, 
+    N'{"event_name":"Gặp gỡ tác giả Nguyễn Nhật Ánh","location":"BookStation Flagship Store"}'),
+
+(@event2, 'PUBLISHED', N'Xuất bản sự kiện và mở đăng ký', 1, 1703692800000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+-- Lịch sử cho sự kiện "Workshop đọc nhanh" đã hoàn thành
+(@event3, 'CREATED', N'Tạo workshop kỹ thuật đọc nhanh', 1, 1700236800000, NULL, 
+    N'{"event_name":"Workshop Kỹ thuật đọc nhanh","max_participants":50}'),
+
+(@event3, 'PUBLISHED', N'Xuất bản workshop', 1, 1700323200000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+(@event3, 'STARTED', N'Workshop bắt đầu', 1, 1700496000000, 
+    N'{"status":"PUBLISHED"}', N'{"status":"ONGOING"}'),
+
+(@event3, 'COMPLETED', N'Workshop hoàn thành thành công với 50 người tham gia', 1, 1700510400000, 
+    N'{"status":"ONGOING"}', N'{"status":"COMPLETED"}'),
+
+-- Lịch sử cho sự kiện "Black Friday Sale"
+(@event4, 'CREATED', N'Tạo sự kiện Black Friday Sale 2024', 1, 1700668800000, NULL, 
+    N'{"event_name":"Black Friday Sale 2024","event_type":"PROMOTION"}'),
+
+(@event4, 'PUBLISHED', N'Xuất bản sự kiện khuyến mãi', 1, 1700755200000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+(@event4, 'STARTED', N'Black Friday Sale chính thức bắt đầu', 1, 1700755200000, 
+    N'{"status":"PUBLISHED"}', N'{"status":"ONGOING"}'),
+
+(@event4, 'UPDATED', N'Cập nhật số lượng người tham gia: 1247/5000', NULL, 1701000000000, 
+    N'{"current_participants":856}', N'{"current_participants":1247}'),
+
+-- Lịch sử cho sự kiện "Hội chợ sách Tết"
+(@event5, 'CREATED', N'Tạo sự kiện Hội chợ sách Tết 2025', 1, 1703520000000, NULL, 
+    N'{"event_name":"Hội chợ sách Tết 2025","location":"Công viên Tao Đàn"}'),
+
+(@event5, 'PUBLISHED', N'Xuất bản sự kiện Hội chợ sách Tết', 1, 1703606400000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+-- Lịch sử cho cuộc thi "Review sách hay"
+(@event6, 'CREATED', N'Tạo cuộc thi Review sách hay 2024', 1, 1702771200000, NULL, 
+    N'{"event_name":"Cuộc thi Review sách hay 2024","event_type":"CONTEST"}'),
+
+(@event6, 'PUBLISHED', N'Xuất bản cuộc thi', 1, 1702857600000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+(@event6, 'STARTED', N'Cuộc thi chính thức bắt đầu', 1, 1702857600000, 
+    N'{"status":"PUBLISHED"}', N'{"status":"ONGOING"}'),
+
+-- Lịch sử cho sự kiện đã hủy
+(@event8, 'CREATED', N'Tạo Workshop "Viết truyện ngắn"', 1, 1699545600000, NULL, 
+    N'{"event_name":"Workshop Viết truyện ngắn","max_participants":30}'),
+
+(@event8, 'PUBLISHED', N'Xuất bản workshop', 1, 1699632000000, 
+    N'{"status":"DRAFT"}', N'{"status":"PUBLISHED"}'),
+
+(@event8, 'CANCELLED', N'Hủy sự kiện do tác giả bận đột xuất', 1, 1699804800000, 
+    N'{"status":"PUBLISHED","current_participants":15}', N'{"status":"CANCELLED","cancelled_reason":"Tác giả bận đột xuất"}');
+
+PRINT 'EVENT_HISTORY inserted: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows';
 
 -- Bật lại foreign key checks
 EXEC sp_MSforeachtable "ALTER TABLE ? WITH CHECK CHECK CONSTRAINT all"

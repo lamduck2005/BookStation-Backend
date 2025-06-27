@@ -22,5 +22,4 @@ public interface EventParticipantService {
     void delete(Integer id);
     ApiResponse<EventParticipant> joinEvent(Integer eventId, Integer userId);
     ApiResponse<EventParticipant> completeTask(Integer participantId);
-    ApiResponse<EventParticipant> claimGift(Integer participantId, Integer giftId);
 }

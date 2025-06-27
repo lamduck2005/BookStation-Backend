@@ -7,7 +7,6 @@ import lombok.Setter;
 import org.datn.bookstation.entity.enums.GiftClaimStatus;
 import org.datn.bookstation.entity.enums.GiftDeliveryMethod;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter

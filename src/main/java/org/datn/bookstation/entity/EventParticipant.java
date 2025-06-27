@@ -34,13 +34,6 @@ public class EventParticipant {
     @ColumnDefault("0")
     private Boolean isWinner = false;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "gift_received_id")
-    private EventGift giftReceived;
-
-    @Column(name = "gift_claimed_at")
-    private Long giftClaimedAt;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "completion_status", length = 20)
     @ColumnDefault("'JOINED'")

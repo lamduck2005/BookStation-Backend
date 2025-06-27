@@ -17,9 +17,6 @@ public class EventParticipantResponse {
     private String userName;
     private Long joinedAt;
     private Boolean isWinner;
-    private Integer giftReceivedId;
-    private String giftReceivedName;
-    private Long giftClaimedAt;
     private ParticipantStatus completionStatus;
     private String notes;
 }

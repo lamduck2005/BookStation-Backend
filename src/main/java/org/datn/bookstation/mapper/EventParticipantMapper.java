@@ -11,7 +11,5 @@ public interface EventParticipantMapper {
     @Mapping(target = "event", ignore = true)
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "joinedAt", ignore = true)
-    @Mapping(target = "giftReceived", ignore = true)
-    @Mapping(target = "giftClaimedAt", ignore = true)
     EventParticipant toEventParticipant(EventParticipantRequest request);
 }

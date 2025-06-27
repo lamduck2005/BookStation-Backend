@@ -8,9 +8,6 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.EventParticipant;
 import org.datn.bookstation.entity.enums.ParticipantStatus;
 import org.datn.bookstation.service.EventParticipantService;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -130,14 +127,6 @@ public class EventParticipantController {
     public ResponseEntity<ApiResponse<EventParticipant>> completeParticipation(
             @PathVariable Integer participantId) {
         ApiResponse<EventParticipant> response = eventParticipantService.completeTask(participantId);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/{participantId}/claim-gift/{giftId}")
-    public ResponseEntity<ApiResponse<EventParticipant>> claimGift(
-            @PathVariable Integer participantId,
-            @PathVariable Integer giftId) {
-        ApiResponse<EventParticipant> response = eventParticipantService.claimGift(participantId, giftId);
         return ResponseEntity.ok(response);
     }
 

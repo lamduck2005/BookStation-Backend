@@ -6,13 +6,11 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.EventParticipantResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Event;
-import org.datn.bookstation.entity.EventGift;
 import org.datn.bookstation.entity.EventParticipant;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.enums.ParticipantStatus;
 import org.datn.bookstation.mapper.EventParticipantMapper;
 import org.datn.bookstation.mapper.EventParticipantResponseMapper;
-import org.datn.bookstation.repository.EventGiftRepository;
 import org.datn.bookstation.repository.EventParticipantRepository;
 import org.datn.bookstation.repository.EventRepository;
 import org.datn.bookstation.repository.UserRepository;
@@ -35,7 +33,6 @@ public class EventParticipantServiceImpl implements EventParticipantService {
     private final EventParticipantRepository eventParticipantRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
-    private final EventGiftRepository eventGiftRepository;
     private final EventParticipantMapper eventParticipantMapper;
     private final EventParticipantResponseMapper eventParticipantResponseMapper;
 
@@ -108,15 +105,6 @@ public class EventParticipantServiceImpl implements EventParticipantService {
         participant.setEvent(event);
         participant.setUser(user);
         
-        // Set gift if provided
-        if (request.getGiftReceivedId() != null) {
-            EventGift gift = eventGiftRepository.findById(request.getGiftReceivedId()).orElse(null);
-            if (gift == null) {
-                return new ApiResponse<>(404, "Không tìm thấy quà tặng", null);
-            }
-            participant.setGiftReceived(gift);
-        }
-        
         participant.setJoinedAt(Instant.now().toEpochMilli());
         EventParticipant saved = eventParticipantRepository.save(participant);
         return new ApiResponse<>(201, "Tạo mới thành công", saved);
@@ -146,17 +134,6 @@ public class EventParticipantServiceImpl implements EventParticipantService {
         existing.setIsWinner(request.getIsWinner());
         existing.setCompletionStatus(request.getCompletionStatus());
         existing.setNotes(request.getNotes());
-        
-        // Set gift if provided
-        if (request.getGiftReceivedId() != null) {
-            EventGift gift = eventGiftRepository.findById(request.getGiftReceivedId()).orElse(null);
-            if (gift == null) {
-                return new ApiResponse<>(404, "Không tìm thấy quà tặng", null);
-            }
-            existing.setGiftReceived(gift);
-        } else {
-            existing.setGiftReceived(null);
-        }
         
         EventParticipant saved = eventParticipantRepository.save(existing);
         return new ApiResponse<>(200, "Cập nhật thành công", saved);
@@ -225,37 +202,5 @@ public class EventParticipantServiceImpl implements EventParticipantService {
         EventParticipant saved = eventParticipantRepository.save(participant);
         
         return new ApiResponse<>(200, "Hoàn thành nhiệm vụ thành công", saved);
-    }
-
-    @Override
-    public ApiResponse<EventParticipant> claimGift(Integer participantId, Integer giftId) {
-        EventParticipant participant = eventParticipantRepository.findById(participantId).orElse(null);
-        if (participant == null) {
-            return new ApiResponse<>(404, "Không tìm thấy người tham gia", null);
-        }
-        
-        if (participant.getCompletionStatus() != ParticipantStatus.COMPLETED) {
-            return new ApiResponse<>(400, "Người tham gia chưa hoàn thành nhiệm vụ", null);
-        }
-        
-        EventGift gift = eventGiftRepository.findById(giftId).orElse(null);
-        if (gift == null) {
-            return new ApiResponse<>(404, "Không tìm thấy quà tặng", null);
-        }
-        
-        // Check if gift is available
-        if (gift.getRemainingQuantity() == null || gift.getRemainingQuantity() <= 0) {
-            return new ApiResponse<>(400, "Quà tặng đã hết", null);
-        }
-        
-        participant.setGiftReceived(gift);
-        participant.setGiftClaimedAt(Instant.now().toEpochMilli());
-        EventParticipant saved = eventParticipantRepository.save(participant);
-        
-        // Update gift remaining quantity
-        gift.setRemainingQuantity(gift.getRemainingQuantity() - 1);
-        eventGiftRepository.save(gift);
-        
-        return new ApiResponse<>(200, "Nhận quà thành công", saved);
     }
 }

@@ -8,7 +8,6 @@ public class EventParticipantRequest {
     private Integer eventId;
     private Integer userId;
     private Boolean isWinner;
-    private Integer giftReceivedId;
     private ParticipantStatus completionStatus;
     private String notes;
 }

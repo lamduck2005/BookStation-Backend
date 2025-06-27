@@ -18,9 +18,6 @@ public class EventParticipantResponseMapper {
         response.setUserName(participant.getUser() != null ? participant.getUser().getFullName() : null);
         response.setJoinedAt(participant.getJoinedAt());
         response.setIsWinner(participant.getIsWinner());
-        response.setGiftReceivedId(participant.getGiftReceived() != null ? participant.getGiftReceived().getId() : null);
-        response.setGiftReceivedName(participant.getGiftReceived() != null ? participant.getGiftReceived().getGiftName() : null);
-        response.setGiftClaimedAt(participant.getGiftClaimedAt());
         response.setCompletionStatus(participant.getCompletionStatus());
         response.setNotes(participant.getNotes());
         
