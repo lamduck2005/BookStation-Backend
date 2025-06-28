@@ -59,13 +59,33 @@ INSERT INTO event_category VALUES
 (2, 'Thử thách Đọc sách', 'Đọc nhiều sách trong khoảng thời gian', '/icons/reading.svg'),
 (3, 'Gặp gỡ Tác giả', 'Buổi giao lưu với tác giả', '/icons/author.svg'),
 (4, 'Khuyến mãi Mùa', 'Giảm giá theo mùa/dịp lễ', '/icons/sale.svg'),
-(5, 'Workshop Kỹ năng', 'Học kỹ năng đọc, viết', '/icons/workshop.svg');
+(5, 'Workshop Kỹ năng', 'Học kỹ năng đọc, viết', '/icons/workshop.svg'),
+(6, 'Hoạt động Tích điểm', 'Điểm danh hàng ngày, check-in nhận point', '/icons/checkin.svg');
 
 -- Mỗi category có thể có:
 -- - Icon riêng cho UI
 -- - Template email riêng  
 -- - Rules validation riêng
 -- - Landing page layout riêng
+```
+
+### **🎯 VÍ DỤ ĐẶC BIỆT: Sự kiện "Điểm danh nhận Point"**
+```sql
+-- EventType + EventCategory cho điểm danh:
+Event {
+  "eventName": "Check-in hàng ngày tháng 7",
+  "eventType": "DAILY_CHECKIN",            -- Hình thức: Điểm danh hàng ngày
+  "eventCategoryId": 6,                    -- Nội dung: "Hoạt động Tích điểm"  
+  "description": "Điểm danh mỗi ngày nhận 10 point",
+  "rules": "1 lần điểm danh/ngày, nhận 10 point/lần",
+  "isOnline": true
+}
+
+-- Quy trình:
+-- 1. User join event → status: JOINED
+-- 2. User điểm danh → status: COMPLETED (API: /complete)  
+-- 3. System tự động cộng point vào tài khoản
+-- 4. User có thể claim quà nếu đủ điều kiện
 ```
 
 ### **💡 Kết luận về `event_category`:**
@@ -204,14 +224,27 @@ INSERT INTO event_participant VALUES
 event_id: 1           -- Sự kiện nào
 user_id: 101          -- User nào
 joined_at: timestamp  -- Khi nào join
-completion_status:    -- Trạng thái hiện tại
-  'JOINED'     → Vừa tham gia
-  'ONGOING'    → Đang thực hiện  
-  'COMPLETED'  → Hoàn thành
-  'WINNER'     → Thắng giải
-  'DROPPED'    → Bỏ cuộc
+completion_status:    -- Trạng thái hiện tại (ParticipantStatus enum)
+  'JOINED'      → Vừa tham gia
+  'IN_PROGRESS' → Đang thực hiện nhiệm vụ
+  'COMPLETED'   → Hoàn thành (ĐÃ ĐIỂM DANH)
+  'FAILED'      → Không hoàn thành
 is_winner: boolean    -- Có phải winner không
 notes: text           -- Ghi chú riêng cho user này trong event này
+```
+
+### **🔄 WORKFLOW ĐIỂM DANH:**
+```sql
+-- Quy trình điểm danh nhận point:
+JOINED ──(bắt đầu làm)──▶ IN_PROGRESS ──(hoàn thành)──▶ COMPLETED ──▶ [Nhận Point]
+  │                                                        
+  └──(bỏ cuộc)──▶ FAILED (không nhận được gì)
+
+-- API tương ứng:
+-- 1. POST /event-participants/{eventId}/join → JOINED
+-- 2. Người dùng thực hiện nhiệm vụ → có thể update thành IN_PROGRESS  
+-- 3. POST /event-participants/{participantId}/complete → COMPLETED
+-- 4. System auto cộng point cho user
 ```
 
 ### **💡 Kết luận về `event_participant`:**

@@ -2,6 +2,7 @@ package org.datn.bookstation.specification;
 
 import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.enums.EventStatus;
+import org.datn.bookstation.entity.enums.EventType;
 import org.springframework.data.jpa.domain.Specification;
 
 import jakarta.persistence.criteria.Predicate;
@@ -9,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class EventSpecification {
-    public static Specification<Event> filterBy(String name, Integer categoryId, EventStatus status, Long startDate, Long endDate) {
+    public static Specification<Event> filterBy(String name, Integer categoryId, EventStatus status, EventType eventType, Long startDate, Long endDate) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             
@@ -26,6 +27,10 @@ public class EventSpecification {
             
             if (status != null) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+            
+            if (eventType != null) {
+                predicates.add(criteriaBuilder.equal(root.get("eventType"), eventType));
             }
             
             if (startDate != null) {

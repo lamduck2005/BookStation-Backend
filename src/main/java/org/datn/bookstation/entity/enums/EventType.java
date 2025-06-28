@@ -9,5 +9,8 @@ public enum EventType {
     PROMOTION,          // Sự kiện khuyến mãi
     CONTEST,            // Cuộc thi
     WORKSHOP,           // Hội thảo
+    DAILY_CHECKIN,      // Điểm danh hàng ngày
+    LOYALTY_PROGRAM,    // Chương trình khách hàng thân thiết
+    POINT_EARNING,      // Sự kiện tích điểm
     OTHER               // Khác
 }

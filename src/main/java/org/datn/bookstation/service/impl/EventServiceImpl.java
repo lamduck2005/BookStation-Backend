@@ -8,6 +8,7 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.EventCategory;
 import org.datn.bookstation.entity.enums.EventStatus;
+import org.datn.bookstation.entity.enums.EventType;
 import org.datn.bookstation.mapper.EventMapper;
 import org.datn.bookstation.mapper.EventResponseMapper;
 import org.datn.bookstation.repository.EventCategoryRepository;
@@ -35,9 +36,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public PaginationResponse<EventResponse> getAllWithPagination(int page, int size, String name, 
-            Integer categoryId, EventStatus status, Long startDate, Long endDate) {
+            Integer categoryId, EventStatus status, EventType eventType, Long startDate, Long endDate) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Specification<Event> specification = EventSpecification.filterBy(name, categoryId, status, startDate, endDate);
+        Specification<Event> specification = EventSpecification.filterBy(name, categoryId, status, eventType, startDate, endDate);
         Page<Event> eventPage = eventRepository.findAll(specification, pageable);
         
         List<EventResponse> eventResponses = eventPage.getContent().stream()

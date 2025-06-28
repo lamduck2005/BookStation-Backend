@@ -6,12 +6,13 @@ import org.datn.bookstation.dto.response.EventResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.enums.EventStatus;
+import org.datn.bookstation.entity.enums.EventType;
 
 import java.util.List;
 
 public interface EventService {
     PaginationResponse<EventResponse> getAllWithPagination(int page, int size, String name, 
-            Integer categoryId, EventStatus status, Long startDate, Long endDate);
+            Integer categoryId, EventStatus status, EventType eventType, Long startDate, Long endDate);
     List<Event> getAll();
     List<Event> getActiveEvents();
     Event getById(Integer id);

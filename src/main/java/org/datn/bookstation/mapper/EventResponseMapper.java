@@ -2,6 +2,7 @@ package org.datn.bookstation.mapper;
 
 import org.datn.bookstation.dto.response.EventResponse;
 import org.datn.bookstation.entity.Event;
+import org.datn.bookstation.entity.enums.EventType;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,6 +16,9 @@ public class EventResponseMapper {
         response.setDescription(event.getDescription());
         response.setCategoryId(event.getEventCategory() != null ? event.getEventCategory().getId() : null);
         response.setCategoryName(event.getEventCategory() != null ? event.getEventCategory().getCategoryName() : null);
+        response.setEventType(event.getEventType() != null ? event.getEventType().name() : null);
+        response.setEventTypeName(event.getEventType() != null ? getEventTypeDisplayName(event.getEventType()) : null);
+        response.setImageUrl(event.getImageUrl());
         response.setStartDate(event.getStartDate());
         response.setEndDate(event.getEndDate());
         response.setMaxParticipants(event.getMaxParticipants());
@@ -24,5 +28,23 @@ public class EventResponseMapper {
         response.setUpdatedAt(event.getUpdatedAt());
         
         return response;
+    }
+
+    private String getEventTypeDisplayName(EventType eventType) {
+        switch (eventType) {
+            case BOOK_LAUNCH: return "Sự kiện ra mắt sách mới";
+            case AUTHOR_MEET: return "Gặp gỡ tác giả";
+            case READING_CHALLENGE: return "Thử thách đọc sách";
+            case BOOK_FAIR: return "Hội chợ sách";
+            case SEASONAL_EVENT: return "Sự kiện theo mùa";
+            case PROMOTION: return "Sự kiện khuyến mãi";
+            case CONTEST: return "Cuộc thi";
+            case WORKSHOP: return "Hội thảo";
+            case DAILY_CHECKIN: return "Điểm danh hàng ngày";
+            case LOYALTY_PROGRAM: return "Chương trình khách hàng thân thiết";
+            case POINT_EARNING: return "Sự kiện tích điểm";
+            case OTHER: return "Khác";
+            default: return eventType.name();
+        }
     }
 }

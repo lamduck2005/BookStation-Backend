@@ -6,13 +6,16 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.EventResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
+import org.datn.bookstation.dto.response.EnumOptionResponse;
 import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.enums.EventStatus;
+import org.datn.bookstation.entity.enums.EventType;
 import org.datn.bookstation.service.EventService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,9 +32,10 @@ public class EventController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) EventStatus status,
+            @RequestParam(required = false) EventType eventType,
             @RequestParam(required = false) Long startDate,
             @RequestParam(required = false) Long endDate) {
-        PaginationResponse<EventResponse> events = eventService.getAllWithPagination(page, size, name, categoryId, status, startDate, endDate);
+        PaginationResponse<EventResponse> events = eventService.getAllWithPagination(page, size, name, categoryId, status, eventType, startDate, endDate);
         ApiResponse<PaginationResponse<EventResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", events);
         return ResponseEntity.ok(response);
     }
@@ -100,5 +104,60 @@ public class EventController {
         List<Event> events = eventService.getEventsByCategory(categoryId);
         ApiResponse<List<Event>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", events);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/event-types")
+    public ResponseEntity<ApiResponse<List<EnumOptionResponse>>> getEventTypes() {
+        List<EnumOptionResponse> eventTypes = Arrays.stream(EventType.values())
+            .map(type -> new EnumOptionResponse(type.name(), getEventTypeDisplayName(type)))
+            .collect(Collectors.toList());
+        ApiResponse<List<EnumOptionResponse>> response = new ApiResponse<>(
+            HttpStatus.OK.value(), 
+            "Lấy danh sách loại sự kiện thành công", 
+            eventTypes
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/event-statuses")
+    public ResponseEntity<ApiResponse<List<EnumOptionResponse>>> getEventStatuses() {
+        List<EnumOptionResponse> eventStatuses = Arrays.stream(EventStatus.values())
+            .map(status -> new EnumOptionResponse(status.name(), getEventStatusDisplayName(status)))
+            .collect(Collectors.toList());
+        ApiResponse<List<EnumOptionResponse>> response = new ApiResponse<>(
+            HttpStatus.OK.value(), 
+            "Lấy danh sách trạng thái sự kiện thành công", 
+            eventStatuses
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    private String getEventTypeDisplayName(EventType eventType) {
+        switch (eventType) {
+            case BOOK_LAUNCH: return "Sự kiện ra mắt sách mới";
+            case AUTHOR_MEET: return "Gặp gỡ tác giả";
+            case READING_CHALLENGE: return "Thử thách đọc sách";
+            case BOOK_FAIR: return "Hội chợ sách";
+            case SEASONAL_EVENT: return "Sự kiện theo mùa";
+            case PROMOTION: return "Sự kiện khuyến mãi";
+            case CONTEST: return "Cuộc thi";
+            case WORKSHOP: return "Hội thảo";
+            case DAILY_CHECKIN: return "Điểm danh hàng ngày";
+            case LOYALTY_PROGRAM: return "Chương trình khách hàng thân thiết";
+            case POINT_EARNING: return "Sự kiện tích điểm";
+            case OTHER: return "Khác";
+            default: return eventType.name();
+        }
+    }
+
+    private String getEventStatusDisplayName(EventStatus eventStatus) {
+        switch (eventStatus) {
+            case DRAFT: return "Bản nháp";
+            case PUBLISHED: return "Đã công bố";
+            case ONGOING: return "Đang diễn ra";
+            case COMPLETED: return "Đã kết thúc";
+            case CANCELLED: return "Đã hủy";
+            default: return eventStatus.name();
+        }
     }
 }

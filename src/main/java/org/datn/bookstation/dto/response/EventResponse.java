@@ -14,6 +14,9 @@ public class EventResponse {
     private String description;
     private Integer categoryId;
     private String categoryName;
+    private String eventType;
+    private String eventTypeName;
+    private String imageUrl;
     private Long startDate;
     private Long endDate;
     private Long registrationDeadline;
