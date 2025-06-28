@@ -11,7 +11,6 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -36,16 +35,15 @@ public class Order {
 
     @NotNull
     @Column(name = "order_date", nullable = false)
-    private Instant orderDate;
+    private Long orderDate;
 
     @NotNull
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @ColumnDefault("1")
+    @Column(name = "status")
+    private Byte status;
     
     @Enumerated(EnumType.STRING)
     @Column(name = "order_status", length = 20)
@@ -57,13 +55,11 @@ public class Order {
     @Column(name = "order_type", nullable = false, length = 20)
     private String orderType;
 
-    @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -78,5 +74,14 @@ public class Order {
     @Column(name = "code", nullable = false, length = 50)
     private String code;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
 
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

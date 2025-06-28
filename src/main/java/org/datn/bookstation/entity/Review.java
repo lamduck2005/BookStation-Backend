@@ -13,7 +13,6 @@ import lombok.experimental.FieldDefaults;
 import org.datn.bookstation.entity.enums.ReviewStatus;
 import org.hibernate.annotations.Nationalized;
 
-
 @Entity
 @Table(name = "review")
 @Getter
@@ -42,7 +41,6 @@ public class Review {
     @Lob
     String comment;
 
-    @NotNull
     @Column(name = "review_date", nullable = false)
     Long reviewDate;
 
@@ -58,4 +56,14 @@ public class Review {
 
     Long updatedBy;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

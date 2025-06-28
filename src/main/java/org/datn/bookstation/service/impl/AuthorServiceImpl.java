@@ -7,7 +7,6 @@ import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.service.AuthorService;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -32,7 +31,7 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public ApiResponse<Author> add(Author author) {
         try {
-            author.setCreatedAt(Instant.now());
+            // author.setCreatedAt(Instant.now());
             author.setCreatedBy(1);
             return new ApiResponse<>(200,"thêm thành công",authorRepository.save(author));
         } catch (Exception e) {
@@ -51,7 +50,7 @@ public class AuthorServiceImpl implements AuthorService {
             }
             author.setCreatedAt(authorToUpdate.getCreatedAt());
             author.setCreatedBy(authorToUpdate.getCreatedBy());
-            author.setUpdatedAt(Instant.now());
+            // author.setUpdatedAt(Instant.now());
             author.setUpdatedBy(1);
             author.setId(id);
             return new ApiResponse<>(200,"Thêm thành công",authorRepository.save(author));

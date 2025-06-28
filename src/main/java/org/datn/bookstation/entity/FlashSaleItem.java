@@ -15,7 +15,6 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Entity
 @Table(name = "flash_sale_item")
@@ -56,14 +55,12 @@ public class FlashSaleItem {
     @Column(name = "max_purchase_per_user")
     Integer maxPurchasePerUser;
 
-    @NotNull
     @Column(name = "created_at", nullable = false)
     Long createdAt;
 
     @Column(name = "updated_at")
     Long updatedAt;
 
-    @NotNull
     @Column(name = "created_by", nullable = false)
     Long createdBy;
 
@@ -72,4 +69,14 @@ public class FlashSaleItem {
 
     Byte status;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

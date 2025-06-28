@@ -5,10 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
-import java.time.Instant;
 import java.time.LocalDate;
 
 @Getter
@@ -35,13 +33,11 @@ public class Author {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
-    @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -50,6 +46,14 @@ public class Author {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
 
-
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

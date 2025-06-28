@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,8 +20,6 @@ import lombok.experimental.FieldDefaults;
 
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
-
-import java.time.Instant;
 
 @Entity
 @Table(name = "flash_sale")
@@ -59,4 +59,14 @@ public class FlashSale {
 
     Long updatedBy;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

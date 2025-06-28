@@ -39,7 +39,7 @@ public class CategoryServiceImpl implements CategoryService {
             category.setParentCategory(null);
         }
         category.setId(null);
-        category.setCreatedAt(Instant.now());
+        // category.setCreatedAt(Instant.now());
         category.setCreatedBy(1);
         category.setStatus("Hoạt Động");
 
@@ -59,7 +59,7 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setCategoryName(category.getCategoryName());
             categoryById.setDescription(category.getDescription());
             categoryById.setStatus(category.getStatus());
-            categoryById.setUpdatedAt(Instant.now());
+            // categoryById.setUpdatedAt(Instant.now());
             categoryById.setUpdatedBy(1);
             if (category.getParentCategory() == null) {
                 categoryById.setParentCategory(null);

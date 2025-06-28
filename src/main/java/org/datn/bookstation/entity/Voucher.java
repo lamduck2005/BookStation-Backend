@@ -12,9 +12,10 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -38,11 +39,11 @@ public class Voucher {
 
     @NotNull
     @Column(name = "start_time", nullable = false)
-    private Instant startTime;
+    private Long startTime;
 
     @NotNull
     @Column(name = "end_time", nullable = false)
-    private Instant endTime;
+    private Long endTime;
 
     @Column(name = "min_order_value", precision = 10, scale = 2)
     private BigDecimal minOrderValue;
@@ -50,18 +51,16 @@ public class Voucher {
     @Column(name = "max_discount_value", precision = 10, scale = 2)
     private BigDecimal maxDiscountValue;
 
-
+    @ColumnDefault("1")
     @Nationalized
     @Column(name = "status", length = 50)
     private byte status;
 
-    @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -70,4 +69,14 @@ public class Voucher {
     @Column(name = "updated_by")
     private String updatedBy;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }
