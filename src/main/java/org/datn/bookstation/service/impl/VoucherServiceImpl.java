@@ -50,8 +50,8 @@ public class VoucherServiceImpl implements VoucherService {
             dto.setMinOrderValue(voucher.getMinOrderValue());
             dto.setMaxDiscountValue(voucher.getMaxDiscountValue());
             dto.setStatus(voucher.getStatus());
-            // dto.setCreatedAt(voucher.getCreatedAt());
-            // dto.setUpdatedAt(voucher.getUpdatedAt());
+            dto.setCreatedAt(voucher.getCreatedAt());
+            dto.setUpdatedAt(voucher.getUpdatedAt());
             dto.setCreatedBy(voucher.getCreatedBy());
             dto.setUpdatedBy(voucher.getUpdatedBy());
             return dto;
@@ -76,10 +76,9 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMinOrderValue(request.getMinOrderValue());
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setStatus(request.getStatus());
-        // voucher.setCreatedAt(Instant.now());
-        // voucher.setUpdatedAt(Instant.now());
         voucher.setCreatedBy(request.getCreatedBy());
         voucher.setUpdatedBy(request.getUpdatedBy());
+        // createdAt và updatedAt sẽ tự động set ở @PrePersist
         voucherRepository.save(voucher);
     }
 
@@ -94,8 +93,8 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMinOrderValue(request.getMinOrderValue());
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setStatus(request.getStatus());
-        // voucher.setUpdatedAt(Instant.now());
         voucher.setUpdatedBy(request.getUpdatedBy());
+        // updatedAt sẽ tự động set ở @PreUpdate
         voucherRepository.save(voucher);
     }
 
