@@ -1,5 +1,6 @@
 package org.datn.bookstation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -40,6 +41,7 @@ public class Event {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_category_id")
+    @JsonIgnoreProperties("events")
     private EventCategory eventCategory;
 
     @Enumerated(EnumType.STRING)
@@ -60,9 +62,9 @@ public class Event {
     @ColumnDefault("0")
     private Integer currentParticipants = 0;
 
-    @Size(max = 500)
+    @Size(max = 2000)
     @Nationalized
-    @Column(name = "image_url", length = 500)
+    @Column(name = "image_url", length = 2000)
     private String imageUrl;
 
     @Size(max = 500)

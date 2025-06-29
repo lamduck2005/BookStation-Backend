@@ -15,6 +15,7 @@ import org.datn.bookstation.repository.EventCategoryRepository;
 import org.datn.bookstation.repository.EventRepository;
 import org.datn.bookstation.service.EventService;
 import org.datn.bookstation.specification.EventSpecification;
+import org.datn.bookstation.validator.ImageUrlValidator;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ public class EventServiceImpl implements EventService {
     private final EventCategoryRepository eventCategoryRepository;
     private final EventMapper eventMapper;
     private final EventResponseMapper eventResponseMapper;
+    private final ImageUrlValidator imageUrlValidator;
 
     @Override
     public PaginationResponse<EventResponse> getAllWithPagination(int page, int size, String name, 
@@ -71,11 +73,37 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public ApiResponse<Event> add(EventRequest request) {
-        if (eventRepository.existsByEventName(request.getEventName())) {
+        // Trim và normalize tên sự kiện
+        String normalizedEventName = request.getEventName() != null ? request.getEventName().trim() : "";
+        
+        if (normalizedEventName.isEmpty()) {
+            return new ApiResponse<>(400, "Tên sự kiện không được để trống", null);
+        }
+        
+        if (eventRepository.existsByEventNameIgnoreCase(normalizedEventName)) {
             return new ApiResponse<>(400, "Tên sự kiện đã tồn tại", null);
         }
         
         Event event = eventMapper.toEvent(request);
+        // Set lại tên đã normalize
+        event.setEventName(normalizedEventName);
+        
+        // Validate image URLs
+        try {
+            imageUrlValidator.validate(request.getImageUrls());
+        } catch (IllegalArgumentException e) {
+            return new ApiResponse<>(400, e.getMessage(), null);
+        }
+        
+        // Process image URLs - convert array to comma-separated string
+        String imageUrlsString = "";
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            imageUrlsString = String.join(",", request.getImageUrls());
+        } else if (request.getImageUrl() != null && !request.getImageUrl().isEmpty()) {
+            // Backward compatibility - use single imageUrl if imageUrls is not provided
+            imageUrlsString = request.getImageUrl();
+        }
+        event.setImageUrl(imageUrlsString);
         
         // Set category if provided
         if (request.getEventCategoryId() != null) {
@@ -98,9 +126,17 @@ public class EventServiceImpl implements EventService {
             return new ApiResponse<>(404, "Không tìm thấy sự kiện", null);
         }
         
+        // Trim và normalize tên sự kiện
+        String normalizedEventName = request.getEventName() != null ? request.getEventName().trim() : "";
+        
+        if (normalizedEventName.isEmpty()) {
+            return new ApiResponse<>(400, "Tên sự kiện không được để trống", null);
+        }
+        
         // Check if name is being changed and already exists
-        if (!existing.getEventName().equals(request.getEventName()) && 
-            eventRepository.existsByEventName(request.getEventName())) {
+        String existingNormalizedName = existing.getEventName() != null ? existing.getEventName().trim() : "";
+        if (!existingNormalizedName.equalsIgnoreCase(normalizedEventName) && 
+            eventRepository.existsByEventNameIgnoreCase(normalizedEventName)) {
             return new ApiResponse<>(400, "Tên sự kiện đã tồn tại", null);
         }
         
@@ -113,14 +149,31 @@ public class EventServiceImpl implements EventService {
             existing.setEventCategory(category);
         }
         
-        existing.setEventName(request.getEventName());
+        existing.setEventName(normalizedEventName);
         existing.setDescription(request.getDescription());
         existing.setEventType(request.getEventType());
         existing.setStatus(request.getStatus());
         existing.setStartDate(request.getStartDate());
         existing.setEndDate(request.getEndDate());
         existing.setMaxParticipants(request.getMaxParticipants());
-        existing.setImageUrl(request.getImageUrl());
+        
+        // Validate image URLs
+        try {
+            imageUrlValidator.validate(request.getImageUrls());
+        } catch (IllegalArgumentException e) {
+            return new ApiResponse<>(400, e.getMessage(), null);
+        }
+        
+        // Process image URLs - convert array to comma-separated string
+        String imageUrlsString = "";
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            imageUrlsString = String.join(",", request.getImageUrls());
+        } else if (request.getImageUrl() != null && !request.getImageUrl().isEmpty()) {
+            // Backward compatibility - use single imageUrl if imageUrls is not provided
+            imageUrlsString = request.getImageUrl();
+        }
+        existing.setImageUrl(imageUrlsString);
+        
         existing.setLocation(request.getLocation());
         existing.setRules(request.getRules());
         existing.setIsOnline(request.getIsOnline());

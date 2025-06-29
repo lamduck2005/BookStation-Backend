@@ -5,6 +5,10 @@ import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.enums.EventType;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 @Component
 public class EventResponseMapper {
     public EventResponse toResponse(Event event) {
@@ -18,7 +22,15 @@ public class EventResponseMapper {
         response.setCategoryName(event.getEventCategory() != null ? event.getEventCategory().getCategoryName() : null);
         response.setEventType(event.getEventType() != null ? event.getEventType().name() : null);
         response.setEventTypeName(event.getEventType() != null ? getEventTypeDisplayName(event.getEventType()) : null);
-        response.setImageUrl(event.getImageUrl());
+        
+        // Convert string to array for imageUrls and set backward compatible imageUrl
+        List<String> imageUrls = new ArrayList<>();
+        if (event.getImageUrl() != null && !event.getImageUrl().isEmpty()) {
+            imageUrls = Arrays.asList(event.getImageUrl().split(","));
+        }
+        response.setImageUrls(imageUrls);
+        response.setImageUrl(imageUrls.isEmpty() ? "" : imageUrls.get(0)); // First image for backward compatibility
+        
         response.setStartDate(event.getStartDate());
         response.setEndDate(event.getEndDate());
         response.setMaxParticipants(event.getMaxParticipants());

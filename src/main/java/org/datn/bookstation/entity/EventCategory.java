@@ -1,5 +1,6 @@
 package org.datn.bookstation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -48,6 +49,7 @@ public class EventCategory {
     private Long updatedAt;
 
     @OneToMany(mappedBy = "eventCategory")
+    @JsonIgnore
     private Set<Event> events = new LinkedHashSet<>();
 
     @PrePersist

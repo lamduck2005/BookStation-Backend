@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -16,7 +17,8 @@ public class EventResponse {
     private String categoryName;
     private String eventType;
     private String eventTypeName;
-    private String imageUrl;
+    private String imageUrl; // First image for backward compatibility
+    private List<String> imageUrls; // Array of all images
     private Long startDate;
     private Long endDate;
     private Long registrationDeadline;

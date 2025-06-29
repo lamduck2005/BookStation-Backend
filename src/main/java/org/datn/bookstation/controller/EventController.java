@@ -55,10 +55,10 @@ public class EventController {
     public ResponseEntity<ApiResponse<Event>> add(@RequestBody EventRequest eventRequest) {
         ApiResponse<Event> response = eventService.add(eventRequest);
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, response.getMessage(), null));
         }
         if (response.getStatus() == 400) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, "Tên sự kiện đã tồn tại", null));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, response.getMessage(), null));
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
     }
@@ -67,10 +67,10 @@ public class EventController {
     public ResponseEntity<ApiResponse<Event>> update(@PathVariable Integer id, @RequestBody EventRequest eventRequest) {
         ApiResponse<Event> response = eventService.update(eventRequest, id);
         if (response.getStatus() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, response.getMessage(), null));
         }
         if (response.getStatus() == 400) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, "Dữ liệu không hợp lệ", null));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, response.getMessage(), null));
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
