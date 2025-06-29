@@ -56,7 +56,7 @@ public class EventController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Event>> add(@RequestBody EventRequest eventRequest) {
+    public ResponseEntity<ApiResponse<EventResponse>> add(@RequestBody EventRequest eventRequest) {
         ApiResponse<Event> response = eventService.add(eventRequest);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, response.getMessage(), null));
@@ -64,11 +64,13 @@ public class EventController {
         if (response.getStatus() == 400) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, response.getMessage(), null));
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
+        // Convert Event entity to EventResponse DTO để tránh lỗi serialization
+        EventResponse eventResponse = eventResponseMapper.toResponse(response.getData());
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", eventResponse));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Event>> update(@PathVariable Integer id, @RequestBody EventRequest eventRequest) {
+    public ResponseEntity<ApiResponse<EventResponse>> update(@PathVariable Integer id, @RequestBody EventRequest eventRequest) {
         ApiResponse<Event> response = eventService.update(eventRequest, id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, response.getMessage(), null));
@@ -76,7 +78,9 @@ public class EventController {
         if (response.getStatus() == 400) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, response.getMessage(), null));
         }
-        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
+        // Convert Event entity to EventResponse DTO để tránh lỗi serialization
+        EventResponse eventResponse = eventResponseMapper.toResponse(response.getData());
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", eventResponse));
     }
 
     @DeleteMapping("/{id}")
@@ -86,12 +90,14 @@ public class EventController {
     }
 
     @PatchMapping("/{id}/toggle-status")
-    public ResponseEntity<ApiResponse<Event>> toggleStatus(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<EventResponse>> toggleStatus(@PathVariable Integer id) {
         ApiResponse<Event> response = eventService.toggleStatus(id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
-        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
+        // Convert Event entity to EventResponse DTO để tránh lỗi serialization
+        EventResponse eventResponse = eventResponseMapper.toResponse(response.getData());
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", eventResponse));
     }
 
     @GetMapping("/dropdown")
