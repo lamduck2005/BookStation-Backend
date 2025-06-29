@@ -16,16 +16,19 @@ public class EventResponse {
     private Integer categoryId;
     private String categoryName;
     private String eventType;
-    private String eventTypeName;
+    private String eventTypeName; // Loại hình hiển thị (VD: "Sự kiện ra mắt sách mới")
     private String imageUrl; // First image for backward compatibility
     private List<String> imageUrls; // Array of all images
     private Long startDate;
     private Long endDate;
-    private Long registrationDeadline;
     private Integer maxParticipants;
     private Integer currentParticipants;
     private BigDecimal entryFee;
-    private Byte status;
+    private String status; // Trạng thái gốc: "DRAFT", "PUBLISHED", "ONGOING", "COMPLETED", "CANCELLED"
+    private String statusName; // Trạng thái hiển thị (VD: "Đang diễn ra")
+    private String location; // Địa điểm
+    private Boolean isOnline; // Có phải sự kiện online không
+    private String rules; // Quy định
     private Long createdAt;
     private Long updatedAt;
 }

@@ -10,6 +10,7 @@ import org.datn.bookstation.dto.response.EnumOptionResponse;
 import org.datn.bookstation.entity.Event;
 import org.datn.bookstation.entity.enums.EventStatus;
 import org.datn.bookstation.entity.enums.EventType;
+import org.datn.bookstation.mapper.EventResponseMapper;
 import org.datn.bookstation.service.EventService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/events")
 public class EventController {
     private final EventService eventService;
+    private final EventResponseMapper eventResponseMapper;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<EventResponse>>> getAll(
@@ -41,13 +43,15 @@ public class EventController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Event>> getById(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<EventResponse>> getById(@PathVariable Integer id) {
         Event event = eventService.getById(id);
         if (event == null) {
-            ApiResponse<Event> response = new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Không tìm thấy", null);
+            ApiResponse<EventResponse> response = new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Không tìm thấy", null);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-        ApiResponse<Event> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", event);
+        // Sử dụng EventResponseMapper để có đầy đủ thông tin địa điểm, loại hình, quy định, trạng thái
+        EventResponse eventResponse = eventResponseMapper.toResponse(event);
+        ApiResponse<EventResponse> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", eventResponse);
         return ResponseEntity.ok(response);
     }
 

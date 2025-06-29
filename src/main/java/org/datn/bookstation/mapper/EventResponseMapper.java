@@ -2,6 +2,7 @@ package org.datn.bookstation.mapper;
 
 import org.datn.bookstation.dto.response.EventResponse;
 import org.datn.bookstation.entity.Event;
+import org.datn.bookstation.entity.enums.EventStatus;
 import org.datn.bookstation.entity.enums.EventType;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +36,11 @@ public class EventResponseMapper {
         response.setEndDate(event.getEndDate());
         response.setMaxParticipants(event.getMaxParticipants());
         response.setCurrentParticipants(event.getCurrentParticipants());
-        response.setStatus(event.getStatus() != null ? (byte)event.getStatus().ordinal() : null);
+        response.setStatus(event.getStatus() != null ? event.getStatus().name() : null); // Trả về string: "ONGOING", "COMPLETED"
+        response.setStatusName(event.getStatus() != null ? getEventStatusDisplayName(event.getStatus()) : null);
+        response.setLocation(event.getLocation()); // Địa điểm
+        response.setIsOnline(event.getIsOnline()); // Có phải online không
+        response.setRules(event.getRules()); // Quy định
         response.setCreatedAt(event.getCreatedAt());
         response.setUpdatedAt(event.getUpdatedAt());
         
@@ -57,6 +62,17 @@ public class EventResponseMapper {
             case POINT_EARNING: return "Sự kiện tích điểm";
             case OTHER: return "Khác";
             default: return eventType.name();
+        }
+    }
+
+    private String getEventStatusDisplayName(EventStatus eventStatus) {
+        switch (eventStatus) {
+            case DRAFT: return "Bản nháp";
+            case PUBLISHED: return "Đã công bố";
+            case ONGOING: return "Đang diễn ra";
+            case COMPLETED: return "Đã kết thúc";
+            case CANCELLED: return "Đã hủy";
+            default: return eventStatus.name();
         }
     }
 }
