@@ -8,8 +8,6 @@ import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
-import java.time.Instant;
-
 @Getter
 @Setter
 @Entity
@@ -46,18 +44,16 @@ public class Supplier {
     @Column(name = "address")
     private String address;
 
-
+    @ColumnDefault("1")
     @Nationalized
     @Column(name = "status", length = 50)
     private byte status;
 
-    @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -66,4 +62,14 @@ public class Supplier {
     @Column(name = "updated_by")
     private String updatedBy;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

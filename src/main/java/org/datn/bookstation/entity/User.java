@@ -10,7 +10,6 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -51,12 +50,10 @@ public class User {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @ColumnDefault("1")
+    @Column(name = "status")
+    private Byte status;
 
-    @NotNull
     @Column(name = "created_at")
     private Long createdAt;
 
@@ -72,4 +69,14 @@ public class User {
     @Column(name = "total_spent", precision = 10, scale = 2)
     private BigDecimal totalSpent;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

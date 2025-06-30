@@ -14,6 +14,6 @@ public class ParentCategoryResponse {
     private Integer id;
     private String categoryName;
     private String description;
-    private String status;
+    private Byte status;
     private List<ParentCategoryResponse> parentCategory = new ArrayList<>();
 }

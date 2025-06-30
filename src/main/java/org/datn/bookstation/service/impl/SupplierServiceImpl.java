@@ -12,7 +12,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -51,8 +50,8 @@ public class SupplierServiceImpl implements SupplierService {
             dto.setEmail(supplier.getEmail());
             dto.setAddress(supplier.getAddress());
             dto.setStatus(supplier.getStatus());
-            dto.setCreatedAt(supplier.getCreatedAt());
-            dto.setUpdatedAt(supplier.getUpdatedAt());
+            // dto.setCreatedAt(supplier.getCreatedAt());
+            // dto.setUpdatedAt(supplier.getUpdatedAt());
             dto.setCreatedBy(supplier.getCreatedBy());
             dto.setUpdatedBy(supplier.getUpdatedBy());
             return dto;
@@ -76,8 +75,8 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setEmail(request.getEmail());
         supplier.setAddress(request.getAddress());
         supplier.setStatus((byte) 1);
-        supplier.setCreatedAt(Instant.now());
-        supplier.setUpdatedAt(Instant.now());
+        // supplier.setCreatedAt(Instant.now());
+        // supplier.setUpdatedAt(Instant.now());
         supplier.setCreatedBy(request.getCreatedBy());
         supplier.setUpdatedBy(request.getCreatedBy());
         Supplier saved = supplierRepository.save(supplier);
@@ -99,7 +98,7 @@ public class SupplierServiceImpl implements SupplierService {
             supplier.setStatus(request.getStatus());
         }
 
-        supplier.setUpdatedAt(Instant.now());
+        // supplier.setUpdatedAt(Instant.now());
         supplier.setUpdatedBy(request.getUpdatedBy());
 
         supplierRepository.save(supplier);
@@ -117,7 +116,7 @@ public class SupplierServiceImpl implements SupplierService {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
         supplier.setStatus(status);
-        supplier.setUpdatedAt(Instant.now());
+        // supplier.setUpdatedAt(Instant.now());
         supplier.setUpdatedBy(updatedBy);
         supplierRepository.save(supplier);
     }
