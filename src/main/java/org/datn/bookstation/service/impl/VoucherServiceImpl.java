@@ -76,10 +76,9 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMinOrderValue(request.getMinOrderValue());
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setStatus(request.getStatus());
-        voucher.setCreatedAt(Instant.now());
-        voucher.setUpdatedAt(Instant.now());
         voucher.setCreatedBy(request.getCreatedBy());
         voucher.setUpdatedBy(request.getUpdatedBy());
+        // createdAt và updatedAt sẽ tự động set ở @PrePersist
         voucherRepository.save(voucher);
     }
 
@@ -94,8 +93,8 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMinOrderValue(request.getMinOrderValue());
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setStatus(request.getStatus());
-        voucher.setUpdatedAt(Instant.now());
         voucher.setUpdatedBy(request.getUpdatedBy());
+        // updatedAt sẽ tự động set ở @PreUpdate
         voucherRepository.save(voucher);
     }
 
@@ -104,7 +103,7 @@ public class VoucherServiceImpl implements VoucherService {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Voucher not found"));
         voucher.setStatus(status);
-        voucher.setUpdatedAt(Instant.now());
+        // voucher.setUpdatedAt(Instant.now());
         voucher.setUpdatedBy(updatedBy);
         voucherRepository.save(voucher);
     }

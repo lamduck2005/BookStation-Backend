@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 @Getter
@@ -30,9 +31,8 @@ public class Role {
     @Column(name = "description")
     private String description;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @ColumnDefault("1")
+    @Column(name = "status")
+    private Byte status;
 
 }

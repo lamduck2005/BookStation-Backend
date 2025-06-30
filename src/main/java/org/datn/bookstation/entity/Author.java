@@ -28,6 +28,7 @@ public class Author {
     private String authorName;
 
     @Nationalized
+    @Lob
     @Column(name = "biography")
     private String biography;
 
@@ -35,6 +36,7 @@ public class Author {
     private LocalDate birthDate;
 
     @NotNull
+    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -48,8 +50,14 @@ public class Author {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
-    @Column(name = "status")
-    private Byte status;
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
 
-
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }

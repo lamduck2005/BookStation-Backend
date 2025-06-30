@@ -8,8 +8,6 @@ import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
-import java.time.Instant;
-
 @Getter
 @Setter
 @Entity
@@ -24,13 +22,11 @@ public class Cart {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -39,9 +35,18 @@ public class Cart {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
-    @Size(max = 50)
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private String status;
+    @ColumnDefault("1")
+    @Column(name = "status")
+    private Byte status;
 
+    @PrePersist
+    protected void onCreate() {
+        createdAt = System.currentTimeMillis();
+        updatedAt = System.currentTimeMillis();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = System.currentTimeMillis();
+    }
 }
