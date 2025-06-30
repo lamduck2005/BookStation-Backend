@@ -2,6 +2,7 @@ package org.datn.bookstation.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.datn.bookstation.constants.UploadModule;
 import org.datn.bookstation.configuration.UploadProperties;
 import org.datn.bookstation.exception.FileUploadException;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,7 @@ public class FileUploadService {
 
     private final SecureRandom random = new SecureRandom();
 
-    public List<String> saveEventImages(MultipartFile[] files) {
+    public List<String> saveImages(MultipartFile[] files, String module) {
         if (files == null || files.length == 0) {
             throw new FileUploadException("No files provided", "NO_FILES");
         }
@@ -51,7 +52,7 @@ public class FileUploadService {
         List<String> urls = new ArrayList<>();
         for (MultipartFile file : files) {
             if (!file.isEmpty()) {
-                String url = saveEventImage(file);
+                String url = saveImage(file, module);
                 urls.add(url);
             }
         }
@@ -59,16 +60,17 @@ public class FileUploadService {
         return urls;
     }
 
-    public String saveEventImage(MultipartFile file) {
+    public String saveImage(MultipartFile file, String module) {
         validateImage(file);
+        validateModule(module);
 
         try {
-            // Create directory structure: uploads/events/2025/06/
+            // Create directory structure: uploads/{module}/2025/06/
             LocalDateTime now = LocalDateTime.now();
             String year = now.format(DateTimeFormatter.ofPattern("yyyy"));
             String month = now.format(DateTimeFormatter.ofPattern("MM"));
             
-            String relativePath = "events/" + year + "/" + month + "/";
+            String relativePath = module + "/" + year + "/" + month + "/";
             Path uploadDir = Paths.get(uploadProperties.getPath(), relativePath);
             
             if (!Files.exists(uploadDir)) {
@@ -87,14 +89,23 @@ public class FileUploadService {
             
             // Return URL
             String url = uploadProperties.getBaseUrl() + relativePath + filename;
-            log.info("File uploaded successfully: {}", url);
+            log.info("File uploaded successfully for module {}: {}", module, url);
             
             return url;
             
         } catch (IOException e) {
-            log.error("Error saving file: {}", e.getMessage());
+            log.error("Error saving file for module {}: {}", module, e.getMessage());
             throw new FileUploadException("Failed to save file", "SAVE_ERROR");
         }
+    }
+
+    // Backward compatibility methods for events
+    public List<String> saveEventImages(MultipartFile[] files) {
+        return saveImages(files, "events");
+    }
+
+    public String saveEventImage(MultipartFile file) {
+        return saveImage(file, "events");
     }
 
     public boolean deleteImage(String imageUrl) {
@@ -153,6 +164,16 @@ public class FileUploadService {
             
         } catch (IOException e) {
             throw new FileUploadException("Unable to read image file", "INVALID_IMAGE");
+        }
+    }
+
+    private void validateModule(String module) {
+        if (module == null || module.trim().isEmpty()) {
+            throw new FileUploadException("Module name is required", "INVALID_MODULE");
+        }
+        
+        if (!UploadModule.isValidModule(module)) {
+            throw new FileUploadException("Invalid module. Allowed modules: " + String.join(", ", UploadModule.getAllowedModules()), "INVALID_MODULE");
         }
     }
 

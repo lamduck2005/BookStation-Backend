@@ -24,42 +24,47 @@ public class UploadController {
 
     private final FileUploadService fileUploadService;
 
-    @PostMapping("/event-images")
-    public ResponseEntity<?> uploadEventImages(@RequestParam("images") MultipartFile[] files) {
+    // Generic endpoints for all modules
+    @PostMapping("/images/{module}")
+    public ResponseEntity<?> uploadImages(
+            @PathVariable String module,
+            @RequestParam("images") MultipartFile[] files) {
         try {
-            List<String> urls = fileUploadService.saveEventImages(files);
+            List<String> urls = fileUploadService.saveImages(files, module);
             MultipleUploadResponse response = new MultipleUploadResponse(true, urls, "Upload successful");
             return ResponseEntity.ok(response);
             
         } catch (FileUploadException e) {
-            log.error("Upload error: {}", e.getMessage());
+            log.error("Upload error for module {}: {}", module, e.getMessage());
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage(), e.getErrorCode()));
         } catch (Exception e) {
-            log.error("Unexpected error during upload: {}", e.getMessage());
+            log.error("Unexpected error during upload for module {}: {}", module, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Internal server error", "INTERNAL_ERROR"));
         }
     }
 
-    @PostMapping("/event-image")
-    public ResponseEntity<?> uploadEventImage(@RequestParam("image") MultipartFile file) {
+    @PostMapping("/image/{module}")
+    public ResponseEntity<?> uploadImage(
+            @PathVariable String module,
+            @RequestParam("image") MultipartFile file) {
         try {
-            String url = fileUploadService.saveEventImage(file);
+            String url = fileUploadService.saveImage(file, module);
             SingleUploadResponse response = new SingleUploadResponse(true, url, "Upload successful");
             return ResponseEntity.ok(response);
             
         } catch (FileUploadException e) {
-            log.error("Upload error: {}", e.getMessage());
+            log.error("Upload error for module {}: {}", module, e.getMessage());
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage(), e.getErrorCode()));
         } catch (Exception e) {
-            log.error("Unexpected error during upload: {}", e.getMessage());
+            log.error("Unexpected error during upload for module {}: {}", module, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Internal server error", "INTERNAL_ERROR"));
         }
     }
 
-    @DeleteMapping("/event-image")
-    public ResponseEntity<?> deleteEventImage(@RequestBody DeleteImageRequest request) {
+    @DeleteMapping("/image")
+    public ResponseEntity<?> deleteImage(@RequestBody DeleteImageRequest request) {
         try {
             boolean deleted = fileUploadService.deleteImage(request.getImageUrl());
             if (deleted) {
@@ -78,6 +83,25 @@ public class UploadController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Internal server error", "INTERNAL_ERROR"));
         }
+    }
+
+    // Backward compatibility endpoints for events (deprecated but kept for existing clients)
+    @PostMapping("/event-images")
+    @Deprecated
+    public ResponseEntity<?> uploadEventImages(@RequestParam("images") MultipartFile[] files) {
+        return uploadImages("events", files);
+    }
+
+    @PostMapping("/event-image")
+    @Deprecated
+    public ResponseEntity<?> uploadEventImage(@RequestParam("image") MultipartFile file) {
+        return uploadImage("events", file);
+    }
+
+    @DeleteMapping("/event-image")
+    @Deprecated
+    public ResponseEntity<?> deleteEventImage(@RequestBody DeleteImageRequest request) {
+        return deleteImage(request);
     }
 
     // Inner class for error responses
