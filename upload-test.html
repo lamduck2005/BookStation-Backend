@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        input[type="file"] { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>BookStation Upload Test</h1>
+    
+    <!-- Single Image Upload -->
+    <div class="section">
+        <h2>Upload Single Event Image</h2>
+        <input type="file" id="singleFile" accept="image/*">
+        <button onclick="uploadSingle()">Upload Single Image</button>
+        <div id="singleResult" class="result"></div>
+    </div>
+    
+    <!-- Multiple Images Upload -->
+    <div class="section">
+        <h2>Upload Multiple Event Images</h2>
+        <input type="file" id="multipleFiles" accept="image/*" multiple>
+        <button onclick="uploadMultiple()">Upload Multiple Images</button>
+        <div id="multipleResult" class="result"></div>
+    </div>
+    
+    <!-- Delete Image -->
+    <div class="section">
+        <h2>Delete Event Image</h2>
+        <input type="text" id="deleteUrl" placeholder="Enter image URL to delete" style="width: 500px;">
+        <button onclick="deleteImage()">Delete Image</button>
+        <div id="deleteResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/upload';
+
+        async function uploadSingle() {
+            const fileInput = document.getElementById('singleFile');
+            const resultDiv = document.getElementById('singleResult');
+            
+            if (!fileInput.files.length) {
+                resultDiv.innerHTML = '<span style="color: red;">Please select a file</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+
+            try {
+                const response = await fetch(`${API_BASE}/event-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <span style="color: green;">SUCCESS!</span><br>
+                        <strong>URL:</strong> ${result.url}<br>
+                        <img src="${result.url}" style="max-width: 200px; margin-top: 10px;">
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">ERROR: ${result.error || result.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">NETWORK ERROR: ${error.message}</span>`;
+            }
+        }
+
+        async function uploadMultiple() {
+            const fileInput = document.getElementById('multipleFiles');
+            const resultDiv = document.getElementById('multipleResult');
+            
+            if (!fileInput.files.length) {
+                resultDiv.innerHTML = '<span style="color: red;">Please select files</span>';
+                return;
+            }
+
+            if (fileInput.files.length > 5) {
+                resultDiv.innerHTML = '<span style="color: red;">Maximum 5 files allowed</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of fileInput.files) {
+                formData.append('images', file);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/event-images`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    let imagesHtml = result.urls.map(url => `
+                        <div style="margin: 10px 0;">
+                            <strong>URL:</strong> ${url}<br>
+                            <img src="${url}" style="max-width: 150px; margin-top: 5px;">
+                        </div>
+                    `).join('');
+                    
+                    resultDiv.innerHTML = `
+                        <span style="color: green;">SUCCESS! Uploaded ${result.urls.length} images</span><br>
+                        ${imagesHtml}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">ERROR: ${result.error || result.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">NETWORK ERROR: ${error.message}</span>`;
+            }
+        }
+
+        async function deleteImage() {
+            const urlInput = document.getElementById('deleteUrl');
+            const resultDiv = document.getElementById('deleteResult');
+            
+            if (!urlInput.value.trim()) {
+                resultDiv.innerHTML = '<span style="color: red;">Please enter image URL</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/event-image`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageUrl: urlInput.value.trim()
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    resultDiv.innerHTML = `<span style="color: green;">SUCCESS: ${result.message}</span>`;
+                    urlInput.value = '';
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">ERROR: ${result.message || 'Delete failed'}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">NETWORK ERROR: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

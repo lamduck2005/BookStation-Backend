@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 Backend Upload API Debug Tool</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result { 
+            margin: 10px 0; 
+            padding: 15px; 
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        
+        button { 
+            padding: 12px 24px; 
+            margin: 8px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        
+        input[type="file"] { margin: 10px 0; padding: 8px; }
+        input[type="text"] { width: 100%; padding: 8px; margin: 5px 0; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-green { background: #28a745; }
+        .status-red { background: #dc3545; }
+        .status-yellow { background: #ffc107; }
+        
+        h1 { color: #333; text-align: center; }
+        h2 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Backend Upload API Debug Tool</h1>
+        <p style="text-align: center; color: #666;">Complete diagnostic tool for Upload API troubleshooting</p>
+        
+        <!-- Status Dashboard -->
+        <div class="section">
+            <h2>📊 Real-time Status Dashboard</h2>
+            <div id="statusDashboard" class="result info">
+                <strong>Backend Status:</strong> <span class="status-indicator status-yellow"></span> Checking...
+                <br><strong>Upload Endpoints:</strong> <span class="status-indicator status-yellow"></span> Checking...
+                <br><strong>CORS:</strong> <span class="status-indicator status-yellow"></span> Checking...
+                <br><strong>Last Check:</strong> <span id="lastCheck">Never</span>
+            </div>
+            <button class="btn-primary" onclick="checkBackendStatus()">🔄 Refresh Status</button>
+            <button class="btn-success" onclick="startAutoCheck()">▶️ Auto Check (5s)</button>
+            <button class="btn-warning" onclick="stopAutoCheck()">⏹️ Stop Auto</button>
+        </div>
+
+        <!-- Quick Diagnostic -->
+        <div class="section">
+            <h2>🩺 Quick Diagnostic</h2>
+            <button class="btn-primary" onclick="runQuickDiagnostic()">🔍 Run Complete Diagnostic</button>
+            <button class="btn-success" onclick="testWithMockImage()">🖼️ Test Upload with Mock Image</button>
+            <div id="diagnosticResult" class="result info" style="display: none;"></div>
+        </div>
+        
+        <!-- Manual Upload Test -->
+        <div class="section">
+            <h2>📤 Manual Upload Test</h2>
+            <div>
+                <label>Select Images (Max 5):</label>
+                <input type="file" id="manualFiles" accept="image/*" multiple>
+                <br>
+                <button class="btn-success" onclick="testSingleUpload()">📄 Test Single Upload</button>
+                <button class="btn-success" onclick="testMultipleUpload()">📄 Test Multiple Upload</button>
+            </div>
+            <div id="uploadResult" class="result info" style="display: none;"></div>
+        </div>
+        
+        <!-- Image Delete Test -->
+        <div class="section">
+            <h2>🗑️ Delete Image Test</h2>
+            <input type="text" id="deleteUrl" placeholder="Paste image URL to delete (from upload result above)">
+            <button class="btn-danger" onclick="testDeleteImage()">🗑️ Delete Image</button>
+            <div id="deleteResult" class="result info" style="display: none;"></div>
+        </div>
+        
+        <!-- Backend Logs -->
+        <div class="section">
+            <h2>📋 Backend Verification Checklist</h2>
+            <div class="result warning">
+                <strong>For Backend Developer - Verify these:</strong>
+                
+                1. ✅ Backend running on port 8080
+                2. ✅ UploadController.java exists with @RestController and @RequestMapping("/api/upload")
+                3. ✅ FileUploadService.java exists with all required methods
+                4. ✅ UploadProperties.java configured with @Component @ConfigurationProperties
+                5. ✅ WebConfig.java has static file serving and CORS
+                6. ✅ application.properties has upload configuration
+                7. ✅ uploads/ folder exists and writable
+                
+                <strong>Check Backend Console Logs for:</strong>
+                - "Mapped \"{[/api/upload/event-image],methods=[POST]\"" 
+                - "Mapped \"{[/api/upload/event-images],methods=[POST]}\""
+                - "Tomcat started on port(s): 8080 (http)"
+                - No FileUploadException or other errors
+            </div>
+        </div>
+        
+        <!-- Error Solutions -->
+        <div class="section">
+            <h2>🚨 Common Error Solutions</h2>
+            <div class="result error">
+                <strong>500 Internal Server Error:</strong>
+                • Backend has upload endpoints but implementation is broken
+                • Check Backend console logs for exact error
+                • Verify FileUploadService dependencies
+                • Check uploads/ folder permissions
+                
+                <strong>404 Not Found:</strong>
+                • Upload endpoints not implemented
+                • Wrong URL mapping in controller
+                • Controller not scanned by Spring
+                
+                <strong>CORS Blocked:</strong>
+                • WebConfig.java missing CORS configuration
+                • Frontend URL not in allowedOrigins
+                • SecurityConfig not allowing CORS
+                
+                <strong>Connection Refused:</strong>
+                • Backend not running on port 8080
+                • Firewall blocking port 8080
+                • Backend crashed during startup
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        let autoCheckInterval = null;
+
+        // Status checking functions
+        async function checkBackendStatus() {
+            const dashboard = document.getElementById('statusDashboard');
+            const lastCheck = document.getElementById('lastCheck');
+            
+            try {
+                // Test basic connectivity
+                const backendResponse = await fetch(`${API_BASE}/api/events`);
+                const backendStatus = backendResponse.ok ? '🟢 Online' : '🟡 Responding but error';
+                
+                // Test upload endpoints
+                let uploadStatus = '🔴 Not Available';
+                try {
+                    const uploadResponse = await fetch(`${API_BASE}/api/upload/event-image`, { method: 'OPTIONS' });
+                    if (uploadResponse.status === 200 || uploadResponse.status === 405) {
+                        uploadStatus = '🟢 Available';
+                    } else if (uploadResponse.status === 404) {
+                        uploadStatus = '🔴 Not Found (404)';
+                    } else {
+                        uploadStatus = `🟡 Status: ${uploadResponse.status}`;
+                    }
+                } catch (e) {
+                    uploadStatus = '🔴 Connection Failed';
+                }
+                
+                // Test CORS
+                let corsStatus = '🔴 Not Working';
+                try {
+                    const corsResponse = await fetch(`${API_BASE}/api/upload/event-image`, {
+                        method: 'POST',
+                        headers: { 'Origin': 'http://localhost:5173' }
+                    });
+                    corsStatus = '🟢 Working';
+                } catch (e) {
+                    corsStatus = e.message.includes('CORS') ? '🔴 Blocked' : '🟢 Working';
+                }
+                
+                dashboard.innerHTML = `
+                    <strong>Backend Status:</strong> ${backendStatus}
+                    <br><strong>Upload Endpoints:</strong> ${uploadStatus}
+                    <br><strong>CORS:</strong> ${corsStatus}
+                    <br><strong>Last Check:</strong> <span id="lastCheck">${new Date().toLocaleTimeString()}</span>
+                `;
+                
+                dashboard.className = 'result ' + (uploadStatus.includes('🟢') ? 'success' : 'warning');
+                
+            } catch (error) {
+                dashboard.innerHTML = `
+                    <strong>Backend Status:</strong> 🔴 Offline
+                    <br><strong>Error:</strong> ${error.message}
+                    <br><strong>Last Check:</strong> ${new Date().toLocaleTimeString()}
+                `;
+                dashboard.className = 'result error';
+            }
+        }
+
+        function startAutoCheck() {
+            if (autoCheckInterval) clearInterval(autoCheckInterval);
+            autoCheckInterval = setInterval(checkBackendStatus, 5000);
+            checkBackendStatus();
+        }
+
+        function stopAutoCheck() {
+            if (autoCheckInterval) {
+                clearInterval(autoCheckInterval);
+                autoCheckInterval = null;
+            }
+        }
+
+        // Diagnostic functions
+        async function runQuickDiagnostic() {
+            const result = document.getElementById('diagnosticResult');
+            result.style.display = 'block';
+            result.className = 'result info';
+            result.textContent = '🔍 Running diagnostic...';
+
+            let log = '🔍 COMPLETE BACKEND UPLOAD DIAGNOSTIC\n';
+            log += '=' + '='.repeat(50) + '\n\n';
+
+            try {
+                // Test 1: Basic connectivity
+                log += '1️⃣ Testing Basic Connectivity...\n';
+                const basicResponse = await fetch(`${API_BASE}`);
+                log += `   ✅ Port 8080 responding: ${basicResponse.status}\n\n`;
+
+                // Test 2: Main API
+                log += '2️⃣ Testing Main API...\n';
+                const apiResponse = await fetch(`${API_BASE}/api/events`);
+                log += `   ✅ Events API: ${apiResponse.status} ${apiResponse.ok ? '(Working)' : '(Error)'}\n\n`;
+
+                // Test 3: Upload endpoints
+                log += '3️⃣ Testing Upload Endpoints...\n';
+                const endpoints = ['/api/upload/event-image', '/api/upload/event-images'];
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(`${API_BASE}${endpoint}`, { method: 'OPTIONS' });
+                        if (response.status === 200 || response.status === 405) {
+                            log += `   ✅ ${endpoint}: Available\n`;
+                        } else if (response.status === 404) {
+                            log += `   ❌ ${endpoint}: Not Found (404) - ENDPOINT MISSING!\n`;
+                        } else {
+                            log += `   ⚠️ ${endpoint}: Status ${response.status}\n`;
+                        }
+                    } catch (e) {
+                        log += `   ❌ ${endpoint}: Connection failed - ${e.message}\n`;
+                    }
+                }
+
+                // Test 4: CORS
+                log += '\n4️⃣ Testing CORS...\n';
+                try {
+                    const corsResponse = await fetch(`${API_BASE}/api/upload/event-image`, {
+                        method: 'POST',
+                        headers: { 'Origin': 'http://localhost:5173' }
+                    });
+                    log += `   ✅ CORS: Working (Status: ${corsResponse.status})\n\n`;
+                } catch (e) {
+                    if (e.message.includes('CORS')) {
+                        log += `   ❌ CORS: Blocked - Backend needs CORS config!\n\n`;
+                    } else {
+                        log += `   ✅ CORS: Working (Error: ${e.message})\n\n`;
+                    }
+                }
+
+                // Test 5: Real upload test
+                log += '5️⃣ Testing Real Upload...\n';
+                await testMockUpload(log);
+
+                result.className = 'result success';
+                
+            } catch (error) {
+                log += `\n❌ DIAGNOSTIC FAILED: ${error.message}\n`;
+                result.className = 'result error';
+            }
+
+            result.textContent = log;
+        }
+
+        async function testMockUpload(existingLog = '') {
+            try {
+                // Create a tiny test image
+                const canvas = document.createElement('canvas');
+                canvas.width = 200;
+                canvas.height = 200;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(0, 0, 200, 200);
+
+                return new Promise((resolve) => {
+                    canvas.toBlob(async (blob) => {
+                        const file = new File([blob], 'test.png', { type: 'image/png' });
+                        const formData = new FormData();
+                        formData.append('image', file);
+
+                        try {
+                            const response = await fetch(`${API_BASE}/api/upload/event-image`, {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (response.ok) {
+                                const result = await response.json();
+                                existingLog += `   ✅ Upload test: SUCCESS!\n`;
+                                existingLog += `   📄 URL: ${result.url}\n`;
+                                
+                                // Test image accessibility
+                                const img = new Image();
+                                img.onload = () => {
+                                    existingLog += `   ✅ Image accessible: YES\n`;
+                                };
+                                img.onerror = () => {
+                                    existingLog += `   ❌ Image accessible: NO - Static file serving issue\n`;
+                                };
+                                img.src = result.url;
+                                
+                            } else {
+                                const errorText = await response.text();
+                                existingLog += `   ❌ Upload test: FAILED (${response.status})\n`;
+                                existingLog += `   📄 Error: ${errorText}\n`;
+                                
+                                if (response.status === 500) {
+                                    existingLog += `   🚨 SOLUTION: Backend implementation error - Check console logs!\n`;
+                                } else if (response.status === 404) {
+                                    existingLog += `   🚨 SOLUTION: Upload endpoints not implemented!\n`;
+                                }
+                            }
+                        } catch (error) {
+                            existingLog += `   ❌ Upload request failed: ${error.message}\n`;
+                        }
+                        
+                        resolve(existingLog);
+                    }, 'image/png');
+                });
+                
+            } catch (error) {
+                return existingLog + `   ❌ Mock upload failed: ${error.message}\n`;
+            }
+        }
+
+        async function testWithMockImage() {
+            const result = document.getElementById('diagnosticResult');
+            result.style.display = 'block';
+            result.className = 'result info';
+            result.textContent = '🖼️ Testing upload with mock image...';
+
+            const log = await testMockUpload();
+            result.textContent = '🖼️ Mock Image Upload Test\n' + '='.repeat(30) + '\n\n' + log;
+            result.className = result.textContent.includes('SUCCESS') ? 'result success' : 'result error';
+        }
+
+        // Manual upload functions
+        async function testSingleUpload() {
+            const fileInput = document.getElementById('manualFiles');
+            const result = document.getElementById('uploadResult');
+            
+            result.style.display = 'block';
+            
+            if (!fileInput.files.length) {
+                result.className = 'result warning';
+                result.textContent = '⚠️ Please select a file first';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+
+            try {
+                result.className = 'result info';
+                result.textContent = '📤 Uploading single image...';
+
+                const response = await fetch(`${API_BASE}/api/upload/event-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.className = 'result success';
+                    result.textContent = `✅ Single Upload SUCCESS!\n\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorText = await response.text();
+                    result.className = 'result error';
+                    result.textContent = `❌ Single Upload FAILED!\n\nStatus: ${response.status}\nError: ${errorText}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Upload Error: ${error.message}`;
+            }
+        }
+
+        async function testMultipleUpload() {
+            const fileInput = document.getElementById('manualFiles');
+            const result = document.getElementById('uploadResult');
+            
+            result.style.display = 'block';
+            
+            if (!fileInput.files.length) {
+                result.className = 'result warning';
+                result.textContent = '⚠️ Please select files first';
+                return;
+            }
+
+            if (fileInput.files.length > 5) {
+                result.className = 'result warning';
+                result.textContent = '⚠️ Maximum 5 files allowed';
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of fileInput.files) {
+                formData.append('images', file);
+            }
+
+            try {
+                result.className = 'result info';
+                result.textContent = `📤 Uploading ${fileInput.files.length} images...`;
+
+                const response = await fetch(`${API_BASE}/api/upload/event-images`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.className = 'result success';
+                    result.textContent = `✅ Multiple Upload SUCCESS!\n\nUploaded ${data.urls.length} images:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorText = await response.text();
+                    result.className = 'result error';
+                    result.textContent = `❌ Multiple Upload FAILED!\n\nStatus: ${response.status}\nError: ${errorText}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Upload Error: ${error.message}`;
+            }
+        }
+
+        async function testDeleteImage() {
+            const urlInput = document.getElementById('deleteUrl');
+            const result = document.getElementById('deleteResult');
+            
+            result.style.display = 'block';
+            
+            if (!urlInput.value.trim()) {
+                result.className = 'result warning';
+                result.textContent = '⚠️ Please enter image URL';
+                return;
+            }
+
+            try {
+                result.className = 'result info';
+                result.textContent = '🗑️ Deleting image...';
+
+                const response = await fetch(`${API_BASE}/api/upload/event-image`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageUrl: urlInput.value.trim()
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    result.className = 'result success';
+                    result.textContent = `✅ Delete SUCCESS!\n\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorText = await response.text();
+                    result.className = 'result error';
+                    result.textContent = `❌ Delete FAILED!\n\nStatus: ${response.status}\nError: ${errorText}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Delete Error: ${error.message}`;
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkBackendStatus();
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 package org.datn.bookstation.configuration;
 
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.exception.FileUploadException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -8,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,5 +66,25 @@ public class GlobalExceptionHandler {
             null
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    @ExceptionHandler(FileUploadException.class)
+    public ResponseEntity<ApiResponse<String>> handleFileUploadException(FileUploadException ex) {
+        ApiResponse<String> response = new ApiResponse<>(
+            HttpStatus.BAD_REQUEST.value(),
+            ex.getMessage(),
+            null
+        );
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<String>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        ApiResponse<String> response = new ApiResponse<>(
+            HttpStatus.BAD_REQUEST.value(),
+            "File quá lớn. Kích thước tối đa là 5MB cho mỗi file.",
+            null
+        );
+        return ResponseEntity.badRequest().body(response);
     }
 }

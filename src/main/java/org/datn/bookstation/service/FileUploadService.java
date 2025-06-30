@@ -1,0 +1,180 @@
+package org.datn.bookstation.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.datn.bookstation.configuration.UploadProperties;
+import org.datn.bookstation.exception.FileUploadException;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class FileUploadService {
+
+    private final UploadProperties uploadProperties;
+
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"
+    );
+
+    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final int MIN_WIDTH = 200;
+    private static final int MIN_HEIGHT = 200;
+    private static final int MAX_FILES = 5;
+
+    private final SecureRandom random = new SecureRandom();
+
+    public List<String> saveEventImages(MultipartFile[] files) {
+        if (files == null || files.length == 0) {
+            throw new FileUploadException("No files provided", "NO_FILES");
+        }
+
+        if (files.length > MAX_FILES) {
+            throw new FileUploadException("Too many files. Maximum " + MAX_FILES + " files allowed", "TOO_MANY_FILES");
+        }
+
+        List<String> urls = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                String url = saveEventImage(file);
+                urls.add(url);
+            }
+        }
+
+        return urls;
+    }
+
+    public String saveEventImage(MultipartFile file) {
+        validateImage(file);
+
+        try {
+            // Create directory structure: uploads/events/2025/06/
+            LocalDateTime now = LocalDateTime.now();
+            String year = now.format(DateTimeFormatter.ofPattern("yyyy"));
+            String month = now.format(DateTimeFormatter.ofPattern("MM"));
+            
+            String relativePath = "events/" + year + "/" + month + "/";
+            Path uploadDir = Paths.get(uploadProperties.getPath(), relativePath);
+            
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+
+            // Generate unique filename: image{timestamp}_{randomId}.{extension}
+            String originalFilename = file.getOriginalFilename();
+            String extension = getFileExtension(originalFilename);
+            String filename = generateFilename(extension);
+            
+            Path filePath = uploadDir.resolve(filename);
+            
+            // Save file
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            
+            // Return URL
+            String url = uploadProperties.getBaseUrl() + relativePath + filename;
+            log.info("File uploaded successfully: {}", url);
+            
+            return url;
+            
+        } catch (IOException e) {
+            log.error("Error saving file: {}", e.getMessage());
+            throw new FileUploadException("Failed to save file", "SAVE_ERROR");
+        }
+    }
+
+    public boolean deleteImage(String imageUrl) {
+        try {
+            // Extract relative path from URL
+            String baseUrl = uploadProperties.getBaseUrl();
+            if (!imageUrl.startsWith(baseUrl)) {
+                throw new FileUploadException("Invalid image URL", "INVALID_URL");
+            }
+            
+            String relativePath = imageUrl.substring(baseUrl.length());
+            Path filePath = Paths.get(uploadProperties.getPath(), relativePath);
+            
+            if (Files.exists(filePath)) {
+                Files.delete(filePath);
+                log.info("File deleted successfully: {}", imageUrl);
+                return true;
+            } else {
+                log.warn("File not found for deletion: {}", imageUrl);
+                return false;
+            }
+            
+        } catch (IOException e) {
+            log.error("Error deleting file: {}", e.getMessage());
+            throw new FileUploadException("Failed to delete file", "DELETE_ERROR");
+        }
+    }
+
+    private void validateImage(MultipartFile file) {
+        // Check if file is empty
+        if (file.isEmpty()) {
+            throw new FileUploadException("File is empty", "EMPTY_FILE");
+        }
+
+        // Check file size
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new FileUploadException("File size too large. Maximum size is 5MB.", "FILE_TOO_LARGE");
+        }
+
+        // Check content type
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new FileUploadException("File type not allowed. Please upload JPG, PNG, GIF, or WebP images.", "INVALID_FILE_TYPE");
+        }
+
+        // Check image dimensions
+        try {
+            BufferedImage image = ImageIO.read(file.getInputStream());
+            if (image == null) {
+                throw new FileUploadException("Invalid image file", "INVALID_IMAGE");
+            }
+            
+            if (image.getWidth() < MIN_WIDTH || image.getHeight() < MIN_HEIGHT) {
+                throw new FileUploadException("Image dimensions too small. Minimum size is 200x200px.", "INVALID_DIMENSIONS");
+            }
+            
+        } catch (IOException e) {
+            throw new FileUploadException("Unable to read image file", "INVALID_IMAGE");
+        }
+    }
+
+    private String getFileExtension(String filename) {
+        if (filename == null || filename.lastIndexOf('.') == -1) {
+            return "jpg"; // default extension
+        }
+        return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+    }
+
+    private String generateFilename(String extension) {
+        long timestamp = System.currentTimeMillis();
+        String randomId = generateRandomString(12);
+        return "image" + timestamp + "_" + randomId + "." + extension;
+    }
+
+    private String generateRandomString(int length) {
+        String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+}
