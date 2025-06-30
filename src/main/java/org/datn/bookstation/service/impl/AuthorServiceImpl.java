@@ -2,9 +2,16 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Author;
+import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.service.AuthorService;
+import org.datn.bookstation.specification.AuthorSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -18,6 +25,11 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public ApiResponse<List<Author>> getAll() {
         return new ApiResponse<>(200,"GetAll thành công",authorRepository.findAll());
+    }
+
+    @Override
+    public ApiResponse<List<Author>> search() {
+        return null;
     }
 
     @Override
@@ -69,5 +81,26 @@ public class AuthorServiceImpl implements AuthorService {
         }
         authorRepository.deleteById(id);
         return new ApiResponse<>(200,"Xóa thành công",authorById);
+    }
+
+    @Override
+    public ApiResponse<Author> toggleStatus(Integer id) {
+
+        return null;
+    }
+
+    @Override
+    public PaginationResponse<Author> getAllAuthorPagination(Integer page, Integer size, String name, Byte status) {
+        Pageable pageable = PageRequest.of(page, size);
+        Specification<Author> spec = AuthorSpecification.filterBy(name,status);
+        Page<Author> authorPage = authorRepository.findAll(spec,pageable);
+        List<Author> authors = authorPage.stream().toList();
+        return new PaginationResponse<>(
+                authors,
+                authorPage.getNumber(),
+                authorPage.getSize(),
+                authorPage.getTotalElements(),
+                authorPage.getTotalPages()
+        );
     }
 }
