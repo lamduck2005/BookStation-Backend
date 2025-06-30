@@ -22,6 +22,17 @@ public class OrderRequest {
     @NotNull(message = "Address ID không được để trống")
     private Integer addressId;
     
+    @NotNull(message = "Tổng tiền hàng không được để trống")
+    @Positive(message = "Tổng tiền hàng phải lớn hơn 0")
+    private BigDecimal subtotal;
+    
+    @NotNull(message = "Phí vận chuyển không được để trống")
+    private BigDecimal shippingFee = BigDecimal.ZERO;
+    
+    private BigDecimal discountAmount = BigDecimal.ZERO; // Giảm giá từ voucher thường
+    
+    private BigDecimal discountShipping = BigDecimal.ZERO; // Giảm giá phí ship
+    
     @NotNull(message = "Tổng tiền không được để trống")
     @Positive(message = "Tổng tiền phải lớn hơn 0")
     private BigDecimal totalAmount;

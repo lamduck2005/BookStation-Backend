@@ -12,10 +12,18 @@ Hệ thống quản lý đơn hàng hoàn chỉnh với các chức năng CRUD v
 - `staff_id`: ID nhân viên xử lý (FK) 
 - `address_id`: ID địa chỉ giao hàng (FK)
 - `order_date`: Ngày đặt hàng
-- `total_amount`: Tổng tiền
+- `subtotal`: Tổng tiền sản phẩm (chưa tính phí ship, chưa giảm giá)
+- `shipping_fee`: Phí vận chuyển
+- `discount_amount`: Tổng giảm giá từ voucher sản phẩm
+- `discount_shipping`: Giảm giá phí ship từ voucher freeship
+- `total_amount`: Tổng tiền cuối cùng khách phải trả
 - `status`: Trạng thái (byte)
 - `order_status`: Trạng thái đơn hàng (enum)
 - `order_type`: Loại đơn hàng
+- `notes`: Ghi chú đơn hàng
+- `cancel_reason`: Lý do hủy/hoàn trả
+- `regular_voucher_count`: Số lượng voucher thường đã áp dụng (0-1)
+- `shipping_voucher_count`: Số lượng voucher freeship đã áp dụng (0-1)
 - `created_at`, `updated_at`: Timestamps
 - `created_by`, `updated_by`: Người tạo/cập nhật
 
@@ -27,7 +35,33 @@ Hệ thống quản lý đơn hàng hoàn chỉnh với các chức năng CRUD v
 
 ### OrderVoucher Entity
 - `order_id` + `voucher_id`: Composite PK
+- `voucher_type`: Loại voucher được áp dụng (enum)
+- `discount_applied`: Số tiền giảm giá thực tế được áp dụng
+- `applied_at`: Thời gian áp dụng voucher
 - Liên kết đơn hàng với voucher
+
+### Voucher Entity
+- `id`: ID voucher (PK)
+- `code`: Mã voucher (unique)
+- `name`: Tên voucher
+- `description`: Mô tả voucher
+- `voucher_type`: Loại voucher (PERCENTAGE, FIXED_AMOUNT, FREE_SHIPPING)
+- `discount_percentage`: Phần trăm giảm giá (cho PERCENTAGE)
+- `discount_amount`: Số tiền giảm cố định (cho FIXED_AMOUNT)
+- `start_time`, `end_time`: Thời gian hiệu lực
+- `min_order_value`: Giá trị đơn hàng tối thiểu
+- `max_discount_value`: Giá trị giảm tối đa
+- `usage_limit`: Số lượng voucher có thể sử dụng
+- `used_count`: Số lượng đã sử dụng
+- `usage_limit_per_user`: Giới hạn sử dụng trên 1 user
+
+### UserVoucher Entity  
+- `id`: ID (PK)
+- `user_id`: ID người dùng (FK)
+- `voucher_id`: ID voucher (FK)
+- `used_count`: Số lần đã sử dụng voucher này
+- `created_at`: Thời gian tạo
+- Theo dõi việc sử dụng voucher của từng user
 
 ## API Endpoints
 
@@ -59,9 +93,11 @@ Body: OrderRequest
   "userId": 1,
   "staffId": 2,
   "addressId": 3,
-  "totalAmount": 150000,
+  "subtotal": 150000,
+  "shippingFee": 30000,
   "orderStatus": "PENDING",
   "orderType": "NORMAL",
+  "notes": "Giao hàng cẩn thận",
   "orderDetails": [
     {
       "bookId": 1,
@@ -70,8 +106,21 @@ Body: OrderRequest
       "unitPrice": 75000
     }
   ],
-  "voucherIds": [1, 2],
-  "notes": "Giao hàng cẩn thận"
+  "voucherIds": [1, 2]
+}
+
+Response: OrderResponse
+{
+  "id": 1,
+  "code": "ORD123456ABCD1234",
+  "subtotal": 150000,
+  "shippingFee": 30000,
+  "discountAmount": 15000,
+  "discountShipping": 30000,
+  "totalAmount": 135000,
+  "regularVoucherCount": 1,
+  "shippingVoucherCount": 1,
+  ...
 }
 ```
 
@@ -135,6 +184,69 @@ GET /api/orders/dropdown
 Response: List<DropdownOptionResponse>
 ```
 
+### 14. Hoàn tiền đơn hàng
+```
+POST /api/orders/{id}/refund
+Parameters:
+- refundAmount: Số tiền hoàn (optional, mặc định hoàn toàn bộ)
+- reason: Lý do hoàn tiền
+- staffId: ID nhân viên thực hiện
+Body: RefundRequest
+{
+  "refundAmount": 135000,
+  "reason": "Sản phẩm lỗi",
+  "refundMethod": "ORIGINAL_PAYMENT"
+}
+```
+
+### 15. Lấy lịch sử hoàn tiền của đơn hàng
+```
+GET /api/orders/{id}/refunds
+Response: List<RefundResponse>
+```
+
+### 16. Kiểm tra voucher có thể áp dụng
+```
+POST /api/orders/validate-vouchers
+Body: VoucherValidationRequest
+{
+  "userId": 1,
+  "voucherIds": [1, 2],
+  "subtotal": 150000,
+  "shippingFee": 30000
+}
+Response: VoucherValidationResponse
+{
+  "valid": true,
+  "totalProductDiscount": 15000,
+  "totalShippingDiscount": 30000,
+  "regularVoucherCount": 1,
+  "shippingVoucherCount": 1,
+  "errors": []
+}
+```
+
+### 17. Lấy voucher khả dụng cho user
+```
+GET /api/vouchers/available
+Parameters:
+- userId: ID người dùng
+- orderValue: Giá trị đơn hàng để lọc voucher
+Response: List<AvailableVoucherResponse>
+```
+
+### 18. Lấy thống kê sử dụng voucher
+```
+GET /api/vouchers/{id}/usage-stats
+Response: VoucherUsageStatsResponse
+{
+  "totalUsage": 150,
+  "remainingUsage": 350,
+  "usageByUser": {...},
+  "revenueImpact": 2500000
+}
+```
+
 ## Order Status Enum
 
 - `PENDING`: Chờ xử lý
@@ -142,6 +254,10 @@ Response: List<DropdownOptionResponse>
 - `SHIPPED`: Đang giao hàng
 - `DELIVERED`: Đã giao hàng
 - `CANCELED`: Đã hủy
+- `REFUNDING`: Đang hoàn tiền
+- `REFUNDED`: Đã hoàn tiền  
+- `RETURNED`: Đã trả hàng
+- `PARTIALLY_REFUNDED`: Hoàn tiền một phần
 
 ## Order Type Options
 
@@ -149,6 +265,37 @@ Response: List<DropdownOptionResponse>
 - `EVENT_GIFT`: Đơn hàng giao quà sự kiện
 - `PROMOTIONAL`: Đơn hàng khuyến mãi đặc biệt
 - `SAMPLE`: Đơn hàng gửi mẫu
+
+## Voucher System
+
+### VoucherType Enum
+- `PERCENTAGE`: Giảm giá theo phần trăm
+- `FIXED_AMOUNT`: Giảm giá cố định
+- `FREE_SHIPPING`: Miễn phí vận chuyển
+
+### Business Rules for Vouchers
+1. **Giới hạn số lượng voucher**: Tối đa 2 voucher trên 1 đơn hàng
+2. **Giới hạn loại voucher**: 
+   - Tối đa 1 voucher thường (PERCENTAGE hoặc FIXED_AMOUNT)
+   - Tối đa 1 voucher freeship (FREE_SHIPPING)
+3. **Kiểm tra điều kiện**:
+   - Thời gian hiệu lực
+   - Giá trị đơn hàng tối thiểu
+   - Số lần sử dụng tối đa
+   - Số lần sử dụng trên 1 user
+4. **Tính toán giảm giá**:
+   - PERCENTAGE: `subtotal * discount_percentage / 100`
+   - FIXED_AMOUNT: `min(discount_amount, subtotal)`
+   - FREE_SHIPPING: `min(shipping_fee, max_discount_value)`
+
+### Order Amount Calculation
+```
+subtotal = sum(quantity * unit_price) for all order details
+shipping_fee = calculated based on address and weight
+discount_amount = sum of product discounts from vouchers
+discount_shipping = shipping discount from freeship voucher
+total_amount = subtotal + shipping_fee - discount_amount - discount_shipping
+```
 
 ## Các tính năng đặc biệt
 
@@ -162,8 +309,19 @@ Response: List<DropdownOptionResponse>
 
 ### 3. Validation Business Rules
 - Chỉ cập nhật đơn hàng khi ở trạng thái PENDING
-- Chỉ hủy đơn hàng khi ở trạng thái PENDING hoặc CONFIRMED
+- Chỉ hủy đơn hàng khi ở trạng thái PENDING hoặc CONFIRMED  
 - Validate tồn tại của User, Address, Book, Voucher
+- **Voucher Business Rules**:
+  - Tối đa 2 voucher trên 1 đơn hàng (1 thường + 1 freeship)
+  - Kiểm tra thời gian hiệu lực voucher
+  - Kiểm tra giá trị đơn hàng tối thiểu
+  - Kiểm tra số lần sử dụng voucher
+  - Kiểm tra số lần sử dụng trên 1 user
+- **Order Amount Validation**:
+  - `subtotal` >= 0
+  - `shipping_fee` >= 0  
+  - `total_amount` = `subtotal` + `shipping_fee` - `discount_amount` - `discount_shipping`
+  - `total_amount` >= 0
 
 ### 4. Flexible Search
 - Hỗ trợ tìm kiếm theo nhiều tiêu chí
@@ -172,7 +330,22 @@ Response: List<DropdownOptionResponse>
 ### 5. Comprehensive Response
 - OrderResponse bao gồm thông tin chi tiết đầy đủ
 - Thông tin User, Staff, Address
-- Chi tiết sản phẩm và voucher
+- Chi tiết sản phẩm và voucher đã áp dụng
+- Thông tin chi phí chi tiết (subtotal, shipping, discounts)
+- Số lượng voucher đã sử dụng theo từng loại
+
+### 6. Advanced Voucher Management
+- **Multi-type voucher support**: PERCENTAGE, FIXED_AMOUNT, FREE_SHIPPING
+- **Smart voucher validation**: Kiểm tra điều kiện phức tạp
+- **Usage tracking**: Theo dõi số lần sử dụng voucher
+- **User-specific limits**: Giới hạn số lần sử dụng trên 1 user
+- **Real-time discount calculation**: Tính toán giảm giá chính xác
+
+### 7. Order Financial Management
+- **Detailed cost breakdown**: Phân tách rõ các khoản chi phí
+- **Multiple discount types**: Hỗ trợ giảm giá sản phẩm và phí ship
+- **Refund support**: Hỗ trợ hoàn tiền toàn phần và một phần
+- **Audit trail**: Theo dõi lịch sử thay đổi đơn hàng
 
 ## Response Format
 
@@ -225,4 +398,79 @@ curl -X POST "http://localhost:8080/api/orders" \
       }
     ]
   }'
+```
+
+## Ví dụ thực tế theo mô hình Shopee
+
+### Scenario 1: Đơn hàng với voucher giảm 10% + freeship
+```json
+{
+  "orderRequest": {
+    "userId": 1,
+    "subtotal": 200000,
+    "shippingFee": 25000,
+    "voucherIds": [101, 201]
+  },
+  "vouchers": [
+    {
+      "id": 101,
+      "type": "PERCENTAGE", 
+      "discountPercentage": 10,
+      "maxDiscountValue": 50000,
+      "minOrderValue": 100000
+    },
+    {
+      "id": 201,
+      "type": "FREE_SHIPPING",
+      "maxDiscountValue": 30000
+    }
+  ],
+  "calculation": {
+    "subtotal": 200000,
+    "productDiscount": 20000,  // min(200000*10%, 50000) = 20000
+    "shippingFee": 25000,
+    "shippingDiscount": 25000, // min(25000, 30000) = 25000
+    "totalAmount": 180000      // 200000 + 25000 - 20000 - 25000
+  }
+}
+```
+
+### Scenario 2: Đơn hàng với voucher giảm cố định
+```json
+{
+  "orderRequest": {
+    "userId": 1, 
+    "subtotal": 50000,
+    "shippingFee": 15000,
+    "voucherIds": [102]
+  },
+  "vouchers": [
+    {
+      "id": 102,
+      "type": "FIXED_AMOUNT",
+      "discountAmount": 30000,
+      "minOrderValue": 40000
+    }
+  ],
+  "calculation": {
+    "subtotal": 50000,
+    "productDiscount": 30000,  // min(30000, 50000) = 30000
+    "shippingFee": 15000,
+    "shippingDiscount": 0,
+    "totalAmount": 35000       // 50000 + 15000 - 30000
+  }
+}
+```
+
+### Scenario 3: Validation Error - Quá số lượng voucher
+```json
+{
+  "orderRequest": {
+    "voucherIds": [101, 102, 103]  // 3 voucher
+  },
+  "error": {
+    "code": "VOUCHER_LIMIT_EXCEEDED",
+    "message": "Chỉ được áp dụng tối đa 2 voucher trên 1 đơn hàng"
+  }
+}
 ```

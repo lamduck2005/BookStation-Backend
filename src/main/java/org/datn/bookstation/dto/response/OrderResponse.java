@@ -22,7 +22,13 @@ public class OrderResponse {
     private String recipientName;
     private String phoneNumber;
     private Long orderDate;
+    private BigDecimal subtotal;
+    private BigDecimal shippingFee;
+    private BigDecimal discountAmount;
+    private BigDecimal discountShipping;
     private BigDecimal totalAmount;
+    private Integer regularVoucherCount;
+    private Integer shippingVoucherCount;
     private Byte status;
     private OrderStatus orderStatus;
     private String orderStatusDisplay;
@@ -34,4 +40,5 @@ public class OrderResponse {
     private List<OrderDetailResponse> orderDetails;
     private List<VoucherResponse> vouchers;
     private String notes;
+    private String cancelReason;
 }

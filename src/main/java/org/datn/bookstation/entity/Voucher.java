@@ -1,19 +1,13 @@
 package org.datn.bookstation.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.datn.bookstation.entity.enums.VoucherType;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 
 import java.math.BigDecimal;
 
@@ -33,9 +27,27 @@ public class Voucher {
     @Column(name = "code", nullable = false, length = 20)
     private String code;
 
-    @NotNull
-    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
+    @Size(max = 255)
+    @Nationalized
+    @Column(name = "name", length = 255)
+    private String name;
+    
+    @Nationalized
+    @Lob
+    @Column(name = "description")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "voucher_type", nullable = false, length = 20)
+    private VoucherType voucherType = VoucherType.PERCENTAGE;
+
+    // Giảm giá theo phần trăm (cho PERCENTAGE type)
+    @Column(name = "discount_percentage", precision = 5, scale = 2)
     private BigDecimal discountPercentage;
+
+    // Giảm giá cố định (cho FIXED_AMOUNT type)
+    @Column(name = "discount_amount", precision = 10, scale = 2)
+    private BigDecimal discountAmount;
 
     @NotNull
     @Column(name = "start_time", nullable = false)
@@ -51,10 +63,23 @@ public class Voucher {
     @Column(name = "max_discount_value", precision = 10, scale = 2)
     private BigDecimal maxDiscountValue;
 
+    // Số lượng voucher có thể sử dụng
+    @Column(name = "usage_limit")
+    private Integer usageLimit;
+
+    // Số lượng đã sử dụng
+    @ColumnDefault("0")
+    @Column(name = "used_count")
+    private Integer usedCount = 0;
+
+    // Giới hạn sử dụng trên 1 user
     @ColumnDefault("1")
-    @Nationalized
-    @Column(name = "status", length = 50)
-    private byte status;
+    @Column(name = "usage_limit_per_user")
+    private Integer usageLimitPerUser = 1;
+
+    @ColumnDefault("1")
+    @Column(name = "status")
+    private Byte status;
 
     @Column(name = "created_at", nullable = false)
     private Long createdAt;

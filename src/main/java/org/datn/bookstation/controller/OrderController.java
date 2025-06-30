@@ -166,6 +166,10 @@ public class OrderController {
             case SHIPPED: return "Đang giao hàng";
             case DELIVERED: return "Đã giao hàng";
             case CANCELED: return "Đã hủy";
+            case REFUNDING: return "Đang hoàn tiền";
+            case REFUNDED: return "Đã hoàn tiền";
+            case RETURNED: return "Đã trả hàng";
+            case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";
             default: return orderStatus.name();
         }
     }

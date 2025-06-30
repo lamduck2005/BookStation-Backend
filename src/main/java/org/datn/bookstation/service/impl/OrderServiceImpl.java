@@ -12,6 +12,7 @@ import org.datn.bookstation.mapper.OrderMapper;
 import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderService;
+import org.datn.bookstation.service.VoucherCalculationService;
 import org.datn.bookstation.specification.OrderSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +41,7 @@ public class OrderServiceImpl implements OrderService {
     private final BookRepository bookRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherRepository voucherRepository;
+    private final VoucherCalculationService voucherCalculationService;
     private final OrderMapper orderMapper;
     private final OrderResponseMapper orderResponseMapper;
 
@@ -109,6 +112,10 @@ public class OrderServiceImpl implements OrderService {
             order.setUser(user);
             order.setAddress(address);
             
+            // Set subtotal and shipping fee from request
+            order.setSubtotal(request.getSubtotal());
+            order.setShippingFee(request.getShippingFee());
+            
             // Set staff if provided
             if (request.getStaffId() != null) {
                 User staff = userRepository.findById(request.getStaffId()).orElse(null);
@@ -135,11 +142,45 @@ public class OrderServiceImpl implements OrderService {
                 createOrderDetail(savedOrder, detailRequest);
             }
             
-            // Apply vouchers if provided
+            // Apply vouchers if provided - validate and calculate discounts
             if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
-                for (Integer voucherId : request.getVoucherIds()) {
-                    createOrderVoucher(savedOrder, voucherId);
+                try {
+                    // Validate and calculate vouchers using VoucherCalculationService
+                    VoucherCalculationService.VoucherCalculationResult voucherResult = 
+                        voucherCalculationService.calculateVoucherDiscount(savedOrder, request.getVoucherIds(), request.getUserId());
+                    
+                    // Update order amounts based on voucher calculations
+                    savedOrder.setDiscountAmount(voucherResult.getTotalProductDiscount());
+                    savedOrder.setDiscountShipping(voucherResult.getTotalShippingDiscount());
+                    savedOrder.setRegularVoucherCount(voucherResult.getRegularVoucherCount());
+                    savedOrder.setShippingVoucherCount(voucherResult.getShippingVoucherCount());
+                    
+                    // Recalculate total amount
+                    BigDecimal recalculatedTotal = request.getSubtotal()
+                        .add(request.getShippingFee())
+                        .subtract(voucherResult.getTotalProductDiscount())
+                        .subtract(voucherResult.getTotalShippingDiscount());
+                    savedOrder.setTotalAmount(recalculatedTotal);
+                    
+                    // Create order vouchers with calculated details
+                    for (VoucherCalculationService.VoucherApplicationDetail voucherDetail : voucherResult.getAppliedVouchers()) {
+                        createOrderVoucherWithDetails(savedOrder, voucherDetail);
+                    }
+                    
+                    // Update voucher usage
+                    voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
+                    
+                    // Save updated order
+                    savedOrder = orderRepository.save(savedOrder);
+                    
+                } catch (Exception e) {
+                    return new ApiResponse<>(400, "Lỗi áp dụng voucher: " + e.getMessage(), null);
                 }
+            } else {
+                // No vouchers - just use provided amounts
+                savedOrder.setDiscountAmount(request.getDiscountAmount());
+                savedOrder.setDiscountShipping(request.getDiscountShipping());
+                savedOrder = orderRepository.save(savedOrder);
             }
             
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
@@ -300,11 +341,10 @@ public class OrderServiceImpl implements OrderService {
         orderDetailRepository.save(orderDetail);
     }
     
-    private void createOrderVoucher(Order order, Integer voucherId) {
-        Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
-        if (voucher == null) {
-            throw new RuntimeException("Không tìm thấy voucher với ID: " + voucherId);
-        }
+    private void createOrderVoucherWithDetails(Order order, VoucherCalculationService.VoucherApplicationDetail voucherDetail) {
+        Voucher voucher = voucherRepository.findById(voucherDetail.getVoucherId()).orElseThrow(
+            () -> new RuntimeException("Không tìm thấy voucher với ID: " + voucherDetail.getVoucherId())
+        );
         
         OrderVoucher orderVoucher = new OrderVoucher();
         
@@ -316,6 +356,9 @@ public class OrderServiceImpl implements OrderService {
         
         orderVoucher.setOrder(order);
         orderVoucher.setVoucher(voucher);
+        orderVoucher.setVoucherType(voucherDetail.getVoucherType());
+        orderVoucher.setDiscountApplied(voucherDetail.getDiscountApplied());
+        orderVoucher.setAppliedAt(System.currentTimeMillis());
         
         orderVoucherRepository.save(orderVoucher);
     }

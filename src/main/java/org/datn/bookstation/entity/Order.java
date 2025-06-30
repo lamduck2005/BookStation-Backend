@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 @Table(name = "\"order\"")
 public class Order {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Integer id;
 
@@ -37,6 +38,27 @@ public class Order {
     @Column(name = "order_date", nullable = false)
     private Long orderDate;
 
+    // Tổng tiền sản phẩm (chưa tính phí ship, chưa giảm giá)
+    @NotNull
+    @Column(name = "subtotal", nullable = false, precision = 10, scale = 2)
+    private BigDecimal subtotal;
+
+    // Phí vận chuyển
+    @ColumnDefault("0")
+    @Column(name = "shipping_fee", precision = 10, scale = 2)
+    private BigDecimal shippingFee = BigDecimal.ZERO;
+
+    // Tổng giảm giá từ voucher sản phẩm
+    @ColumnDefault("0")
+    @Column(name = "discount_amount", precision = 10, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    // Giảm giá phí ship
+    @ColumnDefault("0")
+    @Column(name = "discount_shipping", precision = 10, scale = 2)
+    private BigDecimal discountShipping = BigDecimal.ZERO;
+
+    // Tổng tiền cuối cùng khách phải trả
     @NotNull
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
@@ -54,6 +76,27 @@ public class Order {
     @Nationalized
     @Column(name = "order_type", nullable = false, length = 20)
     private String orderType;
+
+    @Nationalized
+    @Lob
+    @Column(name = "notes")
+    private String notes;
+
+    // Lý do hủy/hoàn trả
+    @Nationalized
+    @Lob
+    @Column(name = "cancel_reason")
+    private String cancelReason;
+
+    // Số lượng voucher thường đã áp dụng (tối đa 1)
+    @ColumnDefault("0")
+    @Column(name = "regular_voucher_count")
+    private Integer regularVoucherCount = 0;
+
+    // Số lượng voucher freeship đã áp dụng (tối đa 1)  
+    @ColumnDefault("0")
+    @Column(name = "shipping_voucher_count")
+    private Integer shippingVoucherCount = 0;
 
     @Column(name = "created_at", nullable = false)
     private Long createdAt;
