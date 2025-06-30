@@ -41,7 +41,6 @@ public class CategoryServiceImpl implements CategoryService {
         category.setId(null);
         // category.setCreatedAt(Instant.now());
         category.setCreatedBy(1);
-        category.setStatus("Hoạt Động");
 
         return categoryRepository.save(category);
     }

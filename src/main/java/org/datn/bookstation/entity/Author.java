@@ -36,12 +36,11 @@ public class Author {
     private LocalDate birthDate;
 
     @NotNull
-    @ColumnDefault("getdate()")
     @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    private Long createdAt;
 
     @Column(name = "updated_at")
-    private Instant updatedAt;
+    private Long updatedAt;
 
     @NotNull
     @Column(name = "created_by", nullable = false)
@@ -50,6 +49,8 @@ public class Author {
     @Column(name = "updated_by")
     private Integer updatedBy;
 
+    @Column(name = "status")
+    private Byte status;
     @PrePersist
     protected void onCreate() {
         createdAt = System.currentTimeMillis();
