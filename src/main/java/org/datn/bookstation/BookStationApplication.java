@@ -1,9 +1,12 @@
 package org.datn.bookstation;
 
+import org.datn.bookstation.configuration.UploadProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
+@EnableConfigurationProperties(UploadProperties.class)
 public class BookStationApplication {
 
     public static void main(String[] args) {
