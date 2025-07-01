@@ -1,6 +1,7 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.service.AuthorService;
 import org.springframework.http.ResponseEntity;
@@ -16,23 +17,23 @@ public class AuthorController {
     private final AuthorService authorService;
 
     @GetMapping
-    public ResponseEntity<List<Author>> getAll() {
+    public ResponseEntity<ApiResponse<List<Author>>> getAll() {
         return ResponseEntity.ok(authorService.getAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Author> getById(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<Author>> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(authorService.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<Author> add(@RequestBody Author author) {
+    public ResponseEntity<ApiResponse<Author>> add(@RequestBody Author author) {
         System.out.println(author);
         return ResponseEntity.ok(authorService.add(author));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Author> update(@PathVariable Integer id, @RequestBody Author author) {
+    public ResponseEntity<ApiResponse<Author>> update(@PathVariable Integer id, @RequestBody Author author) {
         return ResponseEntity.ok(authorService.update(author, id));
     }
 

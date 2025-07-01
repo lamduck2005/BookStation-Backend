@@ -1,13 +1,14 @@
 package org.datn.bookstation.service;
 
+import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.entity.Author;
 
 import java.util.List;
 
 public interface AuthorService {
-    List<Author> getAll();
-    Author getById(Integer id);
-    Author add(Author author);
-    Author update(Author author, Integer id);
-    void delete(Integer id);
+   ApiResponse<List<Author>> getAll();
+    ApiResponse<Author> getById(Integer id);
+    ApiResponse<Author> add(Author author);
+    ApiResponse<Author> update(Author author, Integer id);
+    ApiResponse<Author> delete(Integer id);
 }
