@@ -1,129 +1,91 @@
 package org.datn.bookstation.controller;
 
+import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
-import java.math.BigDecimal;
+import java.util.Optional;
 
 @RestController
+@AllArgsConstructor
 @RequestMapping("/api/users")
 public class UserController {
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
 
-    // Lấy tất cả user
+    // Lấy danh sách user (phân trang, lọc)
     @GetMapping
-    public List<Map<String, Object>> getAllUsers() {
-        List<User> users = userService.findAll();
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (User u : users) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("user_id", u.getId());
-            map.put("full_name", u.getFullName());
-            map.put("email", u.getEmail());
-            map.put("phone_number", u.getPhoneNumber());
-            map.put("role_id", u.getRole() != null ? u.getRole().getId() : null);
-            map.put("status", u.getStatus());
-            map.put("created_at", u.getCreatedAt());
-            map.put("updated_at", u.getUpdatedAt());
-            map.put("total_spent", u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO);
-            map.put("total_point", u.getTotalPoint() != null ? u.getTotalPoint() : 0);
-            result.add(map);
-        }
-        return result;
+    public ResponseEntity<ApiResponse<PaginationResponse<UserResponse>>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String full_name,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone_number,
+            @RequestParam(required = false) Integer role_id,
+            @RequestParam(required = false) String status
+    ) {
+        PaginationResponse<UserResponse> users = userService.getAllWithPagination(
+                page, size, full_name, email, phone_number, role_id, status
+        );
+        ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", users);
+        return ResponseEntity.ok(response);
     }
 
-    // Lấy user theo id
+    // Lấy chi tiết user
     @GetMapping("/{id}")
-    public Map<String, Object> getUser(@PathVariable Integer id) {
-        Optional<User> userOpt = userService.findById(id);
-        if (userOpt.isPresent()) {
-            User u = userOpt.get();
-            Map<String, Object> map = new HashMap<>();
-            map.put("user_id", u.getId());
-            map.put("full_name", u.getFullName());
-            map.put("email", u.getEmail());
-            map.put("phone_number", u.getPhoneNumber());
-            map.put("role_id", u.getRole() != null ? u.getRole().getId() : null);
-            map.put("status", u.getStatus());
-            map.put("created_at", u.getCreatedAt());
-            map.put("updated_at", u.getUpdatedAt());
-            map.put("total_spent", u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO);
-            map.put("total_point", u.getTotalPoint() != null ? u.getTotalPoint() : 0);
-            return map;
+    public ResponseEntity<ApiResponse<UserResponse>> getById(@PathVariable Integer id) {
+        Optional<UserResponse> user = userService.getUserResponseById(id);
+        if (user.isPresent()) {
+            return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", user.get()));
         }
-        throw new RuntimeException("User not found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
     }
 
-    // Thêm user mới
+    // Tạo mới user
     @PostMapping
-    public Map<String, Object> createUser(@RequestBody Map<String, Object> req) {
-        User user = new User();
-        user.setFullName((String) req.get("full_name"));
-        user.setEmail((String) req.get("email"));
-        user.setPhoneNumber((String) req.get("phone_number"));
-        user.setStatus(Byte.valueOf(req.getOrDefault("status", "1").toString()));
-        user.setCreatedAt(System.currentTimeMillis());
-        user.setUpdatedAt(System.currentTimeMillis());
-        user.setTotalSpent(new BigDecimal(req.getOrDefault("total_spent", 0).toString()));
-        user.setTotalPoint((Integer) req.getOrDefault("total_point", 0));
-        // TODO: set role theo role_id nếu cần
-        // user.setRole(...);
-
-        User saved = userService.save(user);
-        Map<String, Object> map = new HashMap<>();
-        map.put("user_id", saved.getId());
-        map.put("full_name", saved.getFullName());
-        map.put("email", saved.getEmail());
-        map.put("phone_number", saved.getPhoneNumber());
-        map.put("role_id", saved.getRole() != null ? saved.getRole().getId() : null);
-        map.put("status", saved.getStatus());
-        map.put("created_at", saved.getCreatedAt());
-        map.put("updated_at", saved.getUpdatedAt());
-        map.put("total_spent", saved.getTotalSpent() != null ? saved.getTotalSpent() : BigDecimal.ZERO);
-        map.put("total_point", saved.getTotalPoint() != null ? saved.getTotalPoint() : 0);
-        return map;
+    public ResponseEntity<ApiResponse<UserResponse>> add(@RequestBody UserRequest userRequest) {
+        ApiResponse<UserResponse> response = userService.add(userRequest);
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
     }
 
     // Cập nhật user
     @PutMapping("/{id}")
-    public Map<String, Object> updateUser(@PathVariable Integer id, @RequestBody Map<String, Object> req) {
-        Optional<User> userOpt = userService.findById(id);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            user.setFullName((String) req.get("full_name"));
-            user.setEmail((String) req.get("email"));
-            user.setPhoneNumber((String) req.get("phone_number"));
-            user.setStatus(Byte.valueOf(req.getOrDefault("status", "1").toString()));
-            user.setUpdatedAt(System.currentTimeMillis());
-            user.setTotalSpent(new BigDecimal(req.getOrDefault("total_spent", 0).toString()));
-            user.setTotalPoint((Integer) req.getOrDefault("total_point", 0));
-            // TODO: set role theo role_id nếu cần
-            // user.setRole(...);
-
-            User saved = userService.save(user);
-            Map<String, Object> map = new HashMap<>();
-            map.put("user_id", saved.getId());
-            map.put("full_name", saved.getFullName());
-            map.put("email", saved.getEmail());
-            map.put("phone_number", saved.getPhoneNumber());
-            map.put("role_id", saved.getRole() != null ? saved.getRole().getId() : null);
-            map.put("status", saved.getStatus());
-            map.put("created_at", saved.getCreatedAt());
-            map.put("updated_at", saved.getUpdatedAt());
-            map.put("total_spent", saved.getTotalSpent() != null ? saved.getTotalSpent() : BigDecimal.ZERO);
-            map.put("total_point", saved.getTotalPoint() != null ? saved.getTotalPoint() : 0);
-            return map;
+    public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Integer id, @RequestBody UserRequest userRequest) {
+        ApiResponse<UserResponse> response = userService.update(userRequest, id);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-        throw new RuntimeException("User not found");
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
 
     // Xóa user
     @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Integer id) {
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
         userService.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Đổi trạng thái user (nếu có)
+    @PatchMapping("/{id}/toggle-status")
+    public ResponseEntity<ApiResponse<UserResponse>> toggleStatus(@PathVariable Integer id) {
+        ApiResponse<UserResponse> response = userService.toggleStatus(id);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
     }
 }

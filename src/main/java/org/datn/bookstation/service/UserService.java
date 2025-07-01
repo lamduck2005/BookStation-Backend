@@ -1,31 +1,27 @@
 package org.datn.bookstation.service;
 
-import org.datn.bookstation.entity.User;
-import org.datn.bookstation.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.UserResponse;
 
-import java.util.List;
 import java.util.Optional;
 
-@Service
-public class UserService {
-    @Autowired
-    private UserRepository userRepository;
+public interface UserService {
+    // Chuẩn REST: Phân trang, lọc, trả về PaginationResponse<UserResponse>
+    PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email, String phoneNumber, Integer roleId, String status);
 
-    public List<User> findAll() {
-        return userRepository.findAll();
-    }
+    // Trả về UserResponse theo id
+    Optional<UserResponse> getUserResponseById(Integer id);
 
-    public Optional<User> findById(Integer id) {
-        return userRepository.findById(id);
-    }
+    // Thêm mới user
+    ApiResponse<UserResponse> add(UserRequest req);
 
-    public User save(User user) {
-        return userRepository.save(user);
-    }
+    // Cập nhật user
+    ApiResponse<UserResponse> update(UserRequest req, Integer id);
 
-    public void deleteById(Integer id) {
-        userRepository.deleteById(id);
-    }
+    void deleteById(Integer id);
+
+    // Đổi trạng thái user (ví dụ: ACTIVE <-> INACTIVE)
+    ApiResponse<UserResponse> toggleStatus(Integer id);
 }
