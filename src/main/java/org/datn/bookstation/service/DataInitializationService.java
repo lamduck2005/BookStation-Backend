@@ -397,49 +397,62 @@ public class DataInitializationService implements CommandLineRunner {
         List<Category> categories = categoryRepository.findAll();
         List<Supplier> suppliers = supplierRepository.findAll();
         
+        // Tạo timestamp cho các năm xuất bản (milliseconds since Unix epoch)
+        long year2010 = 1262304000000L; // 2010-01-01
+        long year1941 = -915148800000L; // 1941-01-01
+        long year1987 = 536457600000L;  // 1987-01-01
+        long year1934 = -1136073600000L; // 1934-01-01
+        long year1997_june26 = 867283200000L; // 1997-06-26
+        long year1936 = -1073001600000L; // 1936-01-01
+        long year1937 = -1041379200000L; // 1937-01-01
+        long year2020 = 1577836800000L; // 2020-01-01
+        long year2018 = 1514764800000L; // 2018-01-01
+        long year1970 = 0L; // 1970-01-01
+        long year2017 = 1483228800000L; // 2017-01-01
+        
         List<Book> books = Arrays.asList(
             createBook("Tôi thấy hoa vàng trên cỏ xanh", "Tiểu thuyết của Nguyễn Nhật Ánh", 
-                new BigDecimal("85000"), 100, LocalDate.of(2010, 1, 1), 
+                new BigDecimal("85000"), 100, year2010, 
                 findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(0), 1),
             createBook("Dế Mèn phiêu lưu ký", "Tác phẩm kinh điển của Tô Hoài", 
-                new BigDecimal("65000"), 150, LocalDate.of(1941, 1, 1), 
+                new BigDecimal("65000"), 150, year1941, 
                 findCategoryByName(categories, "Thiếu nhi"), suppliers.get(0), 1),
             createBook("Chí Phèo", "Truyện ngắn của Nam Cao", 
-                new BigDecimal("45000"), 200, LocalDate.of(1941, 1, 1), 
+                new BigDecimal("45000"), 200, year1941, 
                 findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(2), 1),
             createBook("Norwegian Wood", "Tiểu thuyết của Haruki Murakami", 
-                new BigDecimal("120000"), 80, LocalDate.of(1987, 1, 1), 
+                new BigDecimal("120000"), 80, year1987, 
                 findCategoryByName(categories, "Lãng mạn"), suppliers.get(1), 1),
             createBook("Murder on the Orient Express", "Tiểu thuyết trinh thám của Agatha Christie", 
-                new BigDecimal("95000"), 90, LocalDate.of(1934, 1, 1), 
+                new BigDecimal("95000"), 90, year1934, 
                 findCategoryByName(categories, "Trinh thám"), suppliers.get(4), 1),
             createBook("Harry Potter và Hòn đá Phù thủy", "Tập 1 series Harry Potter", 
-                new BigDecimal("150000"), 120, LocalDate.of(1997, 6, 26), 
+                new BigDecimal("150000"), 120, year1997_june26, 
                 findCategoryByName(categories, "Khoa học viễn tưởng"), suppliers.get(1), 1),
             createBook("Đắc Nhân Tâm", "Sách self-help của Dale Carnegie", 
-                new BigDecimal("89000"), 300, LocalDate.of(1936, 1, 1), 
+                new BigDecimal("89000"), 300, year1936, 
                 findCategoryByName(categories, "Kinh doanh"), suppliers.get(4), 1),
             createBook("Think and Grow Rich", "Sách về thành công của Napoleon Hill", 
-                new BigDecimal("79000"), 180, LocalDate.of(1937, 1, 1), 
+                new BigDecimal("79000"), 180, year1937, 
                 findCategoryByName(categories, "Kinh doanh"), suppliers.get(5), 1),
             createBook("Toán học lớp 12", "Sách giáo khoa Toán 12", 
-                new BigDecimal("25000"), 500, LocalDate.of(2020, 1, 1), 
+                new BigDecimal("25000"), 500, year2020, 
                 findCategoryByName(categories, "Sách giáo khoa"), suppliers.get(3), 1),
             createBook("Từ điển Anh - Việt", "Từ điển Anh Việt cơ bản", 
-                new BigDecimal("135000"), 250, LocalDate.of(2018, 1, 1), 
+                new BigDecimal("135000"), 250, year2018, 
                 findCategoryByName(categories, "Từ điển"), suppliers.get(3), 1),
             createBook("Doraemon tập 1", "Truyện tranh Doraemon", 
-                new BigDecimal("18000"), 400, LocalDate.of(1970, 1, 1), 
+                new BigDecimal("18000"), 400, year1970, 
                 findCategoryByName(categories, "Truyện tranh"), suppliers.get(0), 1),
             createBook("Marketing 4.0", "Sách về marketing hiện đại", 
-                new BigDecimal("189000"), 100, LocalDate.of(2017, 1, 1), 
+                new BigDecimal("189000"), 100, year2017, 
                 findCategoryByName(categories, "Marketing"), suppliers.get(4), 1)
         );
         bookRepository.saveAll(books);
     }
 
     private Book createBook(String name, String description, BigDecimal price, Integer stock, 
-                          LocalDate publicationDate, Category category, Supplier supplier, Integer createdBy) {
+                          Long publicationDate, Category category, Supplier supplier, Integer createdBy) {
         Book book = new Book();
         book.setBookName(name);
         book.setDescription(description);

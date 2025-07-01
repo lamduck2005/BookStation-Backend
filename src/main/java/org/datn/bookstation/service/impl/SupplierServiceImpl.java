@@ -121,4 +121,8 @@ public class SupplierServiceImpl implements SupplierService {
         supplierRepository.save(supplier);
     }
 
+    @Override
+    public List<Supplier> getActiveSuppliers() {
+        return supplierRepository.findByStatus((byte) 1);
+    }
 }

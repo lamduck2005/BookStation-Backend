@@ -89,4 +89,8 @@ public class CategoryServiceImpl implements CategoryService {
         }
     }
 
+    @Override
+    public List<Category> getActiveCategories() {
+        return categoryRepository.findByStatus((byte) 1);
+    }
 }

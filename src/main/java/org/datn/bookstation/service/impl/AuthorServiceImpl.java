@@ -102,4 +102,9 @@ public class AuthorServiceImpl implements AuthorService {
                 authorPage.getTotalPages()
         );
     }
+
+    @Override
+    public List<Author> getActiveAuthors() {
+        return authorRepository.findByStatus((byte) 1);
+    }
 }

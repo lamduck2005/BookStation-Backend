@@ -15,4 +15,5 @@ public interface AuthorService {
     ApiResponse<Author> delete(Integer id);
     ApiResponse<Author> toggleStatus(Integer id);
     PaginationResponse<Author> getAllAuthorPagination(Integer page,Integer size,String name, Byte status);
+    List<Author> getActiveAuthors(); // For dropdown
 }

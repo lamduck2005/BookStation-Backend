@@ -2,16 +2,16 @@ package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
-import org.datn.bookstation.dto.response.RankResponse;
 import org.datn.bookstation.entity.Author;
-import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.service.AuthorService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @AllArgsConstructor
@@ -63,5 +63,14 @@ public class AuthorController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
+    }
+
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownAuthors() {
+        List<DropdownOptionResponse> dropdown = authorService.getActiveAuthors().stream()
+            .map(author -> new DropdownOptionResponse(author.getId(), author.getAuthorName()))
+            .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách tác giả thành công", dropdown);
+        return ResponseEntity.ok(response);
     }
 }

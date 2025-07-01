@@ -1,15 +1,19 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.ParentCategoryResponse;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.mapper.CategoryMap;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.service.impl.CategoryServiceImpl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @AllArgsConstructor
@@ -50,5 +54,14 @@ public class CategoryController {
     @GetMapping("/{id}")
     public ResponseEntity<Category> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(categoryService.getById(id));
+    }
+
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownCategories() {
+        List<DropdownOptionResponse> dropdown = categoryService.getActiveCategories().stream()
+            .map(category -> new DropdownOptionResponse(category.getId(), category.getCategoryName()))
+            .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách danh mục thành công", dropdown);
+        return ResponseEntity.ok(response);
     }
 }

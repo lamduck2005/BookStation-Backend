@@ -10,4 +10,5 @@ public interface CategoryService {
     Category getById(Integer id);
     Category update(Category category, Integer id);
     Category delete(Integer id);
+    List<Category> getActiveCategories(); // For dropdown
 }

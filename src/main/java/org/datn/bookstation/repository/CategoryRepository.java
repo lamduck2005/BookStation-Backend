@@ -26,4 +26,6 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
             select c from Category c where c.parentCategory is null and c.id = :id
             """)
     Category getByParentCategoryIsNull(@Param("id") Integer id);
+
+    List<Category> findByStatus(Byte status);
 }

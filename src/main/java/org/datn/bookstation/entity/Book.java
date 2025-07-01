@@ -9,7 +9,8 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -41,7 +42,7 @@ public class Book {
     private Integer stockQuantity;
 
     @Column(name = "publication_date")
-    private LocalDate publicationDate;
+    private Long publicationDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
@@ -72,6 +73,10 @@ public class Book {
     @NotNull
     @Column(name = "book_code", nullable = false)
     private String bookCode;
+    
+    // ✅ THÊM MỚI: Relationship với AuthorBook
+    @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<AuthorBook> authorBooks = new LinkedHashSet<>();
 
     @PrePersist
     protected void onCreate() {

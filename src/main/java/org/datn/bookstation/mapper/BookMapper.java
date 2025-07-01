@@ -1,0 +1,19 @@
+package org.datn.bookstation.mapper;
+
+import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.entity.Book;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
+@Mapper(componentModel = "spring")
+public interface BookMapper {
+    
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "category", ignore = true)
+    @Mapping(target = "supplier", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    Book toBook(BookRequest request);
+}

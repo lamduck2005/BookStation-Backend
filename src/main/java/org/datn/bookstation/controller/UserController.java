@@ -65,7 +65,7 @@ public class UserController {
         user.setFullName((String) req.get("full_name"));
         user.setEmail((String) req.get("email"));
         user.setPhoneNumber((String) req.get("phone_number"));
-        user.setStatus((String) req.get("status"));
+        user.setStatus(Byte.valueOf(req.getOrDefault("status", "1").toString()));
         user.setCreatedAt(System.currentTimeMillis());
         user.setUpdatedAt(System.currentTimeMillis());
         user.setTotalSpent(new BigDecimal(req.getOrDefault("total_spent", 0).toString()));
@@ -97,7 +97,7 @@ public class UserController {
             user.setFullName((String) req.get("full_name"));
             user.setEmail((String) req.get("email"));
             user.setPhoneNumber((String) req.get("phone_number"));
-            user.setStatus((String) req.get("status"));
+            user.setStatus(Byte.valueOf(req.getOrDefault("status", "1").toString()));
             user.setUpdatedAt(System.currentTimeMillis());
             user.setTotalSpent(new BigDecimal(req.getOrDefault("total_spent", 0).toString()));
             user.setTotalPoint((Integer) req.getOrDefault("total_point", 0));

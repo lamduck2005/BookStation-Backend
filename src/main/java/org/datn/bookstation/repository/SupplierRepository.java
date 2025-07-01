@@ -6,6 +6,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
     Page<Supplier> findAll(Specification<Supplier> spec, Pageable pageable);
+    List<Supplier> findByStatus(Byte status);
 }
