@@ -112,8 +112,7 @@ public class OrderServiceImpl implements OrderService {
             order.setUser(user);
             order.setAddress(address);
             
-            // Set subtotal and shipping fee from request
-            order.setSubtotal(request.getSubtotal());
+            // Set basic order info from request (not subtotal - will be calculated)
             order.setShippingFee(request.getShippingFee());
             
             // Set staff if provided
@@ -137,17 +136,29 @@ public class OrderServiceImpl implements OrderService {
             
             Order savedOrder = orderRepository.save(order);
             
-            // Create order details
+            // Create order details with proper price calculation
+            BigDecimal calculatedSubtotal = BigDecimal.ZERO;
             for (OrderDetailRequest detailRequest : request.getOrderDetails()) {
-                createOrderDetail(savedOrder, detailRequest);
+                BigDecimal itemSubtotal = createOrderDetailWithCalculation(savedOrder, detailRequest);
+                calculatedSubtotal = calculatedSubtotal.add(itemSubtotal);
             }
+            
+            // Update order with calculated subtotal
+            savedOrder.setSubtotal(calculatedSubtotal);
+            savedOrder.setShippingFee(request.getShippingFee());
+            savedOrder.setTotalAmount(calculatedSubtotal.add(request.getShippingFee()));
             
             // Apply vouchers if provided - validate and calculate discounts
             if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
                 try {
+                    // Create temporary order for voucher calculation
+                    Order tempOrder = new Order();
+                    tempOrder.setSubtotal(calculatedSubtotal);
+                    tempOrder.setShippingFee(request.getShippingFee());
+                    
                     // Validate and calculate vouchers using VoucherCalculationService
                     VoucherCalculationService.VoucherCalculationResult voucherResult = 
-                        voucherCalculationService.calculateVoucherDiscount(savedOrder, request.getVoucherIds(), request.getUserId());
+                        voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getVoucherIds(), request.getUserId());
                     
                     // Update order amounts based on voucher calculations
                     savedOrder.setDiscountAmount(voucherResult.getTotalProductDiscount());
@@ -156,7 +167,7 @@ public class OrderServiceImpl implements OrderService {
                     savedOrder.setShippingVoucherCount(voucherResult.getShippingVoucherCount());
                     
                     // Recalculate total amount
-                    BigDecimal recalculatedTotal = request.getSubtotal()
+                    BigDecimal recalculatedTotal = calculatedSubtotal
                         .add(request.getShippingFee())
                         .subtract(voucherResult.getTotalProductDiscount())
                         .subtract(voucherResult.getTotalShippingDiscount());
@@ -170,18 +181,19 @@ public class OrderServiceImpl implements OrderService {
                     // Update voucher usage
                     voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
                     
-                    // Save updated order
-                    savedOrder = orderRepository.save(savedOrder);
-                    
                 } catch (Exception e) {
                     return new ApiResponse<>(400, "Lỗi áp dụng voucher: " + e.getMessage(), null);
                 }
             } else {
-                // No vouchers - just use provided amounts
-                savedOrder.setDiscountAmount(request.getDiscountAmount());
-                savedOrder.setDiscountShipping(request.getDiscountShipping());
-                savedOrder = orderRepository.save(savedOrder);
+                // No vouchers - set default discount values
+                savedOrder.setDiscountAmount(BigDecimal.ZERO);
+                savedOrder.setDiscountShipping(BigDecimal.ZERO);
+                savedOrder.setRegularVoucherCount(0);
+                savedOrder.setShippingVoucherCount(0);
             }
+            
+            // Save updated order
+            savedOrder = orderRepository.save(savedOrder);
             
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
             return new ApiResponse<>(201, "Tạo đơn hàng thành công", response);
@@ -205,10 +217,15 @@ public class OrderServiceImpl implements OrderService {
         }
         
         try {
+            // Only allow update if order is still PENDING
+            if (existing.getOrderStatus() != OrderStatus.PENDING) {
+                return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng đang chờ xử lý", null);
+            }
+            
             // Update basic info
-            existing.setTotalAmount(request.getTotalAmount());
             existing.setOrderStatus(request.getOrderStatus());
             existing.setOrderType(request.getOrderType());
+            existing.setShippingFee(request.getShippingFee());
             existing.setUpdatedBy(request.getUserId());
             
             // Update address if changed
@@ -218,6 +235,11 @@ public class OrderServiceImpl implements OrderService {
                     existing.setAddress(newAddress);
                 }
             }
+            
+            // Recalculate order details and subtotal
+            // Note: This is a simplified update. Full implementation should handle
+            // updating order details, recalculating vouchers, etc.
+            // For now, just save basic updates
             
             Order savedOrder = orderRepository.save(existing);
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
@@ -308,13 +330,40 @@ public class OrderServiceImpl implements OrderService {
         return "ORD" + timestamp.substring(timestamp.length() - 6) + randomPart;
     }
     
-    private void createOrderDetail(Order order, OrderDetailRequest detailRequest) {
-        // Validate book
-        Book book = bookRepository.findById(detailRequest.getBookId()).orElse(null);
-        if (book == null) {
-            throw new RuntimeException("Không tìm thấy sách với ID: " + detailRequest.getBookId());
+    /**
+     * Create order detail with proper price calculation for regular and flash sale items
+     * @return subtotal for this order detail (quantity * unit_price)
+     */
+    private BigDecimal createOrderDetailWithCalculation(Order order, OrderDetailRequest detailRequest) {
+        Book book = bookRepository.findById(detailRequest.getBookId()).orElseThrow(
+            () -> new RuntimeException("Không tìm thấy sách với ID: " + detailRequest.getBookId())
+        );
+        
+        BigDecimal unitPrice;
+        FlashSaleItem flashSaleItem = null;
+        
+        // Check if this is a flash sale item
+        if (detailRequest.getFlashSaleItemId() != null) {
+            flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId()).orElseThrow(
+                () -> new RuntimeException("Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId())
+            );
+            
+            // Validate flash sale business rules
+            validateFlashSaleItem(flashSaleItem, detailRequest.getQuantity(), order.getUser().getId());
+            
+            // Use flash sale price
+            unitPrice = flashSaleItem.getDiscountPrice();
+        } else {
+            // Use regular book price
+            unitPrice = book.getPrice();
         }
         
+        // Validate quantity vs stock
+        if (detailRequest.getQuantity() > book.getStockQuantity()) {
+            throw new RuntimeException("Số lượng yêu cầu vượt quá tồn kho. Có sẵn: " + book.getStockQuantity());
+        }
+        
+        // Create order detail
         OrderDetail orderDetail = new OrderDetail();
         
         // Set composite key
@@ -326,19 +375,55 @@ public class OrderServiceImpl implements OrderService {
         orderDetail.setOrder(order);
         orderDetail.setBook(book);
         orderDetail.setQuantity(detailRequest.getQuantity());
-        orderDetail.setUnitPrice(detailRequest.getUnitPrice());
+        orderDetail.setUnitPrice(unitPrice); // Use calculated price
         orderDetail.setCreatedBy(order.getCreatedBy());
         orderDetail.setStatus((byte) 1);
         
-        // Set flash sale item if provided
-        if (detailRequest.getFlashSaleItemId() != null) {
-            FlashSaleItem flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId()).orElse(null);
-            if (flashSaleItem != null) {
-                orderDetail.setFlashSaleItem(flashSaleItem);
-            }
+        if (flashSaleItem != null) {
+            orderDetail.setFlashSaleItem(flashSaleItem);
         }
         
         orderDetailRepository.save(orderDetail);
+        
+        // Return subtotal for this item
+        return unitPrice.multiply(BigDecimal.valueOf(detailRequest.getQuantity()));
+    }
+    
+    /**
+     * Validate flash sale item business rules
+     */
+    private void validateFlashSaleItem(FlashSaleItem flashSaleItem, Integer requestedQuantity, Integer userId) {
+        FlashSale flashSale = flashSaleItem.getFlashSale();
+        long currentTime = System.currentTimeMillis();
+        
+        // Check flash sale time validity
+        if (currentTime < flashSale.getStartTime() || currentTime > flashSale.getEndTime()) {
+            throw new RuntimeException("Flash sale không trong thời gian hiệu lực");
+        }
+        
+        // Check flash sale status
+        if (flashSale.getStatus() != 1) {
+            throw new RuntimeException("Flash sale không hoạt động");
+        }
+        
+        // Check flash sale item status
+        if (flashSaleItem.getStatus() != 1) {
+            throw new RuntimeException("Sản phẩm flash sale không hoạt động");
+        }
+        
+        // Check stock quantity
+        if (requestedQuantity > flashSaleItem.getStockQuantity()) {
+            throw new RuntimeException("Số lượng flash sale không đủ. Có sẵn: " + flashSaleItem.getStockQuantity());
+        }
+        
+        // Check max purchase per user (if set)
+        if (flashSaleItem.getMaxPurchasePerUser() != null) {
+            // TODO: Check user's previous purchases for this flash sale item
+            // This requires tracking user purchases per flash sale item
+            if (requestedQuantity > flashSaleItem.getMaxPurchasePerUser()) {
+                throw new RuntimeException("Vượt quá giới hạn mua " + flashSaleItem.getMaxPurchasePerUser() + " sản phẩm trên 1 user");
+            }
+        }
     }
     
     private void createOrderVoucherWithDetails(Order order, VoucherCalculationService.VoucherApplicationDetail voucherDetail) {

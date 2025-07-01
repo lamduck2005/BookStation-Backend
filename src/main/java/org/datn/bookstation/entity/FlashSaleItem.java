@@ -41,11 +41,11 @@ public class FlashSaleItem {
     Book book;
 
     @NotNull
-    @Column(name = "discount_price", nullable = false, precision = 10, scale = 3)
+    @Column(name = "discount_price", nullable = false, precision = 12, scale = 2)
     BigDecimal discountPrice;
 
     @NotNull
-    @Column(name = "discount_percentage", nullable = false, precision = 3, scale = 2)
+    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
     BigDecimal discountPercentage;
 
     @NotNull

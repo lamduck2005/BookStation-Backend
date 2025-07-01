@@ -93,7 +93,6 @@ Body: OrderRequest
   "userId": 1,
   "staffId": 2,
   "addressId": 3,
-  "subtotal": 150000,
   "shippingFee": 30000,
   "orderStatus": "PENDING",
   "orderType": "NORMAL",
@@ -103,7 +102,7 @@ Body: OrderRequest
       "bookId": 1,
       "flashSaleItemId": null,
       "quantity": 2,
-      "unitPrice": 75000
+      "unitPrice": 75000  // Sẽ được ignore, tự động tính từ Book.price hoặc FlashSaleItem.discountPrice
     }
   ],
   "voucherIds": [1, 2]
@@ -113,11 +112,11 @@ Response: OrderResponse
 {
   "id": 1,
   "code": "ORD123456ABCD1234",
-  "subtotal": 150000,
+  "subtotal": 150000,      // Tự động tính: sum(quantity * actual_price)
   "shippingFee": 30000,
-  "discountAmount": 15000,
-  "discountShipping": 30000,
-  "totalAmount": 135000,
+  "discountAmount": 15000,  // Từ voucher thường
+  "discountShipping": 30000, // Từ voucher freeship
+  "totalAmount": 135000,    // subtotal + shipping - discountAmount - discountShipping
   "regularVoucherCount": 1,
   "shippingVoucherCount": 1,
   ...
@@ -297,6 +296,54 @@ discount_shipping = shipping discount from freeship voucher
 total_amount = subtotal + shipping_fee - discount_amount - discount_shipping
 ```
 
+## Flash Sale System
+
+### Flash Sale Business Rules
+1. **Price Calculation**:
+   - Regular items: Use `Book.price`
+   - Flash sale items: Use `FlashSaleItem.discountPrice`
+   - System tự động detect và sử dụng giá đúng
+
+2. **Flash Sale Validation**:
+   - **Time validity**: `FlashSale.startTime` ≤ current_time ≤ `FlashSale.endTime`
+   - **Status check**: `FlashSale.status = 1` AND `FlashSaleItem.status = 1`
+   - **Stock check**: `requested_quantity` ≤ `FlashSaleItem.stockQuantity`
+   - **Per-user limit**: `requested_quantity` ≤ `FlashSaleItem.maxPurchasePerUser` (if set)
+
+3. **Flash Sale Price Logic**:
+   ```
+   Original Price: Book.price = 100,000 VNĐ
+   Flash Sale Discount: FlashSaleItem.discountPercentage = 30%
+   Flash Sale Price: FlashSaleItem.discountPrice = 70,000 VNĐ
+   
+   Order calculation:
+   - System uses discountPrice (70,000 VNĐ) for flash sale items
+   - Voucher applies on top of already discounted price
+   ```
+
+### Order Calculation Flow
+1. **Calculate Subtotal**:
+   ```javascript
+   subtotal = 0
+   for each orderDetail:
+     if (orderDetail.flashSaleItemId != null):
+       price = FlashSaleItem.discountPrice
+     else:
+       price = Book.price
+     subtotal += price * quantity
+   ```
+
+2. **Apply Vouchers**:
+   ```javascript
+   discountAmount = calculate_voucher_discount(subtotal, vouchers)
+   discountShipping = calculate_shipping_discount(shippingFee, vouchers)
+   ```
+
+3. **Calculate Total**:
+   ```javascript
+   totalAmount = subtotal + shippingFee - discountAmount - discountShipping
+   ```
+
 ## Các tính năng đặc biệt
 
 ### 1. Tự động sinh mã đơn hàng
@@ -402,7 +449,151 @@ curl -X POST "http://localhost:8080/api/orders" \
 
 ## Ví dụ thực tế theo mô hình Shopee
 
-### Scenario 1: Đơn hàng với voucher giảm 10% + freeship
+### Scenario 1: Đơn hàng Flash Sale + Voucher
+```json
+{
+  "orderRequest": {
+    "userId": 1,
+    "shippingFee": 25000,
+    "orderDetails": [
+      {
+        "bookId": 1,
+        "flashSaleItemId": 101,
+        "quantity": 2
+      }
+    ],
+    "voucherIds": [201]
+  },
+  "flashSaleItem": {
+    "id": 101,
+    "bookId": 1,
+    "discountPrice": 70000,  // Book.price = 100000, đã giảm 30%
+    "stockQuantity": 50,
+    "maxPurchasePerUser": 3
+  },
+  "voucher": {
+    "id": 201,
+    "type": "PERCENTAGE", 
+    "discountPercentage": 10,
+    "maxDiscountValue": 20000
+  },
+  "calculation": {
+    "subtotal": 140000,        // 70000 * 2 (dùng flash sale price)
+    "productDiscount": 14000,  // min(140000*10%, 20000) = 14000
+    "shippingFee": 25000,
+    "shippingDiscount": 0,
+    "totalAmount": 151000      // 140000 + 25000 - 14000
+  }
+}
+```
+
+### Scenario 2: Đơn hàng Mix (Thường + Flash Sale) + Voucher
+```json
+{
+  "orderRequest": {
+    "userId": 1,
+    "shippingFee": 30000,
+    "orderDetails": [
+      {
+        "bookId": 1,
+        "flashSaleItemId": null,  // Sản phẩm thường
+        "quantity": 1
+      },
+      {
+        "bookId": 2,
+        "flashSaleItemId": 102,   // Sản phẩm flash sale
+        "quantity": 2
+      }
+    ],
+    "voucherIds": [301, 302]
+  },
+  "items": [
+    {
+      "bookId": 1,
+      "price": 100000,  // Giá thường
+      "calculation": "100000 * 1 = 100000"
+    },
+    {
+      "bookId": 2,
+      "originalPrice": 80000,
+      "flashSalePrice": 60000,  // Đã giảm 25%
+      "calculation": "60000 * 2 = 120000"
+    }
+  ],
+  "vouchers": [
+    {
+      "id": 301,
+      "type": "FIXED_AMOUNT",
+      "discountAmount": 30000
+    },
+    {
+      "id": 302,
+      "type": "FREE_SHIPPING",
+      "maxDiscountValue": 30000
+    }
+  ],
+  "calculation": {
+    "subtotal": 220000,        // 100000 + 120000
+    "productDiscount": 30000,  // FIXED_AMOUNT voucher
+    "shippingFee": 30000,
+    "shippingDiscount": 30000, // FREE_SHIPPING voucher
+    "totalAmount": 190000      // 220000 + 30000 - 30000 - 30000
+  }
+}
+```
+
+### Scenario 3: Flash Sale Validation Errors
+```json
+{
+  "case1_time_invalid": {
+    "error": "Flash sale không trong thời gian hiệu lực",
+    "details": "currentTime = 1625097600, flashSale.endTime = 1625097000"
+  },
+  "case2_stock_insufficient": {
+    "error": "Số lượng flash sale không đủ. Có sẵn: 5",
+    "details": "requestedQuantity = 10, flashSaleItem.stockQuantity = 5"
+  },
+  "case3_max_per_user_exceeded": {
+    "error": "Vượt quá giới hạn mua 3 sản phẩm trên 1 user",
+    "details": "requestedQuantity = 5, flashSaleItem.maxPurchasePerUser = 3"
+  }
+}
+```
+
+### Scenario 4: Đơn hàng với voucher giảm 10% + freeship (Regular products)
+```json
+{
+  "orderRequest": {
+    "userId": 1,
+    "subtotal": 200000,
+    "shippingFee": 25000,
+    "voucherIds": [101, 201]
+  },
+  "vouchers": [
+    {
+      "id": 101,
+      "type": "PERCENTAGE", 
+      "discountPercentage": 10,
+      "maxDiscountValue": 50000,
+      "minOrderValue": 100000
+    },
+    {
+      "id": 201,
+      "type": "FREE_SHIPPING",
+      "maxDiscountValue": 30000
+    }
+  ],
+  "calculation": {
+    "subtotal": 200000,
+    "productDiscount": 20000,  // min(200000*10%, 50000) = 20000
+    "shippingFee": 25000,
+    "shippingDiscount": 25000, // min(25000, 30000) = 25000
+    "totalAmount": 180000      // 200000 + 25000 - 20000 - 25000
+  }
+}
+```
+
+### Scenario 5: Đơn hàng với voucher giảm cố định
 ```json
 {
   "orderRequest": {
