@@ -58,7 +58,7 @@ public class UserServiceImpl implements UserService {
         user.setFullName(req.getFull_name());
         user.setEmail(req.getEmail());
         user.setPhoneNumber(req.getPhone_number());
-        user.setStatus(req.getStatus() != null ? Byte.valueOf(req.getStatus()) : 1);
+        user.setStatus(parseStatus(req.getStatus()));
         user.setCreatedAt(System.currentTimeMillis());
         user.setUpdatedAt(System.currentTimeMillis());
         user.setTotalSpent(req.getTotal_spent() != null ? req.getTotal_spent() : BigDecimal.ZERO);
@@ -85,7 +85,7 @@ public class UserServiceImpl implements UserService {
         user.setFullName(req.getFull_name());
         user.setEmail(req.getEmail());
         user.setPhoneNumber(req.getPhone_number());
-        user.setStatus(req.getStatus() != null ? Byte.valueOf(req.getStatus()) : user.getStatus());
+        user.setStatus(parseStatus(req.getStatus(), user.getStatus()));
         user.setUpdatedAt(System.currentTimeMillis());
         user.setTotalSpent(req.getTotal_spent() != null ? req.getTotal_spent() : user.getTotalSpent());
         user.setTotalPoint(req.getTotal_point() != null ? req.getTotal_point() : user.getTotalPoint());
@@ -113,6 +113,22 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(System.currentTimeMillis());
         User saved = userRepository.save(user);
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", toResponse(saved));
+    }
+
+    // Helper chuyển status String -> Byte
+    private Byte parseStatus(String status) {
+        if (status == null) return 1;
+        if (status.equalsIgnoreCase("ACTIVE") || status.equals("1")) return 1;
+        if (status.equalsIgnoreCase("INACTIVE") || status.equals("0")) return 0;
+        try {
+            return Byte.valueOf(status);
+        } catch (Exception e) {
+            return 1;
+        }
+    }
+    private Byte parseStatus(String status, Byte defaultStatus) {
+        if (status == null) return defaultStatus != null ? defaultStatus : 1;
+        return parseStatus(status);
     }
 
     private UserResponse toResponse(User u) {
