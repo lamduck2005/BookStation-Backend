@@ -13,13 +13,14 @@ import java.util.List;
 
 public interface BookService {
     PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, 
-                                                         Integer categoryId, Integer supplierId, 
+                                                         Integer categoryId, Integer supplierId, Integer publisherId,
                                                          BigDecimal minPrice, BigDecimal maxPrice, 
                                                          Byte status, String bookCode);
     List<Book> getAll();
     List<Book> getActiveBooks();
     List<Book> getBooksByCategory(Integer categoryId);
     List<Book> getBooksBySupplier(Integer supplierId);
+    List<Book> getBooksByPublisher(Integer publisherId);
     Book getById(Integer id);
     ApiResponse<Book> add(BookRequest request);
     ApiResponse<Book> update(BookRequest request, Integer id);

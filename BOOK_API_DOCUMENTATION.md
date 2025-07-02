@@ -1,10 +1,30 @@
 # TÀI LIỆU API QUẢN LÝ SÁCH (BOOK API)
-
-## ⚠️ BREAKING CHANGE - THÔNG BÁO QUAN TRỌNG
+| categoryId | Integer | Không | ID danh mục sách |
+| supplierId | Integer | Không | ID nhà cung cấp |
+| publisherId | Integer | Không | ID nhà xuất bản |
+| minPrice | BigDecimal | Không | null | Giá tối thiểu |
+| maxPrice | BigDecimal | Không | null | Giá tối đa |
+| status | Byte | Không | null | Trạng thái (1: Active, 0: Inactive) |
+| bookCode | String | Không | null | Mã sách |️ BREAKING CHANGE - THÔNG BÁO QUAN TRỌNG
 
 **🚨 CẬP NHẬT NGÀY 01/07/2025:**
 
-API Sách đã được cập nhật để **BẮT BUỘC** phải có thông tin tác giả. Đây là thay đổi **BREAKING CHANGE**:
+API Sách đã được cập nhật để **BẮT BUỘC** phải có thông tin tác giả. Đây là thay đổi **B### 7.6. API Lấy sách theo danh mục
+```
+GET /api/books/category/{categoryId}
+```
+
+### 7.7. API Lấy sách theo nhà cung cấp
+```
+GET /api/books/supplier/{supplierId}
+```
+
+### 7.8. API Lấy sách đang hoạt động
+```
+GET /api/books/active
+```
+
+### 7.9. API Test chuyển đổi ngày xuất bản:
 
 ### Thay đổi API POST/PUT Book:
 - **Thêm field bắt buộc:** `authorIds` (List<Integer>) trong request
@@ -47,7 +67,7 @@ GET /api/books
 
 ### Ví dụ Request
 ```http
-GET /api/books?page=0&size=10&bookName=Doraemon&categoryId=1&minPrice=50000&maxPrice=200000&status=1
+GET /api/books?page=0&size=10&bookName=Doraemon&categoryId=1&publisherId=1&minPrice=50000&maxPrice=200000&status=1
 ```
 
 ### Response thành công (200)
@@ -68,6 +88,8 @@ GET /api/books?page=0&size=10&bookName=Doraemon&categoryId=1&minPrice=50000&maxP
         "categoryName": "Truyện tranh",
         "supplierId": 1,
         "supplierName": "NXB Kim Đồng",
+        "publisherId": 1,
+        "publisherName": "NXB Trẻ",
         "bookCode": "BOOK001",
         "status": 1,
         "createdAt": 1625097600000,
@@ -104,6 +126,8 @@ GET /api/books?page=0&size=10&bookName=Doraemon&categoryId=1&minPrice=50000&maxP
 | categoryName | String | Tên danh mục |
 | supplierId | Integer | ID nhà cung cấp |
 | supplierName | String | Tên nhà cung cấp |
+| publisherId | Integer | ID nhà xuất bản |
+| publisherName | String | Tên nhà xuất bản |
 | bookCode | String | Mã sách duy nhất |
 | status | Byte | Trạng thái (1: Hoạt động, 0: Không hoạt động) |
 | createdAt | Long | Thời gian tạo (timestamp) |
@@ -154,6 +178,8 @@ GET /api/books/1
     "categoryName": "Truyện tranh",
     "supplierId": 1,
     "supplierName": "NXB Kim Đồng",
+    "publisherId": 1,
+    "publisherName": "NXB Trẻ",
     "bookCode": "BOOK001",
     "status": 1,
     "createdAt": 1625097600000,
@@ -199,6 +225,7 @@ POST /api/books
   "publicationDate": 1577836800000,
   "categoryId": 1,
   "supplierId": 1,
+  "publisherId": 1,
   "bookCode": "BOOK002",
   "status": 1,
   "authorIds": [1, 2]
@@ -215,6 +242,7 @@ POST /api/books
 | publicationDate | Long | Không | Ngày xuất bản (timestamp) | |
 | categoryId | Integer | Không | ID danh mục | Phải tồn tại trong hệ thống |
 | supplierId | Integer | Không | ID nhà cung cấp | Phải tồn tại trong hệ thống |
+| publisherId | Integer | Không | ID nhà xuất bản | Phải tồn tại trong hệ thống |
 | bookCode | String | Không | Mã sách | Duy nhất, tự động tạo nếu không có |
 | status | Byte | Không | Trạng thái | 1 hoặc 0, mặc định là 1 |
 | **authorIds** | **List<Integer>** | **Có** | **Danh sách ID tác giả** | **Không được rỗng, tất cả ID phải tồn tại** |
@@ -235,6 +263,8 @@ POST /api/books
     "categoryName": "Truyện tranh",
     "supplierId": 1,
     "supplierName": "NXB Kim Đồng",
+    "publisherId": 1,
+    "publisherName": "NXB Trẻ",
     "bookCode": "BOOK002",
     "status": 1,
     "createdAt": 1704067200000,
@@ -339,6 +369,7 @@ PUT /api/books/{id}
   "publicationDate": 1577836800000,
   "categoryId": 2,
   "supplierId": 2,
+  "publisherId": 2,
   "bookCode": "BOOK002_UPDATED",
   "status": 1,
   "authorIds": [3, 4]
@@ -361,6 +392,8 @@ PUT /api/books/{id}
     "categoryName": "Tiểu thuyết",
     "supplierId": 2,
     "supplierName": "NXB Trẻ",
+    "publisherId": 2,
+    "publisherName": "NXB Giáo dục",
     "bookCode": "BOOK002_UPDATED",
     "status": 1,
     "createdAt": 1704067200000,
@@ -530,7 +563,31 @@ GET /api/categories/dropdown
 }
 ```
 
-### 7.4. 🔥 API Lấy dropdown nhà cung cấp (CHO FORM TẠO/SỬA SÁCH)
+### 7.4. 🔥 API Lấy dropdown nhà xuất bản (CHO FORM TẠO/SỬA SÁCH)
+```
+GET /api/publishers/dropdown
+```
+
+**Response:**
+```json
+{
+  "status": 200,
+  "message": "Lấy danh sách nhà xuất bản thành công",
+  "data": [
+    {
+      "id": 1,
+      "name": "NXB Kim Đồng"
+    },
+    {
+      "id": 2,
+      "name": "NXB Trẻ"
+    }
+  ]
+}
+```
+
+### 7.5. 🔥 API Lấy dropdown nhà cung cấp (CHO FORM TẠO/SỬA SÁCH)
+### 7.5. 🔥 API Lấy dropdown nhà cung cấp (CHO FORM TẠO/SỬA SÁCH)
 ```
 GET /api/suppliers/dropdown
 ```
@@ -553,7 +610,7 @@ GET /api/suppliers/dropdown
 }
 ```
 
-### 7.5. API Lấy sách theo danh mục
+### 7.6. API Lấy sách theo danh mục
 ```
 GET /api/books/category/{categoryId}
 ```
@@ -615,7 +672,7 @@ GET /api/books/test-publication-date
 - Có thể null
 
 ### 6. Danh mục và nhà cung cấp
-- CategoryId và SupplierId phải tồn tại trong hệ thống
+- CategoryId, SupplierId và PublisherId phải tồn tại trong hệ thống
 - Có thể null
 
 ### 7. Trạng thái (status)
@@ -632,6 +689,7 @@ GET /api/books/test-publication-date
   - `GET /api/authors/dropdown` - Lấy danh sách tác giả
   - `GET /api/categories/dropdown` - Lấy danh sách danh mục  
   - `GET /api/suppliers/dropdown` - Lấy danh sách nhà cung cấp
+  - `GET /api/publishers/dropdown` - Lấy danh sách nhà xuất bản
 - **Format response:** `{id: number, name: string}`
 - **Cache:** Nên cache response và refresh khi cần
 
@@ -687,6 +745,7 @@ curl -X POST "http://localhost:8080/api/books" \
   "stockQuantity": 30,
   "categoryId": 1,
   "supplierId": 1,
+  "publisherId": 1,
   "authorIds": [1, 2]
 }'
 ```
@@ -699,6 +758,7 @@ curl -X PUT "http://localhost:8080/api/books/1" \
   "bookName": "Sách đã cập nhật",
   "price": 180000,
   "stockQuantity": 25,
+  "publisherId": 2,
   "authorIds": [3]
 }'
 ```
@@ -717,6 +777,10 @@ curl -X GET "http://localhost:8080/api/authors/dropdown" \
 
 # Lấy dropdown danh mục
 curl -X GET "http://localhost:8080/api/categories/dropdown" \
+-H "Content-Type: application/json"
+
+# Lấy dropdown nhà xuất bản
+curl -X GET "http://localhost:8080/api/publishers/dropdown" \
 -H "Content-Type: application/json"
 
 # Lấy dropdown nhà cung cấp

@@ -10,6 +10,7 @@ import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.entity.Supplier;
+import org.datn.bookstation.entity.Publisher;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
@@ -19,6 +20,7 @@ import org.datn.bookstation.mapper.TrendingBookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.repository.SupplierRepository;
+import org.datn.bookstation.repository.PublisherRepository;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
 import org.datn.bookstation.service.BookService;
@@ -48,6 +50,7 @@ public class BookServiceImpl implements BookService {
     private final BookRepository bookRepository;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
+    private final PublisherRepository publisherRepository;
     private final AuthorRepository authorRepository;
     private final AuthorBookRepository authorBookRepository;
     private final BookMapper bookMapper;
@@ -56,11 +59,11 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, 
-                                                                Integer categoryId, Integer supplierId, 
+                                                                Integer categoryId, Integer supplierId, Integer publisherId,
                                                                 BigDecimal minPrice, BigDecimal maxPrice, 
                                                                 Byte status, String bookCode) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Specification<Book> specification = BookSpecification.filterBy(bookName, categoryId, supplierId, 
+        Specification<Book> specification = BookSpecification.filterBy(bookName, categoryId, supplierId, publisherId,
                                                                        minPrice, maxPrice, status, bookCode);
         Page<Book> bookPage = bookRepository.findAll(specification, pageable);
         
@@ -96,6 +99,11 @@ public class BookServiceImpl implements BookService {
     public List<Book> getBooksBySupplier(Integer supplierId) {
         return bookRepository.findBySupplierId(supplierId);
     }
+    
+    @Override
+    public List<Book> getBooksByPublisher(Integer publisherId) {
+        return bookRepository.findByPublisherId(publisherId);
+    }
 
     @Override
     public Book getById(Integer id) {
@@ -127,7 +135,7 @@ public class BookServiceImpl implements BookService {
                 return new ApiResponse<>(404, "Một hoặc nhiều tác giả không tồn tại", null);
             }
             
-            Book book = bookMapper.toBook(request);
+            Book book = bookMapper.toEntity(request);
             
             // Set category if provided
             if (request.getCategoryId() != null) {
@@ -145,6 +153,15 @@ public class BookServiceImpl implements BookService {
                     return new ApiResponse<>(404, "Không tìm thấy nhà cung cấp", null);
                 }
                 book.setSupplier(supplier);
+            }
+            
+            // Set publisher if provided
+            if (request.getPublisherId() != null) {
+                Publisher publisher = publisherRepository.findById(request.getPublisherId()).orElse(null);
+                if (publisher == null) {
+                    return new ApiResponse<>(404, "Không tìm thấy nhà xuất bản", null);
+                }
+                book.setPublisher(publisher);
             }
             
             // Generate book code if not provided
@@ -229,6 +246,29 @@ public class BookServiceImpl implements BookService {
             existing.setStockQuantity(request.getStockQuantity());
             existing.setPublicationDate(request.getPublicationDate());
             
+            // Update new book detail fields
+            if (request.getCoverImageUrl() != null) {
+                existing.setCoverImageUrl(request.getCoverImageUrl());
+            }
+            if (request.getTranslator() != null) {
+                existing.setTranslator(request.getTranslator());
+            }
+            if (request.getIsbn() != null) {
+                existing.setIsbn(request.getIsbn());
+            }
+            if (request.getPageCount() != null) {
+                existing.setPageCount(request.getPageCount());
+            }
+            if (request.getLanguage() != null) {
+                existing.setLanguage(request.getLanguage());
+            }
+            if (request.getWeight() != null) {
+                existing.setWeight(request.getWeight());
+            }
+            if (request.getDimensions() != null) {
+                existing.setDimensions(request.getDimensions());
+            }
+            
             if (request.getBookCode() != null) {
                 existing.setBookCode(request.getBookCode());
             }
@@ -253,6 +293,15 @@ public class BookServiceImpl implements BookService {
                     return new ApiResponse<>(404, "Không tìm thấy nhà cung cấp", null);
                 }
                 existing.setSupplier(supplier);
+            }
+            
+            // Update publisher if provided
+            if (request.getPublisherId() != null) {
+                Publisher publisher = publisherRepository.findById(request.getPublisherId()).orElse(null);
+                if (publisher == null) {
+                    return new ApiResponse<>(404, "Không tìm thấy nhà xuất bản", null);
+                }
+                existing.setPublisher(publisher);
             }
             
             existing.setUpdatedBy(1); // Default updated by system user

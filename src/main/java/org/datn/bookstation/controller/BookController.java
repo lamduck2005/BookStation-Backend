@@ -39,13 +39,14 @@ public class BookController {
             @RequestParam(required = false) String bookName,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) Integer supplierId,
+            @RequestParam(required = false) Integer publisherId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Byte status,
             @RequestParam(required = false) String bookCode) {
         
         PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
-            page, size, bookName, categoryId, supplierId, minPrice, maxPrice, status, bookCode);
+            page, size, bookName, categoryId, supplierId, publisherId, minPrice, maxPrice, status, bookCode);
         ApiResponse<PaginationResponse<BookResponse>> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);

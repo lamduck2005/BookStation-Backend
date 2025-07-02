@@ -26,6 +26,15 @@ public class BookResponseMapper {
         response.setCreatedAt(book.getCreatedAt());
         response.setUpdatedAt(book.getUpdatedAt());
         
+        // Set new book detail fields
+        response.setCoverImageUrl(book.getCoverImageUrl());
+        response.setTranslator(book.getTranslator());
+        response.setIsbn(book.getIsbn());
+        response.setPageCount(book.getPageCount());
+        response.setLanguage(book.getLanguage());
+        response.setWeight(book.getWeight());
+        response.setDimensions(book.getDimensions());
+        
         // Set category info
         if (book.getCategory() != null) {
             response.setCategoryId(book.getCategory().getId());
@@ -36,6 +45,12 @@ public class BookResponseMapper {
         if (book.getSupplier() != null) {
             response.setSupplierId(book.getSupplier().getId());
             response.setSupplierName(book.getSupplier().getSupplierName());
+        }
+        
+        // Set publisher info
+        if (book.getPublisher() != null) {
+            response.setPublisherId(book.getPublisher().getId());
+            response.setPublisherName(book.getPublisher().getPublisherName());
         }
         
         // Set authors info

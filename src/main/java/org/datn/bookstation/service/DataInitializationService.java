@@ -27,6 +27,7 @@ public class DataInitializationService implements CommandLineRunner {
     private final CategoryRepository categoryRepository;
     private final AuthorRepository authorRepository;
     private final SupplierRepository supplierRepository;
+    private final PublisherRepository publisherRepository;
     private final BookRepository bookRepository;
     private final AuthorBookRepository authorBookRepository;
     private final VoucherRepository voucherRepository;
@@ -112,6 +113,13 @@ public class DataInitializationService implements CommandLineRunner {
             initializeSuppliers();
         } else {
             log.info("Suppliers already exist, skipping supplier initialization.");
+        }
+
+        // Kiểm tra và khởi tạo Publishers
+        if (publisherRepository.count() == 0) {
+            initializePublishers();
+        } else {
+            log.info("Publishers already exist, skipping publisher initialization.");
         }
 
         // Kiểm tra và khởi tạo Books
@@ -393,11 +401,40 @@ public class DataInitializationService implements CommandLineRunner {
         return supplier;
     }
 
+    private void initializePublishers() {
+        log.info("Initializing publishers...");
+        List<Publisher> publishers = Arrays.asList(
+            createPublisher("NXB Kim Đồng", "55 Quang Trung, Hai Bà Trưng, Hà Nội", "contact@kimdong.com.vn", "024-3971-0999", "https://nxbkimdong.com.vn", "Nhà xuất bản chuyên về sách thiếu nhi", 1954),
+            createPublisher("NXB Trẻ", "161B Lý Chính Thắng, Quận 3, TP.HCM", "contact@nxbtre.com.vn", "028-3930-5001", "https://nxbtre.com.vn", "Nhà xuất bản chuyên về sách giáo dục và văn học", 1981),
+            createPublisher("NXB Văn học", "18 Nguyễn Trường Tộ, Ba Đình, Hà Nội", "contact@nxbvanhoc.vn", "024-3825-4091", "https://nxbvanhoc.vn", "Chuyên xuất bản văn học trong nước và nước ngoài", 1957),
+            createPublisher("NXB Giáo dục Việt Nam", "81 Trần Hưng Đạo, Hoàn Kiếm, Hà Nội", "contact@nxbgd.vn", "024-3822-5340", "https://nxbgiaoduc.vn", "Nhà xuất bản sách giáo khoa và giáo trình", 1957),
+            createPublisher("NXB Thông tin và Truyền thông", "115 Trần Duy Hưng, Cầu Giấy, Hà Nội", "contact@nxbtttt.vn", "024-3568-8244", "https://nxbtttt.vn", "Chuyên về sách công nghệ thông tin", 2008),
+            createPublisher("NXB Lao động", "175 Giảng Võ, Đống Đa, Hà Nội", "contact@nxblaodong.vn", "024-3851-3341", "https://nxblaodong.vn", "Nhà xuất bản về lao động và xã hội", 1958)
+        );
+        publisherRepository.saveAll(publishers);
+    }
+
+    private Publisher createPublisher(String name, String address, String email, String phone, String website, String description, Integer establishedYear) {
+        Publisher publisher = new Publisher();
+        publisher.setPublisherName(name);
+        publisher.setAddress(address);
+        publisher.setEmail(email);
+        publisher.setPhoneNumber(phone);
+        publisher.setWebsite(website);
+        publisher.setDescription(description);
+        publisher.setEstablishedYear(establishedYear);
+        publisher.setStatus((byte) 1);
+        publisher.setCreatedBy(1);
+        publisher.setUpdatedBy(1);
+        return publisher;
+    }
+
     private void initializeBooks() {
         log.info("Initializing books...");
         
         List<Category> categories = categoryRepository.findAll();
         List<Supplier> suppliers = supplierRepository.findAll();
+        List<Publisher> publishers = publisherRepository.findAll();
         
         // Tạo timestamp cho các năm xuất bản (milliseconds since Unix epoch)
         long year2010 = 1262304000000L; // 2010-01-01
@@ -415,46 +452,58 @@ public class DataInitializationService implements CommandLineRunner {
         List<Book> books = Arrays.asList(
             createBook("Tôi thấy hoa vàng trên cỏ xanh", "Tiểu thuyết của Nguyễn Nhật Ánh", 
                 new BigDecimal("85000"), 100, year2010, 
-                findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(0), 1),
+                findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(0), 
+                findPublisherByName(publishers, "NXB Trẻ"), 1),
             createBook("Dế Mèn phiêu lưu ký", "Tác phẩm kinh điển của Tô Hoài", 
                 new BigDecimal("65000"), 150, year1941, 
-                findCategoryByName(categories, "Thiếu nhi"), suppliers.get(0), 1),
+                findCategoryByName(categories, "Thiếu nhi"), suppliers.get(0), 
+                findPublisherByName(publishers, "NXB Kim Đồng"), 1),
             createBook("Chí Phèo", "Truyện ngắn của Nam Cao", 
                 new BigDecimal("45000"), 200, year1941, 
-                findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(2), 1),
+                findCategoryByName(categories, "Tiểu thuyết"), suppliers.get(2), 
+                findPublisherByName(publishers, "NXB Văn học"), 1),
             createBook("Norwegian Wood", "Tiểu thuyết của Haruki Murakami", 
                 new BigDecimal("120000"), 80, year1987, 
-                findCategoryByName(categories, "Lãng mạn"), suppliers.get(1), 1),
+                findCategoryByName(categories, "Lãng mạn"), suppliers.get(1), 
+                findPublisherByName(publishers, "NXB Trẻ"), 1),
             createBook("Murder on the Orient Express", "Tiểu thuyết trinh thám của Agatha Christie", 
                 new BigDecimal("95000"), 90, year1934, 
-                findCategoryByName(categories, "Trinh thám"), suppliers.get(4), 1),
+                findCategoryByName(categories, "Trinh thám"), suppliers.get(4), 
+                findPublisherByName(publishers, "NXB Văn học"), 1),
             createBook("Harry Potter và Hòn đá Phù thủy", "Tập 1 series Harry Potter", 
                 new BigDecimal("150000"), 120, year1997_june26, 
-                findCategoryByName(categories, "Khoa học viễn tưởng"), suppliers.get(1), 1),
+                findCategoryByName(categories, "Khoa học viễn tưởng"), suppliers.get(1), 
+                findPublisherByName(publishers, "NXB Trẻ"), 1),
             createBook("Đắc Nhân Tâm", "Sách self-help của Dale Carnegie", 
                 new BigDecimal("89000"), 300, year1936, 
-                findCategoryByName(categories, "Kinh doanh"), suppliers.get(4), 1),
+                findCategoryByName(categories, "Kinh doanh"), suppliers.get(4), 
+                findPublisherByName(publishers, "NXB Lao động"), 1),
             createBook("Think and Grow Rich", "Sách về thành công của Napoleon Hill", 
                 new BigDecimal("79000"), 180, year1937, 
-                findCategoryByName(categories, "Kinh doanh"), suppliers.get(5), 1),
+                findCategoryByName(categories, "Kinh doanh"), suppliers.get(5), 
+                findPublisherByName(publishers, "NXB Lao động"), 1),
             createBook("Toán học lớp 12", "Sách giáo khoa Toán 12", 
                 new BigDecimal("25000"), 500, year2020, 
-                findCategoryByName(categories, "Sách giáo khoa"), suppliers.get(3), 1),
+                findCategoryByName(categories, "Sách giáo khoa"), suppliers.get(3), 
+                findPublisherByName(publishers, "NXB Giáo dục Việt Nam"), 1),
             createBook("Từ điển Anh - Việt", "Từ điển Anh Việt cơ bản", 
                 new BigDecimal("135000"), 250, year2018, 
-                findCategoryByName(categories, "Từ điển"), suppliers.get(3), 1),
+                findCategoryByName(categories, "Từ điển"), suppliers.get(3), 
+                findPublisherByName(publishers, "NXB Giáo dục Việt Nam"), 1),
             createBook("Doraemon tập 1", "Truyện tranh Doraemon", 
                 new BigDecimal("18000"), 400, year1970, 
-                findCategoryByName(categories, "Truyện tranh"), suppliers.get(0), 1),
+                findCategoryByName(categories, "Truyện tranh"), suppliers.get(0), 
+                findPublisherByName(publishers, "NXB Kim Đồng"), 1),
             createBook("Marketing 4.0", "Sách về marketing hiện đại", 
                 new BigDecimal("189000"), 100, year2017, 
-                findCategoryByName(categories, "Marketing"), suppliers.get(4), 1)
+                findCategoryByName(categories, "Marketing"), suppliers.get(4), 
+                findPublisherByName(publishers, "NXB Thông tin và Truyền thông"), 1)
         );
         bookRepository.saveAll(books);
     }
 
     private Book createBook(String name, String description, BigDecimal price, Integer stock, 
-                          Long publicationDate, Category category, Supplier supplier, Integer createdBy) {
+                          Long publicationDate, Category category, Supplier supplier, Publisher publisher, Integer createdBy) {
         Book book = new Book();
         book.setBookName(name);
         book.setDescription(description);
@@ -463,6 +512,7 @@ public class DataInitializationService implements CommandLineRunner {
         book.setPublicationDate(publicationDate);
         book.setCategory(category);
         book.setSupplier(supplier);
+        book.setPublisher(publisher);
         book.setCreatedBy(createdBy);
         book.setBookCode("BOOK" + System.currentTimeMillis());
         book.setStatus((byte) 1);
@@ -474,6 +524,13 @@ public class DataInitializationService implements CommandLineRunner {
                 .filter(cat -> cat.getCategoryName().equals(name))
                 .findFirst()
                 .orElse(categories.get(0));
+    }
+
+    private Publisher findPublisherByName(List<Publisher> publishers, String name) {
+        return publishers.stream()
+                .filter(pub -> pub.getPublisherName().equals(name))
+                .findFirst()
+                .orElse(publishers.get(0));
     }
 
     private void initializeAuthorBooks() {

@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 public class BookSpecification {
     
-    public static Specification<Book> filterBy(String bookName, Integer categoryId, Integer supplierId, 
+    public static Specification<Book> filterBy(String bookName, Integer categoryId, Integer supplierId, Integer publisherId,
                                               BigDecimal minPrice, BigDecimal maxPrice, Byte status, 
                                               String bookCode) {
         return (root, query, criteriaBuilder) -> {
@@ -27,6 +27,11 @@ public class BookSpecification {
             if (supplierId != null) {
                 predicates = criteriaBuilder.and(predicates,
                     criteriaBuilder.equal(root.get("supplier").get("id"), supplierId));
+            }
+            
+            if (publisherId != null) {
+                predicates = criteriaBuilder.and(predicates,
+                    criteriaBuilder.equal(root.get("publisher").get("id"), publisherId));
             }
             
             if (minPrice != null && maxPrice != null) {

@@ -24,6 +24,9 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     @Query("SELECT b FROM Book b WHERE b.supplier.id = :supplierId")
     List<Book> findBySupplierId(@Param("supplierId") Integer supplierId);
     
+    @Query("SELECT b FROM Book b WHERE b.publisher.id = :publisherId")
+    List<Book> findByPublisherId(@Param("publisherId") Integer publisherId);
+    
     @Query("SELECT b FROM Book b WHERE b.status = 1 ORDER BY b.createdAt DESC")
     List<Book> findActiveBooks();
     

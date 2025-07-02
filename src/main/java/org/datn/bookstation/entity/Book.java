@@ -52,6 +52,47 @@ public class Book {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
+    // ✅ THÊM MỚI: Nhà xuất bản  
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "publisher_id")
+    private Publisher publisher;
+
+    // ✅ THÊM MỚI: Ảnh bìa sách
+    @Size(max = 2000)
+    @Nationalized
+    @Column(name = "cover_image_url", length = 2000)
+    private String coverImageUrl;
+
+    // ✅ THÊM MỚI: Người dịch
+    @Size(max = 255)
+    @Nationalized
+    @Column(name = "translator")
+    private String translator;
+
+    // ✅ THÊM MỚI: ISBN
+    @Size(max = 20)
+    @Column(name = "isbn", length = 20)
+    private String isbn;
+
+    // ✅ THÊM MỚI: Số trang
+    @Column(name = "page_count")
+    private Integer pageCount;
+
+    // ✅ THÊM MỚI: Ngôn ngữ
+    @Size(max = 50)
+    @Nationalized
+    @Column(name = "language", length = 50)
+    private String language;
+
+    // ✅ THÊM MỚI: Cân nặng (gram)
+    @Column(name = "weight")
+    private Integer weight;
+
+    // ✅ THÊM MỚI: Kích thước (dài x rộng x cao) cm
+    @Size(max = 50)
+    @Column(name = "dimensions", length = 50)
+    private String dimensions;
+
     @ColumnDefault("1")
     @Column(name = "status")
     private Byte status;
