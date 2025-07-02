@@ -21,5 +21,11 @@ public interface AuthorBookRepository extends JpaRepository<AuthorBook, AuthorBo
     @Query("SELECT ab FROM AuthorBook ab WHERE ab.author.id = :authorId")
     List<AuthorBook> findByAuthorId(@Param("authorId") Integer authorId);
     
+    /**
+     * Lấy thông tin authors cho nhiều books cùng lúc (để tránh N+1 query)
+     */
+    @Query("SELECT ab FROM AuthorBook ab JOIN FETCH ab.author WHERE ab.book.id IN :bookIds")
+    List<AuthorBook> findByBookIdsWithAuthor(@Param("bookIds") List<Integer> bookIds);
+    
     void deleteByBookId(Integer bookId);
 }

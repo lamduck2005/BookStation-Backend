@@ -2,10 +2,12 @@ package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
+import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.service.BookService;
@@ -46,6 +48,26 @@ public class BookController {
             page, size, bookName, categoryId, supplierId, minPrice, maxPrice, status, bookCode);
         ApiResponse<PaginationResponse<BookResponse>> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
+     * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
+     * Tất cả parameters gửi trong request body để URL clean và dễ quản lý
+     */
+    @PostMapping("/trending")
+    public ResponseEntity<ApiResponse<PaginationResponse<TrendingBookResponse>>> getTrendingBooks(
+            @Valid @RequestBody TrendingRequest request) {
+        
+        PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(request);
+        
+        String message = request.isDailyTrending() ? 
+            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" : 
+            "Lấy danh sách sách hot giảm sốc thành công";
+            
+        ApiResponse<PaginationResponse<TrendingBookResponse>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), message, trendingBooks);
         return ResponseEntity.ok(response);
     }
 
@@ -179,6 +201,25 @@ public class BookController {
         
         ApiResponse<Map<String, Object>> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Test publicationDate conversion thành công", testData);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 🔥 ADMIN: Cache management endpoints
+     */
+    @GetMapping("/admin/cache/trending/stats")
+    public ResponseEntity<ApiResponse<String>> getTrendingCacheStats() {
+        // Note: Inject TrendingCacheService if needed
+        ApiResponse<String> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", "Feature available when TrendingCacheService is injected");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/admin/cache/trending/invalidate")
+    public ResponseEntity<ApiResponse<String>> invalidateTrendingCache() {
+        // Note: Inject TrendingCacheService if needed
+        ApiResponse<String> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated", "Feature available when TrendingCacheService is injected");
         return ResponseEntity.ok(response);
     }
 }

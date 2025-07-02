@@ -1,0 +1,192 @@
+{
+  "status": 200,
+  "message": "Lấy danh sách sách hot giảm sốc thành công",
+  "data": {
+    "content": [
+      {
+        "id": 6,
+        "bookName": "Sapiens: Lược Sử Loài Người",
+        "description": "Cuốn sách khám phá lịch sử tiến hóa của loài người từ thời tiền sử đến hiện đại.",
+        "price": 220000,
+        "originalPrice": 350000,
+        "discountPercentage": 37,
+        "stockQuantity": 30,
+        "imageUrl": "https://example.com/images/sapiens.jpg",
+        "bookCode": "BOOK1751387084686",
+        "publicationDate": 1420070400000,
+        "categoryId": 5,
+        "categoryName": "Lịch sử",
+        "authors": [
+          {
+            "id": 7,
+            "authorName": "Yuval Noah Harari",
+            "biography": "Nhà sử học và triết gia người Israel",
+            "birthDate": 1976,
+            "status": 1
+          }
+        ],
+        "supplierId": 2,
+        "supplierName": "Nhà sách Trẻ",
+        "rating": 4.5,
+        "reviewCount": 134,
+        "soldCount": 89,
+        "orderCount": 52,
+        "trendingScore": 9.1,
+        "trendingRank": 1,
+        "isInFlashSale": true,
+        "flashSalePrice": 199000,
+        "flashSaleStockQuantity": 15,
+        "createdAt": 1420070400000,
+        "updatedAt": 1751387084686
+      },
+      {
+        "id": 12,
+        "bookName": "Lập Trình Java Từ Cơ Bản Đến Nâng Cao",
+        "description": "Sách học lập trình Java dành cho người mới bắt đầu với các ví dụ thực tế và dự án.",
+        "price": 199000,
+        "originalPrice": 299000,
+        "discountPercentage": 33,
+        "stockQuantity": 45,
+        "imageUrl": "https://example.com/images/java-programming.jpg",
+        "bookCode": "BOOK1751358228917",
+        "publicationDate": 1735689600000,
+        "categoryId": 4,
+        "categoryName": "Công nghệ thông tin",
+        "authors": [
+          {
+            "id": 5,
+            "authorName": "Trần Văn A",
+            "biography": "Kỹ sư phần mềm với 10 năm kinh nghiệm",
+            "birthDate": 1985,
+            "status": 1
+          }
+        ],
+        "supplierId": 4,
+        "supplierName": "Nhà xuất bản Đại học Quốc gia",
+        "rating": 4.3,
+        "reviewCount": 78,
+        "soldCount": 56,
+        "orderCount": 34,
+        "trendingScore": 8.5,
+        "trendingRank": 2,
+        "isInFlashSale": false,
+        "flashSalePrice": null,
+        "flashSaleStockQuantity": null,
+        "createdAt": 1735689600000,
+        "updatedAt": 1751358228917
+      },
+      {
+        "id": 15,
+        "bookName": "Nghệ Thuật Tinh Tế Của Việc Đếch Quan Tâm",
+        "description": "Cuốn sách gây sốt về cách sống tích cực bằng việc tập trung vào những gì thực sự quan trọng.",
+        "price": 89000,
+        "originalPrice": 120000,
+        "discountPercentage": 26,
+        "stockQuantity": 120,
+        "imageUrl": "https://example.com/images/subtle-art.jpg",
+        "bookCode": "BOOK1751357234919",
+        "publicationDate": 1609459200000,
+        "categoryId": 1,
+        "categoryName": "Phát triển bản thân",
+        "authors": [
+          {
+            "id": 2,
+            "authorName": "Mark Manson",
+            "biography": "Blogger nổi tiếng và tác giả sách phát triển bản thân",
+            "birthDate": 1984,
+            "status": 1
+          }
+        ],
+        "supplierId": 2,
+        "supplierName": "Nhà sách Trẻ",
+        "rating": 4.6,
+        "reviewCount": 189,
+        "soldCount": 142,
+        "orderCount": 78,
+        "trendingScore": 8.2,
+        "trendingRank": 3,
+        "isInFlashSale": false,
+        "flashSalePrice": null,
+        "flashSaleStockQuantity": null,
+        "createdAt": 1609459200000,
+        "updatedAt": 1751357234919
+      },
+      {
+        "id": 18,
+        "bookName": "Combo 5 Cuốn Sách Kinh Tế Hay Nhất",
+        "description": "Bộ sách tổng hợp kiến thức kinh tế cơ bản đến nâng cao cho sinh viên và người đi làm.",
+        "price": 299000,
+        "originalPrice": 450000,
+        "discountPercentage": 34,
+        "stockQuantity": 25,
+        "imageUrl": "https://example.com/images/economics-combo.jpg",
+        "bookCode": "BOOK1751358228920",
+        "publicationDate": 1751011200000,
+        "categoryId": 7,
+        "categoryName": "Kinh tế",
+        "authors": [
+          {
+            "id": 12,
+            "authorName": "Nhiều tác giả",
+            "biography": "Tập hợp các chuyên gia kinh tế hàng đầu",
+            "birthDate": null,
+            "status": 1
+          }
+        ],
+        "supplierId": 1,
+        "supplierName": "Nhà sách Fahasa",
+        "rating": 4.4,
+        "reviewCount": 67,
+        "soldCount": 43,
+        "orderCount": 28,
+        "trendingScore": 7.9,
+        "trendingRank": 4,
+        "isInFlashSale": true,
+        "flashSalePrice": 249000,
+        "flashSaleStockQuantity": 8,
+        "createdAt": 1751011200000,
+        "updatedAt": 1751358228920
+      },
+      {
+        "id": 22,
+        "bookName": "Học Photoshop CC 2023 Từ A-Z",
+        "description": "Hướng dẫn học Photoshop từ cơ bản đến nâng cao với các dự án thực tế và kỹ thuật chuyên nghiệp.",
+        "price": 149000,
+        "originalPrice": 189000,
+        "discountPercentage": 21,
+        "stockQuantity": 35,
+        "imageUrl": "https://example.com/images/photoshop-cc.jpg",
+        "bookCode": "BOOK1751358228004",
+        "publicationDate": 1751011200000,
+        "categoryId": 4,
+        "categoryName": "Công nghệ thông tin",
+        "authors": [
+          {
+            "id": 11,
+            "authorName": "Phạm Thị D",
+            "biography": "Designer với 8 năm kinh nghiệm trong lĩnh vực đồ họa",
+            "birthDate": 1988,
+            "status": 1
+          }
+        ],
+        "supplierId": 4,
+        "supplierName": "Nhà xuất bản Đại học Quốc gia",
+        "rating": 4.2,
+        "reviewCount": 56,
+        "soldCount": 43,
+        "orderCount": 28,
+        "trendingScore": 7.1,
+        "trendingRank": 5,
+        "isInFlashSale": false,
+        "flashSalePrice": null,
+        "flashSaleStockQuantity": null,
+        "createdAt": 1751011200000,
+        "updatedAt": 1751358228004
+      }
+    ],
+    "totalElements": 12,
+    "pageNumber": 0,
+    "pageSize": 10,
+    "totalPages": 2
+  }
+}

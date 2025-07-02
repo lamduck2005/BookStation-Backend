@@ -2,9 +2,11 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.entity.Supplier;
@@ -13,6 +15,7 @@ import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.mapper.BookResponseMapper;
+import org.datn.bookstation.mapper.TrendingBookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.repository.SupplierRepository;
@@ -20,6 +23,7 @@ import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
 import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.specification.BookSpecification;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,7 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +52,7 @@ public class BookServiceImpl implements BookService {
     private final AuthorBookRepository authorBookRepository;
     private final BookMapper bookMapper;
     private final BookResponseMapper bookResponseMapper;
+    private final TrendingBookMapper trendingBookMapper;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, 
@@ -281,5 +290,278 @@ public class BookServiceImpl implements BookService {
         } catch (Exception e) {
             return new ApiResponse<>(500, "Lỗi khi cập nhật trạng thái: " + e.getMessage(), null);
         }
+    }
+    
+    // ❌ REMOVED: Old getTrendingBooks method - replaced by new TrendingRequest-based method
+
+    // ❌ REMOVED: Old getTrendingBooksWithFallback method - replaced by new getDailyTrendingWithFallback
+    
+    /**
+     * 🔥 NEW MAIN METHOD: Trending books với TrendingRequest
+     * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
+     */
+    @Override
+    @Cacheable(value = "trending-books", 
+        key = "#request.type + '-' + #request.page + '-' + #request.size + '-' + " +
+              "(#request.isDailyTrending() ? 'no-category' : (#request.categoryId != null ? #request.categoryId : 'all')) + '-' + " +
+              "(#request.minPrice != null ? #request.minPrice : '0') + '-' + " +
+              "(#request.maxPrice != null ? #request.maxPrice : 'max')")
+    public PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request) {
+        try {
+            // Validate request
+            if (!request.isValidType()) {
+                throw new IllegalArgumentException("Invalid trending type. Must be DAILY_TRENDING or HOT_DISCOUNT");
+            }
+            
+            if (request.isHotDiscount()) {
+                return getHotDiscountBooks(request);
+            } else {
+                return getDailyTrendingBooks(request);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error getting trending books: " + e.getMessage());
+            e.printStackTrace();
+            return createEmptyPaginationResponse(request.getPage(), request.getSize());
+        }
+    }
+
+    /**
+     * 🔥 DAILY TRENDING: Xu hướng theo ngày (sales + reviews + recency)
+     * ❌ KHÔNG sử dụng categoryId - lấy xu hướng tổng thể
+     */
+    private PaginationResponse<TrendingBookResponse> getDailyTrendingBooks(TrendingRequest request) {
+        long currentTime = System.currentTimeMillis();
+        long thirtyDaysAgo = currentTime - (30L * 24 * 60 * 60 * 1000);
+        long sixtyDaysAgo = currentTime - (60L * 24 * 60 * 60 * 1000);
+        
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
+        
+        // 🔥 DAILY_TRENDING: Không filter theo category, lấy tổng thể
+        Page<Object[]> trendingData = bookRepository.findTrendingBooksData(
+            thirtyDaysAgo, sixtyDaysAgo, currentTime, 
+            null, request.getMinPrice(), request.getMaxPrice(), pageable);
+        
+        // 🔥 FALLBACK STRATEGY: Nếu không có đủ dữ liệu từ database thực tế
+        if (trendingData.getTotalElements() < request.getSize()) {
+            return getDailyTrendingWithFallback(request, trendingData, thirtyDaysAgo, sixtyDaysAgo, currentTime);
+        }
+        
+        return mapTrendingDataToResponse(trendingData, request.getPage(), request.getSize());
+    }
+
+    /**
+     * 🔥 HOT DISCOUNT: Sách hot giảm sốc (flash sale + discount cao)
+     */
+    private PaginationResponse<TrendingBookResponse> getHotDiscountBooks(TrendingRequest request) {
+        long currentTime = System.currentTimeMillis();
+        
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
+        
+        // Lấy sách có flash sale hoặc discount cao
+        Page<Object[]> hotDiscountData = bookRepository.findHotDiscountBooks(
+            currentTime, request.getCategoryId(), request.getMinPrice(), request.getMaxPrice(),
+            request.getMinDiscountPercentage(), request.getFlashSaleOnly(), pageable);
+        
+        // 🔥 FALLBACK: Nếu không có đủ sách giảm giá, lấy sách có giá tốt
+        if (hotDiscountData.getTotalElements() < request.getSize()) {
+            return getHotDiscountWithFallback(request, hotDiscountData, currentTime);
+        }
+        
+        return mapTrendingDataToResponse(hotDiscountData, request.getPage(), request.getSize());
+    }
+
+    /**
+     * 🔥 FALLBACK cho Daily Trending - Dựa trên dữ liệu thực tế
+     */
+    private PaginationResponse<TrendingBookResponse> getDailyTrendingWithFallback(
+            TrendingRequest request, Page<Object[]> existingTrending, 
+            long thirtyDaysAgo, long sixtyDaysAgo, long currentTime) {
+        
+        List<TrendingBookResponse> allTrendingBooks = new ArrayList<>();
+        
+        // 1. Thêm trending thực sự (nếu có)
+        if (!existingTrending.isEmpty()) {
+            PaginationResponse<TrendingBookResponse> existingResponse = 
+                mapTrendingDataToResponse(existingTrending, 0, existingTrending.getContent().size());
+            allTrendingBooks.addAll(existingResponse.getContent());
+        }
+        
+        // 2. Bổ sung từ sách thực tế trong database (DAILY_TRENDING không filter category)
+        int needMore = request.getSize() - allTrendingBooks.size();
+        if (needMore > 0) {
+            List<Object[]> fallbackBooks = bookRepository.findFallbackTrendingBooks(
+                null, request.getMinPrice(), request.getMaxPrice(), 
+                PageRequest.of(0, needMore * 2));
+            
+            // Lọc bỏ những sách đã có
+            Set<Integer> existingBookIds = allTrendingBooks.stream()
+                .map(TrendingBookResponse::getId)
+                .collect(Collectors.toSet());
+            
+            Map<Integer, List<AuthorBook>> authorsMap = getAuthorsForBooks(
+                fallbackBooks.stream()
+                    .map(data -> (Integer) data[0])
+                    .filter(id -> !existingBookIds.contains(id))
+                    .limit(needMore)
+                    .collect(Collectors.toList())
+            );
+            
+            int fallbackRank = allTrendingBooks.size() + 1;
+            for (Object[] data : fallbackBooks) {
+                Integer bookId = (Integer) data[0];
+                if (!existingBookIds.contains(bookId) && allTrendingBooks.size() < request.getSize()) {
+                    TrendingBookResponse book = trendingBookMapper.mapToFallbackTrendingBookResponse(
+                        data, fallbackRank++, authorsMap);
+                    allTrendingBooks.add(book);
+                }
+            }
+        }
+        
+        // 3. Tính tổng số phần tử dựa trên database thực tế (DAILY_TRENDING không filter category)
+        long totalElements = bookRepository.countActiveBooks(
+            null, request.getMinPrice(), request.getMaxPrice());
+        
+        return PaginationResponse.<TrendingBookResponse>builder()
+            .content(allTrendingBooks)
+            .pageNumber(request.getPage())
+            .pageSize(request.getSize())
+            .totalElements(totalElements)
+            .totalPages((int) Math.ceil((double) totalElements / request.getSize()))
+            .build();
+    }
+
+    /**
+     * 🔥 FALLBACK cho Hot Discount - Dựa trên dữ liệu thực tế
+     */
+    private PaginationResponse<TrendingBookResponse> getHotDiscountWithFallback(
+            TrendingRequest request, Page<Object[]> existingDiscount, long currentTime) {
+        
+        List<TrendingBookResponse> allDiscountBooks = new ArrayList<>();
+        
+        // 1. Thêm sách giảm giá thực sự (nếu có)
+        if (!existingDiscount.isEmpty()) {
+            PaginationResponse<TrendingBookResponse> existingResponse = 
+                mapTrendingDataToResponse(existingDiscount, 0, existingDiscount.getContent().size());
+            allDiscountBooks.addAll(existingResponse.getContent());
+        }
+        
+        // 2. Bổ sung từ sách có giá tốt trong database
+        int needMore = request.getSize() - allDiscountBooks.size();
+        if (needMore > 0) {
+            List<Object[]> fallbackBooks = bookRepository.findGoodPriceBooks(
+                request.getCategoryId(), request.getMinPrice(), request.getMaxPrice(), 
+                PageRequest.of(0, needMore * 2));
+            
+            Set<Integer> existingBookIds = allDiscountBooks.stream()
+                .map(TrendingBookResponse::getId)
+                .collect(Collectors.toSet());
+            
+            Map<Integer, List<AuthorBook>> authorsMap = getAuthorsForBooks(
+                fallbackBooks.stream()
+                    .map(data -> (Integer) data[0])
+                    .filter(id -> !existingBookIds.contains(id))
+                    .limit(needMore)
+                    .collect(Collectors.toList())
+            );
+            
+            int fallbackRank = allDiscountBooks.size() + 1;
+            for (Object[] data : fallbackBooks) {
+                Integer bookId = (Integer) data[0];
+                if (!existingBookIds.contains(bookId) && allDiscountBooks.size() < request.getSize()) {
+                    TrendingBookResponse book = trendingBookMapper.mapToFallbackTrendingBookResponse(
+                        data, fallbackRank++, authorsMap);
+                    book.setTrendingScore(Math.min(book.getTrendingScore(), 4.0)); // Hot discount fallback score
+                    allDiscountBooks.add(book);
+                }
+            }
+        }
+        
+        // 3. Tính tổng số phần tử
+        long totalElements = bookRepository.countActiveBooks(
+            request.getCategoryId(), request.getMinPrice(), request.getMaxPrice());
+        
+        return PaginationResponse.<TrendingBookResponse>builder()
+            .content(allDiscountBooks)
+            .pageNumber(request.getPage())
+            .pageSize(request.getSize())
+            .totalElements(totalElements)
+            .totalPages((int) Math.ceil((double) totalElements / request.getSize()))
+            .build();
+    }
+
+    /**
+     * Helper: Map trending data to response
+     */
+    private PaginationResponse<TrendingBookResponse> mapTrendingDataToResponse(
+            Page<Object[]> trendingData, int page, int size) {
+        
+        Map<Integer, List<AuthorBook>> authorsMap = getAuthorsForBooks(
+            trendingData.getContent().stream()
+                .map(data -> (Integer) data[0])
+                .collect(Collectors.toList())
+        );
+        
+        List<TrendingBookResponse> trendingBooks = new ArrayList<>();
+        int rank = page * size + 1;
+        
+        for (Object[] data : trendingData.getContent()) {
+            TrendingBookResponse book = trendingBookMapper.mapToTrendingBookResponse(
+                data, rank++, authorsMap);
+            trendingBooks.add(book);
+        }
+        
+        return PaginationResponse.<TrendingBookResponse>builder()
+            .content(trendingBooks)
+            .pageNumber(trendingData.getNumber())
+            .pageSize(trendingData.getSize())
+            .totalElements(trendingData.getTotalElements())
+            .totalPages(trendingData.getTotalPages())
+            .build();
+    }
+
+    /**
+     * Helper: Get authors for books
+     */
+    private Map<Integer, List<AuthorBook>> getAuthorsForBooks(List<Integer> bookIds) {
+        if (bookIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        List<AuthorBook> authorBooks = authorBookRepository.findByBookIdsWithAuthor(bookIds);
+        return authorBooks.stream()
+            .collect(Collectors.groupingBy(ab -> ab.getBook().getId()));
+    }
+
+    /**
+     * Helper: Create empty pagination response
+     */
+    private PaginationResponse<TrendingBookResponse> createEmptyPaginationResponse(int page, int size) {
+        return PaginationResponse.<TrendingBookResponse>builder()
+            .content(new ArrayList<>())
+            .pageNumber(page)
+            .pageSize(size)
+            .totalElements(0L)
+            .totalPages(0)
+            .build();
+    }
+
+    /**
+     * 🔥 DEPRECATED: Keep for backward compatibility
+     * ❌ DAILY_TRENDING không sử dụng categoryId
+     */
+    @Override
+    @Deprecated
+    public PaginationResponse<TrendingBookResponse> getTrendingBooks(int page, int size, Integer categoryId, 
+                                                                   BigDecimal minPrice, BigDecimal maxPrice) {
+        TrendingRequest request = new TrendingRequest();
+        request.setType("DAILY_TRENDING");
+        request.setPage(page);
+        request.setSize(size);
+        // ❌ DAILY_TRENDING không sử dụng categoryId nữa
+        request.setMinPrice(minPrice);
+        request.setMaxPrice(maxPrice);
+        
+        return getTrendingBooks(request);
     }
 }

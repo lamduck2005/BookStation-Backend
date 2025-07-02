@@ -187,6 +187,7 @@ public class DataInitializationService implements CommandLineRunner {
         // Kiểm tra và khởi tạo Orders
         if (orderRepository.count() == 0) {
             initializeOrders();
+            initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
         } else {
             log.info("Orders already exist, skipping initialization.");
         }
@@ -201,6 +202,7 @@ public class DataInitializationService implements CommandLineRunner {
         // Kiểm tra và khởi tạo Reviews
         if (reviewRepository.count() == 0) {
             initializeReviews();
+            initializeTrendingReviewData(); // ✅ THÊM: Tạo thêm review cho trending
         } else {
             log.info("Reviews already exist, skipping initialization.");
         }
@@ -1000,5 +1002,190 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Points: {}", pointRepository.count());
         log.info("Reviews: {}", reviewRepository.count());
         log.info("========================");
+    }
+    
+    /**
+     * ✅ THÊM METHOD: Tạo thêm dữ liệu đơn hàng để có sản phẩm xu hướng
+     * Tạo nhiều đơn hàng trong 30 ngày qua với số lượng khác nhau cho các sách
+     */
+    private void initializeTrendingOrderData() {
+        log.info("Initializing trending order data...");
+        
+        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<Book> books = bookRepository.findAll();
+        List<Address> addresses = addressRepository.findAll();
+        
+        if (customers.isEmpty() || books.isEmpty() || addresses.isEmpty()) {
+            log.warn("Not enough data to create trending orders");
+            return;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        long thirtyDaysAgo = currentTime - (30L * 24 * 60 * 60 * 1000); // 30 ngày trước
+        
+        // Tạo orders cho các sách khác nhau với tần suất khác nhau để mô phỏng trending
+        int[] trendingPattern = {15, 12, 10, 8, 6, 4, 3, 2, 1, 1}; // Số đơn hàng cho từng sách
+        
+        for (int bookIndex = 0; bookIndex < Math.min(books.size(), trendingPattern.length); bookIndex++) {
+            Book book = books.get(bookIndex);
+            int orderCount = trendingPattern[bookIndex];
+            
+            // Tạo nhiều đơn hàng cho sách này trong 30 ngày qua
+            for (int orderIndex = 0; orderIndex < orderCount; orderIndex++) {
+                User customer = customers.get(orderIndex % customers.size());
+                Address address = addresses.stream()
+                        .filter(addr -> addr.getUser().equals(customer))
+                        .findFirst()
+                        .orElse(addresses.get(0));
+                
+                // Random thời gian trong 30 ngày qua
+                long orderTime = thirtyDaysAgo + (long)(Math.random() * (currentTime - thirtyDaysAgo));
+                
+                Order order = createTrendingOrder(customer, address, OrderStatus.DELIVERED, "NORMAL", orderTime);
+                orderRepository.save(order);
+                
+                // Tạo order detail với số lượng random
+                int quantity = 1 + (int)(Math.random() * 3); // 1-3 cuốn
+                BigDecimal unitPrice = book.getPrice();
+                
+                OrderDetail detail = createOrderDetail(order, book, quantity, unitPrice);
+                orderDetailRepository.save(detail);
+                
+                // Cập nhật tổng tiền đơn hàng
+                BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+                order.setSubtotal(subtotal);
+                order.setTotalAmount(subtotal.add(order.getShippingFee()));
+                orderRepository.save(order);
+                
+                // Thêm một số đơn hàng có nhiều sách
+                if (orderIndex % 3 == 0 && bookIndex < books.size() - 1) {
+                    Book secondBook = books.get(bookIndex + 1);
+                    int secondQuantity = 1 + (int)(Math.random() * 2);
+                    BigDecimal secondUnitPrice = secondBook.getPrice();
+                    
+                    OrderDetail secondDetail = createOrderDetail(order, secondBook, secondQuantity, secondUnitPrice);
+                    orderDetailRepository.save(secondDetail);
+                    
+                    BigDecimal additionalAmount = secondUnitPrice.multiply(BigDecimal.valueOf(secondQuantity));
+                    order.setSubtotal(order.getSubtotal().add(additionalAmount));
+                    order.setTotalAmount(order.getTotalAmount().add(additionalAmount));
+                    orderRepository.save(order);
+                }
+            }
+        }
+        
+        log.info("Created {} trending orders", Arrays.stream(trendingPattern).sum());
+    }
+    
+    /**
+     * Tạo Order với thời gian tùy chỉnh cho trending data
+     */
+    private Order createTrendingOrder(User customer, Address address, OrderStatus status, String orderType, long orderTime) {
+        Order order = new Order();
+        order.setUser(customer);
+        order.setAddress(address);
+        order.setOrderDate(orderTime); // Sử dụng thời gian tùy chỉnh
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setShippingFee(new BigDecimal("30000"));
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setDiscountShipping(BigDecimal.ZERO);
+        order.setTotalAmount(BigDecimal.ZERO);
+        order.setOrderStatus(status);
+        order.setOrderType(orderType);
+        order.setCode("TRD" + orderTime + "_" + customer.getId()); // Code khác để phân biệt
+        order.setCreatedBy(customer.getId());
+        order.setCreatedAt(orderTime);
+        order.setUpdatedAt(orderTime);
+        order.setStatus((byte) 1);
+        return order;
+    }
+
+    /**
+     * ✅ THÊM METHOD: Tạo thêm review để có đánh giá cho trending products
+     */
+    private void initializeTrendingReviewData() {
+        log.info("Initializing trending review data...");
+        
+        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<Book> books = bookRepository.findAll();
+        
+        if (customers.isEmpty() || books.isEmpty()) {
+            log.warn("Not enough data to create trending reviews");
+            return;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        long thirtyDaysAgo = currentTime - (30L * 24 * 60 * 60 * 1000);
+        
+        String[] positiveComments = {
+            "Sách tuyệt vời! Rất hữu ích và hay.",
+            "Nội dung phong phú, viết rất dễ hiểu.",
+            "Đáng đọc! Tôi học được nhiều điều.",
+            "Sách chất lượng cao, giá cả hợp lý.",
+            "Rất thích cách tác giả trình bày.",
+            "Một trong những cuốn sách hay nhất tôi từng đọc.",
+            "Nội dung sâu sắc và ý nghĩa.",
+            "Đọc xong có cảm giác rất thỏa mãn.",
+            "Sách được viết rất tâm huyết và chất lượng.",
+            "Recommend cho mọi người đọc!"
+        };
+        
+        String[] neutralComments = {
+            "Sách bình thường, có thể đọc.",
+            "Nội dung ổn, phù hợp với một số người.",
+            "Không quá hay nhưng cũng không tệ.",
+            "Có những phần hay, có những phần chưa thực sự ấn tượng."
+        };
+        
+        // Tạo review cho các sách với pattern khác nhau
+        int[] reviewPattern = {25, 20, 18, 15, 12, 10, 8, 6, 4, 3}; // Số review cho từng sách
+        double[] ratingPattern = {4.8, 4.6, 4.5, 4.3, 4.2, 4.0, 3.8, 3.5, 3.2, 3.0}; // Rating trung bình
+        
+        for (int bookIndex = 0; bookIndex < Math.min(books.size(), reviewPattern.length); bookIndex++) {
+            Book book = books.get(bookIndex);
+            int reviewCount = reviewPattern[bookIndex];
+            double avgRating = ratingPattern[bookIndex];
+            
+            for (int reviewIndex = 0; reviewIndex < reviewCount; reviewIndex++) {
+                User customer = customers.get(reviewIndex % customers.size());
+                
+                // Tạo rating xung quanh average rating
+                int rating;
+                if (avgRating >= 4.5) {
+                    rating = (Math.random() < 0.8) ? 5 : 4; // 80% rating 5, 20% rating 4
+                } else if (avgRating >= 4.0) {
+                    rating = (Math.random() < 0.6) ? 5 : ((Math.random() < 0.8) ? 4 : 3); // 60% rating 5, 20% rating 4, 20% rating 3
+                } else if (avgRating >= 3.5) {
+                    rating = (Math.random() < 0.4) ? 4 : ((Math.random() < 0.7) ? 3 : 2); // 40% rating 4, 30% rating 3, 30% rating 2
+                } else {
+                    rating = (Math.random() < 0.3) ? 4 : ((Math.random() < 0.6) ? 3 : 2); // 30% rating 4, 30% rating 3, 40% rating 2
+                }
+                
+                // Chọn comment phù hợp với rating
+                String comment;
+                if (rating >= 4) {
+                    comment = positiveComments[(int)(Math.random() * positiveComments.length)];
+                } else {
+                    comment = neutralComments[(int)(Math.random() * neutralComments.length)];
+                }
+                
+                // Random thời gian review trong 30 ngày qua
+                long reviewTime = thirtyDaysAgo + (long)(Math.random() * (currentTime - thirtyDaysAgo));
+                
+                Review review = Review.builder()
+                        .book(book)
+                        .user(customer)
+                        .rating(rating)
+                        .comment(comment)
+                        .reviewDate(reviewTime)
+                        .reviewStatus(ReviewStatus.APPROVED)
+                        .createdAt(reviewTime)
+                        .updatedAt(reviewTime)
+                        .build();
+                reviewRepository.save(review);
+            }
+        }
+        
+        log.info("Created {} trending reviews", Arrays.stream(reviewPattern).sum());
     }
 }
