@@ -50,10 +50,10 @@ public class SupplierServiceImpl implements SupplierService {
             dto.setEmail(supplier.getEmail());
             dto.setAddress(supplier.getAddress());
             dto.setStatus(supplier.getStatus());
-            // dto.setCreatedAt(supplier.getCreatedAt());
-            // dto.setUpdatedAt(supplier.getUpdatedAt());
             dto.setCreatedBy(supplier.getCreatedBy());
             dto.setUpdatedBy(supplier.getUpdatedBy());
+            dto.setCreatedAt(supplier.getCreatedAt() != null ? supplier.getCreatedAt() : System.currentTimeMillis());
+            dto.setUpdatedAt(supplier.getUpdatedAt() != null ? supplier.getUpdatedAt() : null);
             return dto;
         }).collect(Collectors.toList());
 
@@ -74,33 +74,25 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setPhoneNumber(request.getPhoneNumber());
         supplier.setEmail(request.getEmail());
         supplier.setAddress(request.getAddress());
-        supplier.setStatus((byte) 1);
-        // supplier.setCreatedAt(Instant.now());
-        // supplier.setUpdatedAt(Instant.now());
+        supplier.setStatus(request.getStatus() != null ? request.getStatus() : (byte) 1);
         supplier.setCreatedBy(request.getCreatedBy());
-        supplier.setUpdatedBy(request.getCreatedBy());
-        Supplier saved = supplierRepository.save(supplier);
-
+        supplier.setUpdatedBy(request.getUpdatedBy());
+        supplierRepository.save(supplier);
     }
 
     @Override
     public void editSupplier(SupplierRepuest request) {
         Supplier supplier = supplierRepository.findById(request.getId())
-                .orElseThrow(() -> new RuntimeException("Supplier not found"));
-
+            .orElseThrow(() -> new RuntimeException("Supplier not found"));
         supplier.setSupplierName(request.getSupplierName());
         supplier.setContactName(request.getContactName());
         supplier.setPhoneNumber(request.getPhoneNumber());
         supplier.setEmail(request.getEmail());
         supplier.setAddress(request.getAddress());
-        // Nếu FE không gửi status thì giữ nguyên status cũ
         if (request.getStatus() != null) {
             supplier.setStatus(request.getStatus());
         }
-
-        // supplier.setUpdatedAt(Instant.now());
         supplier.setUpdatedBy(request.getUpdatedBy());
-
         supplierRepository.save(supplier);
     }
 
