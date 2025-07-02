@@ -61,7 +61,7 @@ public class FlashSaleItem {
     @Column(name = "updated_at")
     Long updatedAt;
 
-    @Column(name = "created_by", nullable = false)
+    @Column(name = "created_by")
     Long createdBy;
 
     @Column(name = "updated_by")
