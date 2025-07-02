@@ -7,6 +7,6 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface FlashSaleMapper {
-    FlashSaleResponse toFlashSaleResponse(FlashSale flashSale);
+    FlashSaleResponse toResponse(FlashSale flashSale);
     FlashSale toFlashSale(FlashSaleRequest request);
 }
