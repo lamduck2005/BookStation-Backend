@@ -244,10 +244,9 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeRanks() {
         log.info("Initializing ranks...");
         List<Rank> ranks = Arrays.asList(
-            createRank("BRONZE", BigDecimal.ZERO, new BigDecimal("1.0")),
-            createRank("SILVER", new BigDecimal("1000000"), new BigDecimal("1.2")),
-            createRank("GOLD", new BigDecimal("5000000"), new BigDecimal("1.5")),
-            createRank("PLATINUM", new BigDecimal("10000000"), new BigDecimal("2.0"))
+            createRank("VÀNG", new BigDecimal("5000000"), new BigDecimal("1.5")),
+            createRank("BẠC", new BigDecimal("1000000"), new BigDecimal("1.2")),
+            createRank("KIM CƯƠNG", new BigDecimal("10000000"), new BigDecimal("2.0"))
         );
         rankRepository.saveAll(ranks);
     }
@@ -297,12 +296,12 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeUserRanks() {
         log.info("Initializing user ranks...");
         List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
-        Rank bronzeRank = rankRepository.findByRankName("BRONZE").orElse(null);
-        
-        for (User customer : customers) {
+        Rank goldRank = rankRepository.findByRankName("VÀNG").orElse(null);
+        for (int i = 0; i < Math.min(3, customers.size()); i++) {
+            User customer = customers.get(i);
             UserRank userRank = new UserRank();
             userRank.setUser(customer);
-            userRank.setRank(bronzeRank);
+            userRank.setRank(goldRank);
             userRank.setStatus((byte) 1);
             userRank.setCreatedAt(System.currentTimeMillis());
             userRankRepository.save(userRank);
