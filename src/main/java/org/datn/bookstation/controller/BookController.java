@@ -4,12 +4,14 @@ import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.mapper.BookResponseMapper;
+import org.datn.bookstation.mapper.BookDetailResponseMapper;
 import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
@@ -31,6 +33,7 @@ public class BookController {
     
     private final BookService bookService;
     private final BookResponseMapper bookResponseMapper;
+    private final BookDetailResponseMapper bookDetailResponseMapper;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
@@ -73,15 +76,15 @@ public class BookController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<BookResponse>> getById(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<BookDetailResponse>> getById(@PathVariable Integer id) {
         Book book = bookService.getById(id);
         if (book == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
         }
         
-        BookResponse bookResponse = bookResponseMapper.toResponse(book);
-        return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", bookResponse));
+        BookDetailResponse bookDetailResponse = bookDetailResponseMapper.toDetailResponse(book);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", bookDetailResponse));
     }
 
     @PostMapping

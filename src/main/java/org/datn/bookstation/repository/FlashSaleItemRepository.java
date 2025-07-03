@@ -21,4 +21,24 @@ public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, In
 
     boolean existsByFlashSaleIdAndBookId(Integer flashSaleId, Integer bookId);
     boolean existsByFlashSaleIdAndBookIdAndIdNot(Integer flashSaleId, Integer bookId, Integer id);
+    
+    /**
+     * Lấy thông tin flash sale hiện tại của sách (đang active và trong thời gian hiệu lực)
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi " +
+           "WHERE fsi.book.id = :bookId " +
+           "AND fsi.status = 1 " +
+           "AND fsi.flashSale.status = 1 " +
+           "AND fsi.flashSale.startTime <= :currentTime " +
+           "AND fsi.flashSale.endTime >= :currentTime " +
+           "ORDER BY fsi.flashSale.startTime DESC")
+    List<FlashSaleItem> findCurrentActiveFlashSaleByBookId(@Param("bookId") Integer bookId, @Param("currentTime") Long currentTime);
+    
+    /**
+     * Đếm số lượng đã bán trong flash sale của một sách
+     */
+    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
+           "WHERE od.flashSaleItem.id = :flashSaleItemId " +
+           "AND od.order.orderStatus != 'CANCELLED'")
+    Integer countSoldQuantityByFlashSaleItem(@Param("flashSaleItemId") Integer flashSaleItemId);
 }
