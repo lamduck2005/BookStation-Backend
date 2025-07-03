@@ -106,12 +106,12 @@ POST /api/publishers
 | Trường | Loại | Bắt buộc | Mô tả | Validation |
 |--------|------|----------|-------|------------|
 | publisherName | String | Có | Tên nhà xuất bản | Duy nhất, không được trống, max 255 ký tự |
-| address | String | Không | Địa chỉ | Max 500 ký tự |
+| address | String | Không | Địa chỉ | Max 2000 ký tự |
 | contactName | String | Không | Tên người liên hệ | Max 100 ký tự |
 | email | String | Không | Email liên hệ | Format email hợp lệ, max 100 ký tự |
-| phone | String | Không | Số điện thoại | Max 20 ký tự |
-| website | String | Không | Website | URL hợp lệ, max 255 ký tự |
-| description | String | Không | Mô tả | Max 1000 ký tự |
+| phone | String | Không | Số điện thoại | Max 20 ký tự, chỉ chứa số và ký tự đặc biệt |
+| website | String | Không | Website | URL hợp lệ (bắt đầu với http/https), max 255 ký tự |
+| description | String | Không | Mô tả | Max 2000 ký tự |
 | status | String | Không | Trạng thái | "1" hoặc "0", mặc định "1" |
 | createdBy | String | Có | Người tạo | Không được trống |
 | updatedBy | String | Có | Người cập nhật | Không được trống |
@@ -141,6 +141,53 @@ POST /api/publishers
 {
   "status": 500,
   "message": "Lỗi khi tạo nhà xuất bản: Email đã được sử dụng",
+  "data": null
+}
+```
+
+#### Lỗi validation chi tiết (400)
+```json
+{
+  "status": 400,
+  "message": "Dữ liệu không hợp lệ",
+  "data": [
+    {
+      "field": "publisherName",
+      "message": "Tên nhà xuất bản không được để trống",
+      "rejectedValue": null
+    },
+    {
+      "field": "email",
+      "message": "Email không đúng định dạng",
+      "rejectedValue": "invalid-email"
+    }
+  ]
+}
+```
+
+#### Lỗi trùng lặp tên nhà xuất bản (409)
+```json
+{
+  "status": 409,
+  "message": "Tên nhà xuất bản đã tồn tại",
+  "data": null
+}
+```
+
+#### Lỗi JSON không hợp lệ (400)
+```json
+{
+  "status": 400,
+  "message": "Dữ liệu JSON không hợp lệ",
+  "data": null
+}
+```
+
+#### Lỗi business logic (400)
+```json
+{
+  "status": 400,
+  "message": "Website phải bắt đầu bằng http:// hoặc https://",
   "data": null
 }
 ```

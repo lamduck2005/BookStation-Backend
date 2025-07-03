@@ -3,6 +3,7 @@ package org.datn.bookstation.service.impl;
 import org.datn.bookstation.dto.request.PublisherRequest;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Publisher;
+import org.datn.bookstation.exception.BusinessException;
 import org.datn.bookstation.repository.PublisherRepository;
 import org.datn.bookstation.service.PublisherService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,9 +52,9 @@ public class PublisherServiceImpl implements PublisherService {
             dto.setWebsite(publisher.getWebsite());
             dto.setEstablishedYear(publisher.getEstablishedYear());
             dto.setDescription(publisher.getDescription());
-            dto.setStatus(publisher.getStatus());
-            dto.setCreatedBy(publisher.getCreatedBy());
-            dto.setUpdatedBy(publisher.getUpdatedBy());
+            dto.setStatus(publisher.getStatus() != null ? publisher.getStatus().toString() : "1");
+            dto.setCreatedBy(publisher.getCreatedBy() != null ? publisher.getCreatedBy().toString() : "1");
+            dto.setUpdatedBy(publisher.getUpdatedBy() != null ? publisher.getUpdatedBy().toString() : "1");
             return dto;
         }).collect(Collectors.toList());
 
@@ -68,6 +69,11 @@ public class PublisherServiceImpl implements PublisherService {
 
     @Override
     public void addPublisher(PublisherRequest request) {
+        // Kiểm tra trùng lặp tên nhà xuất bản
+        if (publisherRepository.existsByPublisherNameIgnoreCase(request.getPublisherName())) {
+            throw new BusinessException("Tên nhà xuất bản đã tồn tại", "DUPLICATE_PUBLISHER_NAME");
+        }
+        
         Publisher publisher = new Publisher();
         publisher.setPublisherName(request.getPublisherName());
         publisher.setPhoneNumber(request.getPhoneNumber());
@@ -77,15 +83,28 @@ public class PublisherServiceImpl implements PublisherService {
         publisher.setEstablishedYear(request.getEstablishedYear());
         publisher.setDescription(request.getDescription());
         publisher.setStatus((byte) 1);
-        publisher.setCreatedBy(request.getCreatedBy());
-        publisher.setUpdatedBy(request.getCreatedBy());
+        
+        // Convert String to Integer for createdBy and updatedBy
+        try {
+            publisher.setCreatedBy(Integer.parseInt(request.getCreatedBy()));
+            publisher.setUpdatedBy(Integer.parseInt(request.getCreatedBy()));
+        } catch (NumberFormatException e) {
+            publisher.setCreatedBy(1); // Default system user
+            publisher.setUpdatedBy(1);
+        }
+        
         publisherRepository.save(publisher);
     }
 
     @Override
     public void editPublisher(PublisherRequest request) {
         Publisher publisher = publisherRepository.findById(request.getId())
-                .orElseThrow(() -> new RuntimeException("Publisher not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhà xuất bản với ID: " + request.getId()));
+
+        // Kiểm tra trùng lặp tên nhà xuất bản (trừ chính nó)
+        if (publisherRepository.existsByPublisherNameIgnoreCaseAndIdNot(request.getPublisherName(), request.getId())) {
+            throw new BusinessException("Tên nhà xuất bản đã tồn tại", "DUPLICATE_PUBLISHER_NAME");
+        }
 
         publisher.setPublisherName(request.getPublisherName());
         publisher.setPhoneNumber(request.getPhoneNumber());
@@ -95,12 +114,22 @@ public class PublisherServiceImpl implements PublisherService {
         publisher.setEstablishedYear(request.getEstablishedYear());
         publisher.setDescription(request.getDescription());
         
-        // Nếu FE không gửi status thì giữ nguyên status cũ
+        // Convert String to Byte for status
         if (request.getStatus() != null) {
-            publisher.setStatus(request.getStatus());
+            try {
+                publisher.setStatus(Byte.parseByte(request.getStatus()));
+            } catch (NumberFormatException e) {
+                publisher.setStatus((byte) 1); // Default active
+            }
         }
 
-        publisher.setUpdatedBy(request.getUpdatedBy());
+        // Convert String to Integer for updatedBy
+        try {
+            publisher.setUpdatedBy(Integer.parseInt(request.getUpdatedBy()));
+        } catch (NumberFormatException e) {
+            publisher.setUpdatedBy(1); // Default system user
+        }
+        
         publisherRepository.save(publisher);
     }
 
