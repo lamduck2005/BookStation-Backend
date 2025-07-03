@@ -2,6 +2,7 @@ package org.datn.bookstation.controller;
 
 import org.datn.bookstation.dto.request.VoucherRepuest;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.service.VoucherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -13,13 +14,15 @@ public class VoucherController {
     private VoucherService voucherService;
 
     @GetMapping
-    public PaginationResponse<VoucherRepuest> getAllVouchers(
+    public PaginationResponse<VoucherResponse> getAllVouchers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String code,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String voucherType,
             @RequestParam(required = false) Byte status
     ) {
-        return voucherService.getAllWithPagination(page, size, code, status);
+        return voucherService.getAllWithPagination(page, size, code, name, voucherType, status);
     }
 
     @PostMapping

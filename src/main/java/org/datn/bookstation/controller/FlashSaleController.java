@@ -1,6 +1,7 @@
 package org.datn.bookstation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,10 +25,23 @@ public class FlashSaleController {
     @Autowired
     private FlashSaleService flashSaleService;
 
+    // @GetMapping
+    // public ApiResponse<PaginationResponse<FlashSaleResponse>> getAllFlashSaleWithPagination(@RequestParam int page, @RequestParam int size) {
+    //     return flashSaleService.getAllFlashSaleWithPagination(page, size);
+    // }
+
     @GetMapping
-    public ApiResponse<PaginationResponse<FlashSaleResponse>> getAllFlashSaleWithPagination(@RequestParam int page, @RequestParam int size) {
-        return flashSaleService.getAllFlashSaleWithPagination(page, size);
+    public ApiResponse<PaginationResponse<FlashSaleResponse>> getAllWithFilter(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Long from,
+            @RequestParam(required = false) Long to,
+            @RequestParam(required = false) Byte status) {
+        return flashSaleService.getAllWithFilter(page, size, name, from, to, status);
     }
+
+
 
     @PostMapping
     public ApiResponse<FlashSaleResponse> createFlashSale(@RequestBody FlashSaleRequest request) {
@@ -38,5 +52,12 @@ public class FlashSaleController {
     public ApiResponse<FlashSaleResponse> updateFlashSale(@RequestBody FlashSaleRequest request, @PathVariable Integer id) {
         return flashSaleService.updateFlashSale(request, id);
     }
+
+    @PatchMapping("/{id}/status")
+    public ApiResponse<FlashSaleResponse> toggleStatus(@PathVariable Integer id) {
+        return flashSaleService.toggleStatus(id);
+    }
+
+    
     
 }
