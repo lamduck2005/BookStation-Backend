@@ -33,34 +33,34 @@ flashSale.status = 1 → Check time validity:
 
 ---
 
-## 🎯 **BUSINESS SCENARIOS**
+## 🎯 **CÁC TÌNH HUỐNG NGHIỆP VỤ**
 
-### **Scenario 1: Admin Emergency Disable**
+### **Tình huống 1: Admin tắt khẩn cấp**
 ```
-Flash Sale: status = 0, endTime = future
-Flash Sale Items: status = 0 (forced by admin)
-Cart Items: Show regular price
+Flash Sale: status = 0, endTime = tương lai
+Flash Sale Items: status = 0 (bị admin ép tắt)
+Cart Items: Hiển thị giá gốc
 ```
 
-### **Scenario 2: Flash Sale Active & Time Valid**
+### **Tình huống 2: Flash Sale hoạt động & thời gian hợp lệ**
 ```
 Flash Sale: status = 1, startTime <= now <= endTime
-Flash Sale Items: status = 1 (active)
-Cart Items: Show flash sale price
+Flash Sale Items: status = 1 (đang hoạt động)
+Cart Items: Hiển thị giá flash sale
 ```
 
-### **Scenario 3: Flash Sale Enabled But Not Started**
+### **Tình huống 3: Flash Sale được bật nhưng chưa bắt đầu**
 ```
 Flash Sale: status = 1, startTime > now
-Flash Sale Items: status = 0 (not started)
-Cart Items: Show regular price
+Flash Sale Items: status = 0 (chưa bắt đầu)
+Cart Items: Hiển thị giá gốc
 ```
 
-### **Scenario 4: Flash Sale Enabled But Expired**
+### **Tình huống 4: Flash Sale được bật nhưng đã hết hạn**
 ```
 Flash Sale: status = 1, endTime < now
-Flash Sale Items: status = 0 (expired)
-Cart Items: Show regular price
+Flash Sale Items: status = 0 (đã hết hạn)
+Cart Items: Hiển thị giá gốc
 ```
 
 ---
@@ -87,25 +87,25 @@ if (flashSale.getStatus() == 0) {
 
 ## 🎨 **FRONTEND INTEGRATION**
 
-### **API Response When Admin Disables Flash Sale:**
+### **API Response khi Admin tắt Flash Sale:**
 ```json
 {
-  "flashSaleItemId": 123,     // ✅ Always present
-  "flashSalePrice": null,     // ❌ Hidden when disabled
-  "flashSaleName": null,      // ❌ Hidden when disabled
-  "itemType": "REGULAR",      // ✅ Shows as regular
-  "unitPrice": 85000          // ✅ Regular price
+  "flashSaleItemId": 123,     // ✅ Luôn có
+  "flashSalePrice": null,     // ❌ Ẩn khi bị tắt
+  "flashSaleName": null,      // ❌ Ẩn khi bị tắt
+  "itemType": "REGULAR",      // ✅ Hiển thị như sản phẩm thường
+  "unitPrice": 85000          // ✅ Giá gốc
 }
 ```
 
-### **Frontend Display Logic:**
+### **Logic hiển thị Frontend:**
 ```javascript
 if (item.itemType === "REGULAR") {
     if (item.flashSaleItemId) {
-        // Show "Flash sale temporarily unavailable"
+        // Hiển thị "Flash sale tạm thời không khả dụng"
         showFlashSaleUnavailable();
     } else {
-        // Show normal regular item
+        // Hiển thị sản phẩm thường bình thường
         showRegularItem();
     }
 }
@@ -115,26 +115,73 @@ if (item.itemType === "REGULAR") {
 
 ## 🚀 **TRIGGER POINTS**
 
-### **When Status Update Happens:**
-1. **Admin updates flash sale** → `autoUpdateFlashSaleItemsStatus(flashSaleId)`
-2. **Admin toggles flash sale status** → `autoUpdateFlashSaleItemsStatus(flashSaleId)`
-3. **Flash sale expires** → Scheduler calls `autoUpdateFlashSaleItemsStatus(flashSaleId)`
+### **🔧 KHI NÀO CẬP NHẬT TRẠNG THÁI:**
+1. **Admin cập nhật flash sale** → `autoUpdateFlashSaleItemsStatus(flashSaleId)`
+2. **Admin bật/tắt flash sale** → `autoUpdateFlashSaleItemsStatus(flashSaleId)`
+3. **Flash sale hết hạn** → Scheduler gọi `autoUpdateFlashSaleItemsStatus(flashSaleId)`
 
-### **What NEVER Happens:**
-- ❌ Set `flashSaleItemId = null` in cart items
-- ❌ Lose data relationship
-- ❌ Scheduled tasks every 30 seconds
-
----
-
-## ✅ **BENEFITS**
-
-1. **Admin Control**: Tắt flash sale khẩn cấp bất cứ lúc nào
-2. **Data Integrity**: Luôn giữ mối quan hệ cart ↔ flash sale
-3. **Performance**: Chỉ update khi cần thiết
-4. **User Experience**: Smooth transition giữa flash sale và regular price
-5. **Business Logic**: Clear priority rules, dễ hiểu và maintain
+### **NHỮNG GÌ KHÔNG BAO GIỜ XẢY RA:**
+- ❌ Set `flashSaleItemId = null` trong cart items
+- ❌ Mất mối quan hệ dữ liệu
+- ❌ Scheduled tasks chạy mỗi 30 giây
 
 ---
 
-**Tóm lại**: Admin có quyền tối cao, thời gian chỉ được kiểm tra khi admin cho phép (status = 1).
+## 🛒 **VẤN ĐỀ ĐỒNG BỘ GIỎ HÀNG & GIẢI PHÁP**
+
+### **❌ VẤN ĐỀ: Sản phẩm trong giỏ hàng bỏ lỡ flash sale**
+```
+Tình huống:
+1. User thêm Sách A vào giỏ hàng (flashSaleItemId = null)
+2. Admin tạo flash sale cho Sách A
+3. Giỏ hàng vẫn hiển thị giá gốc → User bị mất giảm giá!
+```
+
+### **✅ GIẢI PHÁP: Tự động đồng bộ giỏ hàng**
+```java
+// Khi admin tạo flash sale item mới
+@Override
+public ApiResponse<FlashSaleItemResponse> create(FlashSaleItemRequest request) {
+    // ...code hiện tại...
+    FlashSaleItem savedItem = flashSaleItemRepository.save(item);
+    
+    // 🔥 TỰ ĐỘNG ĐỒNG BỘ: Cập nhật giỏ hàng
+    cartItemService.syncCartItemsWithNewFlashSale(flashSale.getId());
+    
+    return success(savedItem);
+}
+```
+
+### **🔄 LOGIC ĐỒNG BỘ**
+```java
+// Tìm các sản phẩm trong giỏ hàng chưa có flash sale cho cuốn sách này
+List<CartItem> cartItems = cartItemRepository.findCartItemsWithoutFlashSale(bookId);
+
+// Gán flash sale cho các sản phẩm đã có trong giỏ hàng
+for (CartItem cartItem : cartItems) {
+    cartItem.setFlashSaleItem(flashSaleItem);
+    cartItemRepository.save(cartItem);
+}
+```
+
+### **📱 LỢI ÍCH CHO FRONTEND**
+- User thấy giảm giá ngay lập tức mà không cần refresh
+- Giỏ hàng tự động cập nhật sang giá flash sale
+- Không cần làm mới trang thủ công
+
+---
+
+## ✅ **LỢI ÍCH**
+
+1. **Quyền điều khiển Admin**: Tắt flash sale khẩn cấp bất cứ lúc nào
+2. **Tính toàn vẹn dữ liệu**: Luôn giữ mối quan hệ giỏ hàng ↔ flash sale
+3. **Tự động đồng bộ giỏ hàng**: Giỏ hàng tự động cập nhật khi admin tạo flash sale mới
+4. **Hiệu suất**: Chỉ update khi cần thiết
+5. **Trải nghiệm người dùng**: Chuyển đổi mượt mà giữa flash sale và giá thường
+6. **Logic nghiệp vụ**: Quy tắc ưu tiên rõ ràng, dễ hiểu và bảo trì
+
+---
+
+**Tóm lại**: 
+- **Ưu tiên**: Admin có quyền tối cao, thời gian chỉ được kiểm tra khi admin cho phép (status = 1)
+- **Đồng bộ giỏ hàng**: Tự động đồng bộ cart items khi admin tạo/cập nhật flash sale để user không bỏ lỡ discount

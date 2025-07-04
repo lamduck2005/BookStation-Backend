@@ -20,8 +20,11 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @Transactional
+@Slf4j
 public class CartItemServiceImpl implements CartItemService {
     
     private final CartItemRepository cartItemRepository;
@@ -473,6 +476,51 @@ public class CartItemServiceImpl implements CartItemService {
             return syncCount;
         } catch (Exception e) {
             e.printStackTrace();
+            return 0;
+        }
+    }
+
+    @Override
+    public int syncCartItemsWithNewFlashSale(Integer flashSaleId) {
+        try {
+            // Lấy tất cả flash sale items của flash sale này
+            List<FlashSaleItem> flashSaleItems = flashSaleItemRepository.findByFlashSaleId(flashSaleId);
+            if (flashSaleItems.isEmpty()) {
+                return 0;
+            }
+            
+            int totalSyncCount = 0;
+            
+            for (FlashSaleItem flashSaleItem : flashSaleItems) {
+                // Chỉ sync nếu flash sale item đang active
+                if (flashSaleItem.getStatus() != 1) {
+                    continue;
+                }
+                
+                Long bookId = flashSaleItem.getBook().getId().longValue();
+                
+                // Tìm cart items của book này mà chưa có flash sale item
+                List<CartItem> cartItemsToSync = cartItemRepository.findCartItemsWithoutFlashSale(bookId);
+                
+                int syncCount = 0;
+                for (CartItem item : cartItemsToSync) {
+                    // Validate stock trước khi sync
+                    if (item.getQuantity() <= flashSaleItem.getStockQuantity()) {
+                        item.setFlashSaleItem(flashSaleItem);
+                        item.setUpdatedAt(System.currentTimeMillis());
+                        cartItemRepository.save(item);
+                        syncCount++;
+                    }
+                }
+                
+                totalSyncCount += syncCount;
+                log.info("🔄 NEW FLASH SALE SYNC: Updated {} cart items for book {} in flash sale {}", 
+                        syncCount, bookId, flashSaleId);
+            }
+            
+            return totalSyncCount;
+        } catch (Exception e) {
+            log.error("❌ ERROR: syncCartItemsWithNewFlashSale failed for flash sale {}", flashSaleId, e);
             return 0;
         }
     }

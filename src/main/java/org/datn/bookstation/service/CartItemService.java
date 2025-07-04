@@ -99,6 +99,14 @@ public interface CartItemService {
     int syncCartItemsWithUpdatedFlashSale(Integer flashSaleId);
 
     /**
+     * 🔥 NEW: Sync cart items khi tạo flash sale mới
+     * Tự động apply flash sale cho cart items đã có của sản phẩm đó
+     * @param flashSaleId ID của flash sale mới tạo
+     * @return Số lượng cart items đã được sync
+     */
+    int syncCartItemsWithNewFlashSale(Integer flashSaleId);
+
+    /**
      * 🧹 CLEANUP: Merge duplicate cart items cho cùng book
      * @param userId User ID để cleanup
      * @return Số lượng items đã được merge

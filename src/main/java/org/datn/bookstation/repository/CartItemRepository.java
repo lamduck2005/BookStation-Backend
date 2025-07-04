@@ -141,4 +141,13 @@ public interface CartItemRepository extends JpaRepository<CartItem, Integer> {
            "     OR ci.flashSaleItem.flashSale.id != :flashSaleId)")
     List<CartItem> findCartItemsForFlashSaleSync(@Param("bookId") Long bookId,
                                                  @Param("flashSaleId") Integer flashSaleId);
+
+    /**
+     * 🔥 NEW: Tìm cart items của book mà chưa có flash sale item
+     * Dùng để sync khi admin tạo flash sale mới cho sản phẩm đã có trong cart
+     */
+    @Query("SELECT ci FROM CartItem ci WHERE ci.book.id = :bookId " +
+           "AND ci.flashSaleItem IS NULL " +
+           "AND ci.status = 1")
+    List<CartItem> findCartItemsWithoutFlashSale(@Param("bookId") Long bookId);
 }
