@@ -89,4 +89,19 @@ public interface CartItemService {
      * @return Số lượng cart items đã được cập nhật
      */
     int handleExpiredFlashSalesInCartBatch(List<Integer> flashSaleIds);
+
+    /**
+     * 🔥 NEW: Sync cart items khi flash sale được gia hạn/cập nhật
+     * Tự động apply flash sale mới cho cart items của sản phẩm tương ứng
+     * @param flashSaleId ID của flash sale được gia hạn
+     * @return Số lượng cart items đã được sync
+     */
+    int syncCartItemsWithUpdatedFlashSale(Integer flashSaleId);
+
+    /**
+     * 🧹 CLEANUP: Merge duplicate cart items cho cùng book
+     * @param userId User ID để cleanup
+     * @return Số lượng items đã được merge
+     */
+    int mergeDuplicateCartItemsForUser(Integer userId);
 }

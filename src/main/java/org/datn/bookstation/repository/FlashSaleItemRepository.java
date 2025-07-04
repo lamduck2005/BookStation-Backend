@@ -72,4 +72,16 @@ public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, In
      * Tìm flash sale item theo ID
      */
     Optional<FlashSaleItem> findById(Long id);
+    
+    /**
+     * ✅ FIX LAZY LOADING: Lấy tất cả FlashSaleItem với FlashSale được fetch sẵn
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi JOIN FETCH fsi.flashSale")
+    List<FlashSaleItem> findAllWithFlashSale();
+    
+    /**
+     * ✅ FIX LAZY LOADING: Lấy FlashSaleItem theo flashSaleId với FlashSale được fetch sẵn
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi JOIN FETCH fsi.flashSale WHERE fsi.flashSale.id = :flashSaleId")
+    List<FlashSaleItem> findByFlashSaleIdWithFlashSale(@Param("flashSaleId") Integer flashSaleId);
 }

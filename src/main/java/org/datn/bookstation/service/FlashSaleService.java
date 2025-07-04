@@ -59,4 +59,31 @@ public interface FlashSaleService {
      * @param flashSaleId ID của flash sale
      */
     void cancelFlashSaleExpirationSchedule(Integer flashSaleId);
+    
+    /**
+     * ✅ NEW: Disable flash sale items instead of nullifying cart items
+     * @param flashSaleId ID của flash sale
+     * @return Số lượng items bị disable
+     */
+    int disableFlashSaleItems(Integer flashSaleId);
+    
+    /**
+     * ✅ NEW: Enable flash sale items when flash sale is extended
+     * @param flashSaleId ID của flash sale  
+     * @return Số lượng items được enable
+     */
+    int enableFlashSaleItems(Integer flashSaleId);
+    
+    /**
+     * ✅ AUTO-UPDATE: Cập nhật status của FlashSaleItems dựa trên thời gian
+     * @return Số lượng items được update
+     */
+    int autoUpdateFlashSaleItemsStatus();
+    
+    /**
+     * ✅ AUTO-UPDATE: Cập nhật status cho một flash sale cụ thể
+     * @param flashSaleId ID của flash sale
+     * @return Số lượng items được update
+     */
+    int autoUpdateFlashSaleItemsStatus(Integer flashSaleId);
 }

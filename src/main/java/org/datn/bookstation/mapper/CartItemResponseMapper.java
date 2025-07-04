@@ -34,28 +34,40 @@ public class CartItemResponseMapper {
             response.setAvailableStock(cartItem.getBook().getStockQuantity());
         }
         
-        // Flash sale info
+        // Flash sale info - LUÔN trả về flashSaleItemId nếu có liên kết
         if (cartItem.getFlashSaleItem() != null) {
+            // LUÔN set flashSaleItemId bất kể status
             response.setFlashSaleItemId(cartItem.getFlashSaleItem().getId());
-            response.setFlashSalePrice(cartItem.getFlashSaleItem().getDiscountPrice());
-            response.setFlashSaleDiscount(cartItem.getFlashSaleItem().getDiscountPercentage());
-            response.setItemType("FLASH_SALE");
-            response.setUnitPrice(cartItem.getFlashSaleItem().getDiscountPrice());
-            response.setAvailableStock(cartItem.getFlashSaleItem().getStockQuantity());
             
-            if (cartItem.getFlashSaleItem().getFlashSale() != null) {
-                response.setFlashSaleName(cartItem.getFlashSaleItem().getFlashSale().getName());
-                response.setFlashSaleEndTime(cartItem.getFlashSaleItem().getFlashSale().getEndTime());
+            // CHỈ hiển thị thông tin flash sale chi tiết khi status = 1 (active)
+            if (cartItem.getFlashSaleItem().getStatus() == 1) {
+                response.setFlashSalePrice(cartItem.getFlashSaleItem().getDiscountPrice());
+                response.setFlashSaleDiscount(cartItem.getFlashSaleItem().getDiscountPercentage());
+                response.setItemType("FLASH_SALE");
+                response.setUnitPrice(cartItem.getFlashSaleItem().getDiscountPrice());
+                response.setAvailableStock(cartItem.getFlashSaleItem().getStockQuantity());
                 
-                // Check if flash sale expired
-                long currentTime = System.currentTimeMillis();
-                response.setFlashSaleExpired(
-                    cartItem.getFlashSaleItem().getFlashSale().getEndTime() < currentTime
-                );
+                if (cartItem.getFlashSaleItem().getFlashSale() != null) {
+                    response.setFlashSaleName(cartItem.getFlashSaleItem().getFlashSale().getName());
+                    response.setFlashSaleEndTime(cartItem.getFlashSaleItem().getFlashSale().getEndTime());
+                    
+                    // Check if flash sale expired
+                    long currentTime = System.currentTimeMillis();
+                    response.setFlashSaleExpired(
+                        cartItem.getFlashSaleItem().getFlashSale().getEndTime() < currentTime
+                    );
+                }
+            } else {
+                // FlashSale hết hạn (status = 0), hiển thị như REGULAR nhưng vẫn giữ flashSaleItemId
+                response.setItemType("REGULAR");
+                response.setUnitPrice(cartItem.getBook() != null ? cartItem.getBook().getPrice() : BigDecimal.ZERO);
+                response.setAvailableStock(cartItem.getBook() != null ? cartItem.getBook().getStockQuantity() : 0);
             }
         } else {
+            // Không có flashSaleItem, hiển thị như REGULAR
             response.setItemType("REGULAR");
             response.setUnitPrice(cartItem.getBook() != null ? cartItem.getBook().getPrice() : BigDecimal.ZERO);
+            response.setAvailableStock(cartItem.getBook() != null ? cartItem.getBook().getStockQuantity() : 0);
         }
         
         // Calculate total price

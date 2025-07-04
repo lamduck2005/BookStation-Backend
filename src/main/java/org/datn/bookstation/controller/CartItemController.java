@@ -109,6 +109,36 @@ public class CartItemController {
     }
 
     /**
+     * 🔄 NEW: Sync cart items khi flash sale được gia hạn (Admin only)
+     */
+    @PostMapping("/sync-flash-sale/{flashSaleId}")
+    public ResponseEntity<ApiResponse<Integer>> syncCartItemsWithFlashSale(@PathVariable Integer flashSaleId) {
+        try {
+            int syncedCount = cartItemService.syncCartItemsWithUpdatedFlashSale(flashSaleId);
+            return ResponseEntity.ok(new ApiResponse<>(200, 
+                "Đã sync " + syncedCount + " cart items với flash sale " + flashSaleId, syncedCount));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, "Lỗi khi sync: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 🧹 NEW: Merge duplicate cart items cho user (Admin only)
+     */
+    @PostMapping("/merge-duplicates/{userId}")
+    public ResponseEntity<ApiResponse<Integer>> mergeDuplicateCartItems(@PathVariable Integer userId) {
+        try {
+            int mergedCount = cartItemService.mergeDuplicateCartItemsForUser(userId);
+            return ResponseEntity.ok(new ApiResponse<>(200, 
+                "Đã merge " + mergedCount + " duplicate cart items cho user " + userId, mergedCount));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, "Lỗi khi merge: " + e.getMessage(), null));
+        }
+    }
+
+    /**
      * Thêm sản phẩm vào giỏ hàng thông minh (Deprecated - sử dụng POST /api/carts/items)
      * Endpoint này giữ lại để backward compatibility
      */

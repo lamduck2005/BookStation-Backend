@@ -11,6 +11,7 @@ import org.datn.bookstation.mapper.CartItemResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.CartItemService;
 import org.datn.bookstation.service.FlashSaleService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,9 @@ public class CartItemServiceImpl implements CartItemService {
     private final CartItemResponseMapper cartItemResponseMapper;
     private final FlashSaleService flashSaleService;
     private final CartRepository cartRepository;
+    
+    @Autowired
+    private FlashSaleItemRepository flashSaleItemRepository;
 
     public CartItemServiceImpl(
             CartItemRepository cartItemRepository,
@@ -38,7 +42,8 @@ public class CartItemServiceImpl implements CartItemService {
             CartItemMapper cartItemMapper,
             CartItemResponseMapper cartItemResponseMapper,
             FlashSaleService flashSaleService,
-            CartRepository cartRepository) {
+            CartRepository cartRepository,
+            FlashSaleItemRepository flashSaleItemRepository) {
         this.cartItemRepository = cartItemRepository;
         this.bookRepository = bookRepository;
         this.userRepository = userRepository;
@@ -46,6 +51,7 @@ public class CartItemServiceImpl implements CartItemService {
         this.cartItemResponseMapper = cartItemResponseMapper;
         this.flashSaleService = flashSaleService;
         this.cartRepository = cartRepository;
+        this.flashSaleItemRepository = flashSaleItemRepository;
     }
 
     @Override
@@ -105,15 +111,14 @@ public class CartItemServiceImpl implements CartItemService {
             // 5. Get or create cart directly
             Cart cart = getOrCreateCart(request.getUserId());
             
-            // 6. Check existing cart item
-            Integer flashSaleItemId = flashSaleItem != null ? flashSaleItem.getId() : null;
-            Optional<CartItem> existingItemOpt = cartItemRepository.findExistingCartItem(
-                cart.getId(), request.getBookId(), flashSaleItemId);
+            // 6. 🔥 SMART EXISTING ITEM DETECTION: Check by book first, then merge intelligently
+            List<CartItem> existingItems = cartItemRepository.findExistingCartItemsByBook(
+                cart.getId(), request.getBookId());
                 
             CartItem cartItem;
-            if (existingItemOpt.isPresent()) {
-                // Update existing item với validation
-                cartItem = existingItemOpt.get();
+            if (!existingItems.isEmpty()) {
+                // Found existing item(s) for this book - smart merge
+                cartItem = existingItems.get(0); // Get most recent item
                 int newQuantity = cartItem.getQuantity() + request.getQuantity();
                 
                 // Re-validate stock for new total quantity
@@ -123,9 +128,27 @@ public class CartItemServiceImpl implements CartItemService {
                         "Bạn đã có " + cartItem.getQuantity() + " trong giỏ. " + updateStockValidation.getMessage(), null);
                 }
                 
+                // 🔥 SMART FLASH SALE UPDATE: Apply new flash sale if available
+                if (flashSaleItem != null) {
+                    cartItem.setFlashSaleItem(flashSaleItem);
+                    flashSaleMessage = " 🔥 Đã áp dụng flash sale và cộng vào số lượng hiện có!";
+                } else if (cartItem.getFlashSaleItem() != null) {
+                    // Keep existing flash sale if new request doesn't have one
+                    flashSaleMessage = " ✅ Đã cộng vào số lượng hiện có (giữ flash sale cũ)!";
+                } else {
+                    flashSaleMessage = " ✅ Đã cộng vào số lượng hiện có!";
+                }
+                
                 cartItem.setQuantity(newQuantity);
                 cartItem.setUpdatedBy(request.getUserId());
                 cartItem.setUpdatedAt(System.currentTimeMillis());
+                
+                // 🧹 CLEANUP: Remove duplicate items if any
+                for (int i = 1; i < existingItems.size(); i++) {
+                    CartItem duplicate = existingItems.get(i);
+                    cartItem.setQuantity(cartItem.getQuantity() + duplicate.getQuantity());
+                    cartItemRepository.delete(duplicate);
+                }
             } else {
                 // Create new item
                 cartItem = cartItemMapper.toEntity(request);
@@ -241,15 +264,28 @@ public class CartItemServiceImpl implements CartItemService {
             int totalUpdated = 0;
             List<String> warnings = new ArrayList<>();
             
-            // 1. Xử lý flash sale hết hạn
+            // 1. AUTO-UPDATE flash sale items status trước khi validate
             List<CartItem> expiredItems = cartItemRepository.findExpiredFlashSaleItems(userId, currentTime);
             for (CartItem item : expiredItems) {
-                item.setFlashSaleItem(null);
-                item.setUpdatedBy(userId);
-                item.setUpdatedAt(currentTime);
-                cartItemRepository.save(item);
-                totalUpdated++;
-                warnings.add("Flash sale \"" + item.getBook().getBookName() + "\" đã hết hạn, đã chuyển về giá gốc");
+                // Tự động update status của flash sale items dựa trên thời gian
+                if (item.getFlashSaleItem() != null && item.getFlashSaleItem().getFlashSale() != null) {
+                    FlashSale flashSale = item.getFlashSaleItem().getFlashSale();
+                    Byte newStatus = (flashSale.getEndTime() > currentTime) ? (byte) 1 : (byte) 0;
+                    
+                    if (!newStatus.equals(item.getFlashSaleItem().getStatus())) {
+                        item.getFlashSaleItem().setStatus(newStatus);
+                        item.getFlashSaleItem().setUpdatedAt(currentTime);
+                        item.getFlashSaleItem().setUpdatedBy(Long.valueOf(userId));
+                        flashSaleItemRepository.save(item.getFlashSaleItem());
+                        totalUpdated++;
+                        
+                        if (newStatus == 0) {
+                            warnings.add("Flash sale \"" + item.getBook().getBookName() + "\" đã hết hạn, đã chuyển về giá gốc");
+                        } else {
+                            warnings.add("Flash sale \"" + item.getBook().getBookName() + "\" đã được gia hạn");
+                        }
+                    }
+                }
             }
             
             // 2. Kiểm tra stock vượt quá
@@ -319,11 +355,19 @@ public class CartItemServiceImpl implements CartItemService {
             // Tìm tất cả cart items có flash sale đã hết hạn
             List<CartItem> expiredItems = cartItemRepository.findAllExpiredFlashSaleItems(currentTime);
             
-            // Update chúng về regular price
+            // AUTO-UPDATE status của flash sale items dựa trên thời gian
             for (CartItem item : expiredItems) {
-                item.setFlashSaleItem(null);
-                item.setUpdatedAt(currentTime);
-                cartItemRepository.save(item);
+                if (item.getFlashSaleItem() != null && item.getFlashSaleItem().getFlashSale() != null) {
+                    FlashSale flashSale = item.getFlashSaleItem().getFlashSale();
+                    Byte newStatus = (flashSale.getEndTime() > currentTime) ? (byte) 1 : (byte) 0;
+                    
+                    if (!newStatus.equals(item.getFlashSaleItem().getStatus())) {
+                        item.getFlashSaleItem().setStatus(newStatus);
+                        item.getFlashSaleItem().setUpdatedAt(currentTime);
+                        item.getFlashSaleItem().setUpdatedBy(1L); // System user
+                        flashSaleItemRepository.save(item.getFlashSaleItem());
+                    }
+                }
             }
             
             return expiredItems.size();
@@ -339,12 +383,20 @@ public class CartItemServiceImpl implements CartItemService {
             // Tìm cart items của flash sale cụ thể này
             List<CartItem> expiredItems = cartItemRepository.findByFlashSaleId(flashSaleId);
             
-            // Update chúng về regular price
+            // AUTO-UPDATE status dựa trên thời gian
             long currentTime = System.currentTimeMillis();
             for (CartItem item : expiredItems) {
-                item.setFlashSaleItem(null);
-                item.setUpdatedAt(currentTime);
-                cartItemRepository.save(item);
+                if (item.getFlashSaleItem() != null && item.getFlashSaleItem().getFlashSale() != null) {
+                    FlashSale flashSale = item.getFlashSaleItem().getFlashSale();
+                    Byte newStatus = (flashSale.getEndTime() > currentTime) ? (byte) 1 : (byte) 0;
+                    
+                    if (!newStatus.equals(item.getFlashSaleItem().getStatus())) {
+                        item.getFlashSaleItem().setStatus(newStatus);
+                        item.getFlashSaleItem().setUpdatedAt(currentTime);
+                        item.getFlashSaleItem().setUpdatedBy(1L); // System user
+                        flashSaleItemRepository.save(item.getFlashSaleItem());
+                    }
+                }
             }
             
             return expiredItems.size();
@@ -355,21 +407,115 @@ public class CartItemServiceImpl implements CartItemService {
     }
 
     @Override
+    /**
+     * ✅ DEPRECATED: Không còn cần batch update cart items khi flash sale hết hạn
+     * Logic mới: Chỉ update status của FlashSaleItem, cart item giữ nguyên flashSaleItemId
+     */
+    @Deprecated
     public int handleExpiredFlashSalesInCartBatch(List<Integer> flashSaleIds) {
         try {
             if (flashSaleIds == null || flashSaleIds.isEmpty()) {
                 return 0;
             }
             
-            // Batch update tất cả cart items của các flash sales này
-            int updatedCount = cartItemRepository.batchUpdateExpiredFlashSales(flashSaleIds, System.currentTimeMillis());
-            
-            // Log để tracking
-            if (updatedCount > 0) {
-                System.out.println("🔥 BATCH EXPIRATION: Updated " + updatedCount + " cart items for flash sales: " + flashSaleIds);
+            // ✅ NEW LOGIC: Gọi FlashSaleService để update status thay vì set null cart item
+            int totalUpdatedItems = 0;
+            for (Integer flashSaleId : flashSaleIds) {
+                try {
+                    int updatedCount = flashSaleService.autoUpdateFlashSaleItemsStatus(flashSaleId);
+                    totalUpdatedItems += updatedCount;
+                } catch (Exception e) {
+                    System.err.println("❌ ERROR: Failed to update status for flash sale " + flashSaleId + ": " + e.getMessage());
+                }
             }
             
-            return updatedCount;
+            // Log để tracking
+            if (totalUpdatedItems > 0) {
+                System.out.println("🔥 BATCH EXPIRATION: Updated " + totalUpdatedItems + " flash sale items status for flash sales: " + flashSaleIds);
+            }
+            
+            return totalUpdatedItems;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    @Override
+    public int syncCartItemsWithUpdatedFlashSale(Integer flashSaleId) {
+        try {
+            // Tìm flash sale item theo ID
+            Optional<FlashSaleItem> flashSaleItemOpt = flashSaleService.findActiveFlashSaleForBook(null);
+            
+            // Nếu không tìm thấy active flash sale, skip
+            if (flashSaleItemOpt.isEmpty()) {
+                return 0;
+            }
+            
+            FlashSaleItem flashSaleItem = flashSaleItemOpt.get();
+            Long bookId = flashSaleItem.getBook().getId().longValue();
+            
+            // Tìm tất cả cart items của book này mà chưa có flash sale hoặc có flash sale khác
+            List<CartItem> cartItemsToSync = cartItemRepository.findCartItemsForFlashSaleSync(bookId, flashSaleId);
+            
+            int syncCount = 0;
+            for (CartItem item : cartItemsToSync) {
+                // Validate stock trước khi sync
+                if (item.getQuantity() <= flashSaleItem.getStockQuantity()) {
+                    item.setFlashSaleItem(flashSaleItem);
+                    item.setUpdatedAt(System.currentTimeMillis());
+                    cartItemRepository.save(item);
+                    syncCount++;
+                }
+            }
+            
+            System.out.println("🔄 FLASH SALE SYNC: Updated " + syncCount + " cart items for flash sale " + flashSaleId);
+            return syncCount;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    @Override
+    public int mergeDuplicateCartItemsForUser(Integer userId) {
+        try {
+            // Tìm duplicate cart items (cùng book, cùng cart)
+            List<CartItem> allItems = cartItemRepository.findByUserId(userId);
+            java.util.Map<Integer, List<CartItem>> groupedByBook = allItems.stream()
+                .collect(Collectors.groupingBy(item -> item.getBook().getId()));
+            
+            int mergedCount = 0;
+            for (java.util.Map.Entry<Integer, List<CartItem>> entry : groupedByBook.entrySet()) {
+                List<CartItem> itemsForBook = entry.getValue();
+                
+                if (itemsForBook.size() > 1) {
+                    // Có duplicate - merge vào item đầu tiên
+                    CartItem primaryItem = itemsForBook.get(0);
+                    int totalQuantity = primaryItem.getQuantity();
+                    
+                    // Merge quantity từ các items khác
+                    for (int i = 1; i < itemsForBook.size(); i++) {
+                        CartItem duplicateItem = itemsForBook.get(i);
+                        totalQuantity += duplicateItem.getQuantity();
+                        
+                        // Giữ flash sale tốt nhất (có flash sale > không có)
+                        if (primaryItem.getFlashSaleItem() == null && duplicateItem.getFlashSaleItem() != null) {
+                            primaryItem.setFlashSaleItem(duplicateItem.getFlashSaleItem());
+                        }
+                        
+                        cartItemRepository.delete(duplicateItem);
+                        mergedCount++;
+                    }
+                    
+                    primaryItem.setQuantity(totalQuantity);
+                    primaryItem.setUpdatedAt(System.currentTimeMillis());
+                    cartItemRepository.save(primaryItem);
+                }
+            }
+            
+            System.out.println("🧹 CLEANUP: Merged " + mergedCount + " duplicate cart items for user " + userId);
+            return mergedCount;
         } catch (Exception e) {
             e.printStackTrace();
             return 0;

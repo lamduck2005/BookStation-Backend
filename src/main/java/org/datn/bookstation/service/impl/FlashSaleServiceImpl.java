@@ -11,22 +11,27 @@ import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.FlashSaleMapper;
 import org.datn.bookstation.repository.FlashSaleRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
-import org.datn.bookstation.scheduled.FlashSaleExpirationScheduler;
 import org.datn.bookstation.dto.request.FlashSaleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleResponse;
 import org.datn.bookstation.dto.response.FlashSaleInfoResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.service.CartItemService;
 import org.datn.bookstation.specification.FlashSaleSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class FlashSaleServiceImpl implements FlashSaleService {
 
     @Autowired
@@ -39,7 +44,11 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     private FlashSaleMapper flashSaleMapper;
     
     @Autowired
-    private FlashSaleExpirationScheduler flashSaleExpirationScheduler;
+    private ApplicationContext applicationContext;
+    
+    @Autowired
+    @Lazy
+    private CartItemService cartItemService;
 
     @Override
     public ApiResponse<PaginationResponse<FlashSaleResponse>> getAllFlashSaleWithPagination(int page, int size) {
@@ -119,6 +128,14 @@ public class FlashSaleServiceImpl implements FlashSaleService {
             // Schedule lại task mới với thời gian mới
             if (updatedFlashSale.getStatus() == 1 && updatedFlashSale.getEndTime() > System.currentTimeMillis()) {
                 scheduleFlashSaleExpiration(updatedFlashSale.getId(), updatedFlashSale.getEndTime());
+            }
+            
+            // ✅ AUTO-UPDATE status của flash sale items dựa trên thời gian mới
+            try {
+                int statusUpdatedCount = autoUpdateFlashSaleItemsStatus(updatedFlashSale.getId());
+                System.out.println("🔄 FLASH SALE STATUS UPDATE: Updated " + statusUpdatedCount + " items status for flash sale " + id);
+            } catch (Exception e) {
+                System.err.println("⚠️ WARNING: Failed to update status for flash sale items " + id + ": " + e.getMessage());
             }
             
             return new ApiResponse<>(200, "Cập nhật flash sale thành công", flashSaleMapper.toResponse(updatedFlashSale));
@@ -201,8 +218,10 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     @Override
     public void scheduleFlashSaleExpiration(Integer flashSaleId, Long endTime) {
         try {
-            // Tích hợp với FlashSaleExpirationScheduler để batch processing
-            flashSaleExpirationScheduler.scheduleFlashSaleExpiration(flashSaleId, endTime);
+            // ✅ Sử dụng ApplicationContext để tránh circular dependency
+            var scheduler = applicationContext.getBean("flashSaleExpirationScheduler", 
+                org.datn.bookstation.scheduled.FlashSaleExpirationScheduler.class);
+            scheduler.scheduleFlashSaleExpiration(flashSaleId, endTime);
         } catch (Exception e) {
             // Log error nhưng không throw exception để không ảnh hưởng business logic
             System.err.println("⚠️ WARNING: Failed to schedule flash sale expiration for ID " + flashSaleId + ": " + e.getMessage());
@@ -212,7 +231,10 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     @Override
     public void cancelFlashSaleExpirationSchedule(Integer flashSaleId) {
         try {
-            flashSaleExpirationScheduler.cancelScheduledTask(flashSaleId);
+            // ✅ Sử dụng ApplicationContext để tránh circular dependency
+            var scheduler = applicationContext.getBean("flashSaleExpirationScheduler", 
+                org.datn.bookstation.scheduled.FlashSaleExpirationScheduler.class);
+            scheduler.cancelScheduledTask(flashSaleId);
         } catch (Exception e) {
             // Log error nhưng không throw exception
             System.err.println("⚠️ WARNING: Failed to cancel flash sale schedule for ID " + flashSaleId + ": " + e.getMessage());
@@ -248,5 +270,157 @@ public class FlashSaleServiceImpl implements FlashSaleService {
                 .isActive(flashSaleItem.getStatus() == 1 && flashSaleItem.getFlashSale().getStatus() == 1)
                 .status(flashSaleItem.getStatus() == 1 ? "ACTIVE" : "INACTIVE")
                 .build();
+    }
+
+    /**
+     * ✅ NEW: Disable flash sale items instead of setting cart items to null
+     * This preserves data integrity and allows re-enabling
+     */
+    @Override
+    public int disableFlashSaleItems(Integer flashSaleId) {
+        try {
+            List<FlashSaleItem> flashSaleItems = flashSaleItemRepository.findByFlashSaleId(flashSaleId);
+            
+            long currentTime = System.currentTimeMillis();
+            for (FlashSaleItem item : flashSaleItems) {
+                item.setStatus((byte) 0); // Disable
+                item.setUpdatedAt(currentTime);
+                item.setUpdatedBy(1L); // System user
+            }
+            
+            flashSaleItemRepository.saveAll(flashSaleItems);
+            return flashSaleItems.size();
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    /**
+     * ✅ NEW: Enable flash sale items when flash sale is extended
+     */
+    @Override
+    public int enableFlashSaleItems(Integer flashSaleId) {
+        try {
+            List<FlashSaleItem> flashSaleItems = flashSaleItemRepository.findByFlashSaleId(flashSaleId);
+            
+            long currentTime = System.currentTimeMillis();
+            for (FlashSaleItem item : flashSaleItems) {
+                item.setStatus((byte) 1); // Enable
+                item.setUpdatedAt(currentTime);
+                item.setUpdatedBy(1L); // System user
+            }
+            
+            flashSaleItemRepository.saveAll(flashSaleItems);
+            return flashSaleItems.size();
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    /**
+     * ✅ AUTO-UPDATE: Cập nhật status của FlashSaleItems dựa trên thời gian hiệu lực
+     * - Nếu startTime <= currentTime <= endTime: status = 1 (active - có hiệu lực)
+     * - Nếu currentTime < startTime: status = 0 (chưa bắt đầu)  
+     * - Nếu currentTime > endTime: status = 0 (đã hết hạn)
+     * 
+     * CHỈ GỌI KHI ADMIN CẬP NHẬT FLASH SALE - KHÔNG SCHEDULED
+     */
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public int autoUpdateFlashSaleItemsStatus() {
+        try {
+            long currentTime = System.currentTimeMillis();
+            
+            // ✅ FIX: Sử dụng JOIN FETCH để tránh LazyInitializationException
+            List<FlashSaleItem> allItems = flashSaleItemRepository.findAllWithFlashSale();
+            
+            int updatedCount = 0;
+            for (FlashSaleItem item : allItems) {
+                FlashSale flashSale = item.getFlashSale();
+                if (flashSale == null) continue;
+                
+                // Kiểm tra thời gian hiệu lực: startTime <= currentTime <= endTime
+                boolean isValid = (flashSale.getStartTime() <= currentTime) && 
+                                 (currentTime <= flashSale.getEndTime());
+                
+                Byte newStatus = isValid ? (byte) 1 : (byte) 0;
+                
+                if (!newStatus.equals(item.getStatus())) {
+                    item.setStatus(newStatus);
+                    item.setUpdatedAt(currentTime);
+                    item.setUpdatedBy(1L); // System user
+                    flashSaleItemRepository.save(item);
+                    updatedCount++;
+                    
+                    // Log để theo dõi
+                    String reason = currentTime < flashSale.getStartTime() ? "chưa bắt đầu" : 
+                                   currentTime > flashSale.getEndTime() ? "đã hết hạn" : "đang hiệu lực";
+                    log.info("🔄 AUTO-UPDATE: FlashSaleItem {} status = {} ({})", 
+                            item.getId(), newStatus, reason);
+                }
+            }
+            
+            return updatedCount;
+        } catch (Exception e) {
+            log.error("❌ ERROR: autoUpdateFlashSaleItemsStatus failed", e);
+            return 0;
+        }
+    }
+
+    /**
+     * ✅ AUTO-UPDATE: Cập nhật status cho một flash sale cụ thể dựa trên thời gian hiệu lực
+     * - Nếu startTime <= currentTime <= endTime: status = 1 (active - có hiệu lực)
+     * - Nếu currentTime < startTime: status = 0 (chưa bắt đầu)  
+     * - Nếu currentTime > endTime: status = 0 (đã hết hạn)
+     * 
+     * CHỈ GỌI KHI ADMIN CẬP NHẬT FLASH SALE HOẶC KHI HẾT HẠN
+     */
+    @Override  
+    @org.springframework.transaction.annotation.Transactional
+    public int autoUpdateFlashSaleItemsStatus(Integer flashSaleId) {
+        try {
+            FlashSale flashSale = flashSaleRepository.findById(flashSaleId).orElse(null);
+            if (flashSale == null) {
+                log.warn("⚠️ FlashSale {} not found", flashSaleId);
+                return 0;
+            }
+            
+            long currentTime = System.currentTimeMillis();
+            
+            // ✅ FIX: Sử dụng custom query để tránh LazyInitializationException
+            List<FlashSaleItem> items = flashSaleItemRepository.findByFlashSaleIdWithFlashSale(flashSaleId);
+            
+            // Kiểm tra thời gian hiệu lực: startTime <= currentTime <= endTime
+            boolean isValid = (flashSale.getStartTime() <= currentTime) && 
+                             (currentTime <= flashSale.getEndTime());
+            
+            Byte newStatus = isValid ? (byte) 1 : (byte) 0;
+            
+            int updatedCount = 0;
+            for (FlashSaleItem item : items) {
+                if (!newStatus.equals(item.getStatus())) {
+                    item.setStatus(newStatus);
+                    item.setUpdatedAt(currentTime);
+                    item.setUpdatedBy(1L); // System user
+                    flashSaleItemRepository.save(item);
+                    updatedCount++;
+                }
+            }
+            
+            // Log kết quả update
+            String reason = currentTime < flashSale.getStartTime() ? "chưa bắt đầu" : 
+                           currentTime > flashSale.getEndTime() ? "đã hết hạn" : "đang hiệu lực";
+            log.info("🔄 AUTO-UPDATE: FlashSale {} → {} items updated, status = {} ({})", 
+                    flashSaleId, updatedCount, newStatus, reason);
+            
+            return updatedCount;
+        } catch (Exception e) {
+            log.error("❌ ERROR: autoUpdateFlashSaleItemsStatus({}) failed", flashSaleId, e);
+            return 0;
+        }
     }
 }

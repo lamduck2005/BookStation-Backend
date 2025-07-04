@@ -2,7 +2,7 @@ package org.datn.bookstation.scheduled;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.datn.bookstation.repository.CartItemRepository;
+import org.datn.bookstation.service.FlashSaleService;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
@@ -20,6 +19,10 @@ import java.util.concurrent.ScheduledFuture;
  * 🔥 FLASH SALE EXPIRATION SCHEDULER (DYNAMIC + BATCH)
  * Tự động schedule task tại thời điểm flash sale kết thúc
  * Hỗ trợ batch processing cho nhiều flash sales cùng expire 1 lúc
+ * 
+ * ✅ NEW LOGIC: Không set null flashSaleItemId trong cart item nữa
+ * - Chỉ update status của FlashSaleItem từ 1 -> 0 khi hết hạn
+ * - Cart item giữ nguyên flashSaleItemId, nhưng trả về giá gốc khi status = 0
  * 
  * Approach: Event-driven scheduling với batch processing
  * - Khi tạo flash sale: group theo endTime
@@ -31,7 +34,7 @@ import java.util.concurrent.ScheduledFuture;
 @Slf4j
 public class FlashSaleExpirationScheduler {
     
-    private final CartItemRepository cartItemRepository;
+    private final FlashSaleService flashSaleService;
     private final TaskScheduler taskScheduler;
     
     // Map theo thời điểm expiration: timestamp -> Set<flashSaleIds>
@@ -95,13 +98,20 @@ public class FlashSaleExpirationScheduler {
                 expiredFlashSales.size(), 
                 LocalDateTime.ofInstant(Instant.ofEpochMilli(normalizedTime), ZoneId.systemDefault()));
             
-            // Batch update tất cả cart items của các flash sales này
-            List<Integer> flashSaleIds = expiredFlashSales.stream().toList();
-            int totalUpdatedItems = cartItemRepository.batchUpdateExpiredFlashSales(
-                flashSaleIds, System.currentTimeMillis());
+            // ✅ NEW LOGIC: Update status của FlashSaleItem thay vì set null cart item
+            int totalUpdatedItems = 0;
+            for (Integer flashSaleId : expiredFlashSales) {
+                try {
+                    int updatedCount = flashSaleService.autoUpdateFlashSaleItemsStatus(flashSaleId);
+                    totalUpdatedItems += updatedCount;
+                    log.info("🔥 EXPIRATION: Updated {} flash sale items status for flash sale {}", updatedCount, flashSaleId);
+                } catch (Exception e) {
+                    log.error("🔥 ERROR: Failed to update status for flash sale {}: {}", flashSaleId, e.getMessage());
+                }
+            }
             
             if (totalUpdatedItems > 0) {
-                log.info("🔥 BATCH EXPIRATION: Updated {} cart items for {} expired flash sales", 
+                log.info("🔥 BATCH EXPIRATION: Updated {} flash sale items status for {} expired flash sales", 
                         totalUpdatedItems, expiredFlashSales.size());
             }
             
@@ -174,6 +184,32 @@ public class FlashSaleExpirationScheduler {
             
         } catch (Exception e) {
             log.error("🔥 ERROR: Error during cleanup", e);
+        }
+    }
+    
+    /**
+     * 🔄 SCHEDULED: Kiểm tra và cập nhật status định kỳ dựa trên thời gian hiệu lực
+     * Logic: 
+     * - Nếu startTime <= currentTime <= endTime → status = 1 (có hiệu lực)
+     * - Nếu currentTime < startTime hoặc currentTime > endTime → status = 0 (không hiệu lực)
+     * 
+     * Chạy mỗi 30 giây để đảm bảo real-time status update
+     */
+    @Scheduled(fixedDelay = 30000) // Mỗi 30 giây
+    public void scheduleStatusValidation() {
+        try {
+            log.info("🔄 SCHEDULED: Starting status validation for all flash sale items...");
+            
+            int updatedCount = flashSaleService.autoUpdateFlashSaleItemsStatus();
+            
+            if (updatedCount > 0) {
+                log.info("🔄 SCHEDULED: Updated {} flash sale items status based on validity time", updatedCount);
+            } else {
+                log.debug("🔄 SCHEDULED: No flash sale items need status update");
+            }
+            
+        } catch (Exception e) {
+            log.error("🔄 ERROR: Failed to execute scheduled status validation", e);
         }
     }
 }

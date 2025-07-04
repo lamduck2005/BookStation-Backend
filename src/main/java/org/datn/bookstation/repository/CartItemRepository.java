@@ -2,11 +2,9 @@ package org.datn.bookstation.repository;
 
 import org.datn.bookstation.entity.CartItem;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,7 +42,18 @@ public interface CartItemRepository extends JpaRepository<CartItem, Integer> {
     Optional<CartItem> findExistingCartItem(@Param("cartId") Integer cartId, 
                                           @Param("bookId") Integer bookId,
                                           @Param("flashSaleItemId") Integer flashSaleItemId);
-    
+
+    /**
+     * 🔥 NEW: Tìm tất cả cart items của cùng book (để merge duplicates)
+     * Sắp xếp theo updatedAt DESC để lấy item mới nhất trước
+     */
+    @Query("SELECT ci FROM CartItem ci WHERE ci.cart.id = :cartId " +
+           "AND ci.book.id = :bookId " +
+           "AND ci.status = 1 " +
+           "ORDER BY ci.updatedAt DESC")
+    List<CartItem> findExistingCartItemsByBook(@Param("cartId") Integer cartId, 
+                                              @Param("bookId") Integer bookId);
+
     /**
      * Xóa tất cả items trong giỏ hàng
      */
@@ -91,16 +100,13 @@ public interface CartItemRepository extends JpaRepository<CartItem, Integer> {
     List<CartItem> findByFlashSaleId(@Param("flashSaleId") Integer flashSaleId);
     
     /**
-     * BATCH UPDATE - Cập nhật nhiều cart items có flash sales đã hết hạn
-     * Set flashSaleItem = NULL cho tất cả cart items của các flash sales đã hết hạn
+     * ✅ DEPRECATED: Không còn cần batch update cart items khi flash sale hết hạn
+     * Logic mới: Giữ nguyên flashSaleItemId, chỉ update status của FlashSaleItem
+     * Cart sẽ tự động trả về giá gốc khi flashSaleItem.status = 0
      */
-    @Modifying
-    @Transactional
-    @Query("UPDATE CartItem ci SET ci.flashSaleItem = NULL, ci.updatedAt = :updatedAt " +
-           "WHERE ci.flashSaleItem.flashSale.id IN :flashSaleIds " +
-           "AND ci.status = 1")
-    int batchUpdateExpiredFlashSales(@Param("flashSaleIds") List<Integer> flashSaleIds, 
-                                   @Param("updatedAt") Long updatedAt);
+    // @Deprecated - Removed to prevent accidentally setting flashSaleItem = null
+    // int batchUpdateExpiredFlashSales(@Param("flashSaleIds") List<Integer> flashSaleIds, 
+    //                                @Param("updatedAt") Long updatedAt);
     
     /**
      * Validate cart item stock before processing
@@ -123,4 +129,16 @@ public interface CartItemRepository extends JpaRepository<CartItem, Integer> {
            "AND ci.status = 1")
     List<CartItem> findFlashSaleItemsAboutToExpire(@Param("now") Long now, 
                                                   @Param("warningTime") Long warningTime);
+
+    /**
+     * 🔄 NEW: Tìm cart items cần sync với flash sale mới được gia hạn
+     * Tìm items của book có flash sale được update mà chưa apply flash sale này
+     */
+    @Query("SELECT ci FROM CartItem ci " +
+           "WHERE ci.book.id = :bookId " +
+           "AND ci.status = 1 " +
+           "AND (ci.flashSaleItem IS NULL " +
+           "     OR ci.flashSaleItem.flashSale.id != :flashSaleId)")
+    List<CartItem> findCartItemsForFlashSaleSync(@Param("bookId") Long bookId,
+                                                 @Param("flashSaleId") Integer flashSaleId);
 }

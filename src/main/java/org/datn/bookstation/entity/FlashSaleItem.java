@@ -67,6 +67,8 @@ public class FlashSaleItem {
     @Column(name = "updated_by")
     Long updatedBy;
 
+    @ColumnDefault("1")
+    @Column(name = "status")
     Byte status;
 
     @PrePersist
