@@ -160,6 +160,14 @@ public class FlashSaleServiceImpl implements FlashSaleService {
             flashSale.setUpdatedAt(System.currentTimeMillis());
             FlashSale updatedFlashSale = flashSaleRepository.save(flashSale);
             
+            // ✅ AUTO-UPDATE status của flash sale items sau khi toggle
+            try {
+                int statusUpdatedCount = autoUpdateFlashSaleItemsStatus(updatedFlashSale.getId());
+                log.info("🔄 TOGGLE STATUS: Updated {} flash sale items for flash sale {}", statusUpdatedCount, id);
+            } catch (Exception e) {
+                log.warn("⚠️ WARNING: Failed to update flash sale items status after toggle: {}", e.getMessage());
+            }
+            
             // Chỉ schedule lại nếu status = 1 và chưa hết hạn
             if (updatedFlashSale.getStatus() == 1 && updatedFlashSale.getEndTime() > System.currentTimeMillis()) {
                 scheduleFlashSaleExpiration(updatedFlashSale.getId(), updatedFlashSale.getEndTime());
@@ -322,10 +330,12 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     }
 
     /**
-     * ✅ AUTO-UPDATE: Cập nhật status của FlashSaleItems dựa trên thời gian hiệu lực
-     * - Nếu startTime <= currentTime <= endTime: status = 1 (active - có hiệu lực)
-     * - Nếu currentTime < startTime: status = 0 (chưa bắt đầu)  
-     * - Nếu currentTime > endTime: status = 0 (đã hết hạn)
+     * ✅ AUTO-UPDATE: Cập nhật status của FlashSaleItems dựa trên priority rules
+     * 
+     * PRIORITY RULES:
+     * 1. flashSale.status = 0 → flashSaleItem.status = 0 (HIGHEST PRIORITY - Admin override)
+     * 2. flashSale.status = 1 + time valid → flashSaleItem.status = 1 
+     * 3. flashSale.status = 1 + time invalid → flashSaleItem.status = 0
      * 
      * CHỈ GỌI KHI ADMIN CẬP NHẬT FLASH SALE - KHÔNG SCHEDULED
      */
@@ -343,11 +353,22 @@ public class FlashSaleServiceImpl implements FlashSaleService {
                 FlashSale flashSale = item.getFlashSale();
                 if (flashSale == null) continue;
                 
-                // Kiểm tra thời gian hiệu lực: startTime <= currentTime <= endTime
-                boolean isValid = (flashSale.getStartTime() <= currentTime) && 
-                                 (currentTime <= flashSale.getEndTime());
+                Byte newStatus;
+                String reason;
                 
-                Byte newStatus = isValid ? (byte) 1 : (byte) 0;
+                // ✅ PRIORITY 1: Flash sale status = 0 → Force disable (Admin override)
+                if (flashSale.getStatus() == 0) {
+                    newStatus = (byte) 0;
+                    reason = "flash sale disabled by admin";
+                } else {
+                    // ✅ PRIORITY 2: Flash sale status = 1 → Check time validity
+                    boolean isTimeValid = (flashSale.getStartTime() <= currentTime) && 
+                                         (currentTime <= flashSale.getEndTime());
+                    
+                    newStatus = isTimeValid ? (byte) 1 : (byte) 0;
+                    reason = isTimeValid ? "active (valid time)" : 
+                            (currentTime < flashSale.getStartTime() ? "not started yet" : "expired");
+                }
                 
                 if (!newStatus.equals(item.getStatus())) {
                     item.setStatus(newStatus);
@@ -356,9 +377,6 @@ public class FlashSaleServiceImpl implements FlashSaleService {
                     flashSaleItemRepository.save(item);
                     updatedCount++;
                     
-                    // Log để theo dõi
-                    String reason = currentTime < flashSale.getStartTime() ? "chưa bắt đầu" : 
-                                   currentTime > flashSale.getEndTime() ? "đã hết hạn" : "đang hiệu lực";
                     log.info("🔄 AUTO-UPDATE: FlashSaleItem {} status = {} ({})", 
                             item.getId(), newStatus, reason);
                 }
@@ -372,10 +390,12 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     }
 
     /**
-     * ✅ AUTO-UPDATE: Cập nhật status cho một flash sale cụ thể dựa trên thời gian hiệu lực
-     * - Nếu startTime <= currentTime <= endTime: status = 1 (active - có hiệu lực)
-     * - Nếu currentTime < startTime: status = 0 (chưa bắt đầu)  
-     * - Nếu currentTime > endTime: status = 0 (đã hết hạn)
+     * ✅ AUTO-UPDATE: Cập nhật status cho một flash sale cụ thể dựa trên thời gian hiệu lực VÀ status flash sale
+     * - Nếu flashSale.status = 0: Bắt buộc flashSaleItem.status = 0 (admin tắt khẩn cấp)
+     * - Nếu flashSale.status = 1: Kiểm tra thời gian hiệu lực
+     *   + startTime <= currentTime <= endTime: status = 1 (active - có hiệu lực)
+     *   + currentTime < startTime: status = 0 (chưa bắt đầu)  
+     *   + currentTime > endTime: status = 0 (đã hết hạn)
      * 
      * CHỈ GỌI KHI ADMIN CẬP NHẬT FLASH SALE HOẶC KHI HẾT HẠN
      */
@@ -394,11 +414,22 @@ public class FlashSaleServiceImpl implements FlashSaleService {
             // ✅ FIX: Sử dụng custom query để tránh LazyInitializationException
             List<FlashSaleItem> items = flashSaleItemRepository.findByFlashSaleIdWithFlashSale(flashSaleId);
             
-            // Kiểm tra thời gian hiệu lực: startTime <= currentTime <= endTime
-            boolean isValid = (flashSale.getStartTime() <= currentTime) && 
-                             (currentTime <= flashSale.getEndTime());
+            Byte newStatus;
+            String reason;
             
-            Byte newStatus = isValid ? (byte) 1 : (byte) 0;
+            // ✅ PRIORITY 1: Nếu admin tắt flash sale → tắt hết flash sale items
+            if (flashSale.getStatus() == 0) {
+                newStatus = (byte) 0;
+                reason = "admin tắt flash sale";
+            } else {
+                // ✅ PRIORITY 2: Kiểm tra thời gian hiệu lực
+                boolean isValid = (flashSale.getStartTime() <= currentTime) && 
+                                 (currentTime <= flashSale.getEndTime());
+                
+                newStatus = isValid ? (byte) 1 : (byte) 0;
+                reason = currentTime < flashSale.getStartTime() ? "chưa bắt đầu" : 
+                         currentTime > flashSale.getEndTime() ? "đã hết hạn" : "đang hiệu lực";
+            }
             
             int updatedCount = 0;
             for (FlashSaleItem item : items) {
@@ -412,8 +443,6 @@ public class FlashSaleServiceImpl implements FlashSaleService {
             }
             
             // Log kết quả update
-            String reason = currentTime < flashSale.getStartTime() ? "chưa bắt đầu" : 
-                           currentTime > flashSale.getEndTime() ? "đã hết hạn" : "đang hiệu lực";
             log.info("🔄 AUTO-UPDATE: FlashSale {} → {} items updated, status = {} ({})", 
                     flashSaleId, updatedCount, newStatus, reason);
             
