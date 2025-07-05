@@ -3,6 +3,7 @@ package org.datn.bookstation.controller;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
+import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.ParentCategoryResponse;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.mapper.CategoryMap;
@@ -27,11 +28,19 @@ public class CategoryController {
     public ResponseEntity<List<Category>> getAll() {
         return ResponseEntity.ok(categoryService.getAll());
     }
-
+    @GetMapping("/except/{id}")
+    public ResponseEntity<List<Category>> getAllExceptById(@PathVariable Integer id){
+        return ResponseEntity.ok(categoryService.getAllExceptById(id));
+    }
     @GetMapping("/parentcategories")
-    public ResponseEntity<List<ParentCategoryResponse>> getAllParentCategory() {
-        List<Category> categories = categoryService.getAll();
-        return ResponseEntity.ok(categoryMapper.mapToCategoryTreeList(categories));
+    public ResponseEntity<PaginationResponse<ParentCategoryResponse>> getAllParentCategory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Byte status
+    ) {
+
+       return ResponseEntity.ok(categoryService.getAllCategoryPagination(page, size, name, status));
     }
 
     @PostMapping()
