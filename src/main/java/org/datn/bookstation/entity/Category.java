@@ -26,7 +26,6 @@ public class Category {
     private String categoryName;
 
     @Nationalized
-    @Lob
     @Column(name = "description")
     private String description;
 
