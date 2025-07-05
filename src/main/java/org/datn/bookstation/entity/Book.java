@@ -37,6 +37,17 @@ public class Book {
     @Column(name = "price", nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
+    // ✅ THÊM MỚI: Giảm giá trực tiếp cho book (không phải flash sale)
+    @Column(name = "discount_value", precision = 10, scale = 2)
+    private BigDecimal discountValue; // Giảm theo giá trị (VD: giảm 50,000 VND)
+
+    @Column(name = "discount_percent")
+    private Integer discountPercent; // Giảm giá theo phần trăm (VD: giảm 20%)
+
+    @ColumnDefault("0")
+    @Column(name = "discount_active")
+    private Boolean discountActive; // Trạng thái kích hoạt discount
+
     @NotNull
     @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity;

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, Integer>, JpaSpecificationExecutor<FlashSaleItem> {
     
@@ -21,4 +22,66 @@ public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, In
 
     boolean existsByFlashSaleIdAndBookId(Integer flashSaleId, Integer bookId);
     boolean existsByFlashSaleIdAndBookIdAndIdNot(Integer flashSaleId, Integer bookId, Integer id);
+    
+    /**
+     * Lấy thông tin flash sale hiện tại của sách (đang active và trong thời gian hiệu lực)
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi " +
+           "WHERE fsi.book.id = :bookId " +
+           "AND fsi.status = 1 " +
+           "AND fsi.flashSale.status = 1 " +
+           "AND fsi.flashSale.startTime <= :currentTime " +
+           "AND fsi.flashSale.endTime >= :currentTime " +
+           "ORDER BY fsi.flashSale.startTime DESC")
+    List<FlashSaleItem> findCurrentActiveFlashSaleByBookId(@Param("bookId") Integer bookId, @Param("currentTime") Long currentTime);
+    
+    /**
+     * Đếm số lượng đã bán trong flash sale của một sách
+     */
+    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
+           "WHERE od.flashSaleItem.id = :flashSaleItemId " +
+           "AND od.order.orderStatus != 'CANCELLED'")
+    Integer countSoldQuantityByFlashSaleItem(@Param("flashSaleItemId") Integer flashSaleItemId);
+    
+    // Bổ sung methods hỗ trợ Cart
+    
+    /**
+     * Tìm flash sale đang active cho một sách (sử dụng Long timestamp)
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi " +
+           "WHERE fsi.book.id = :bookId " +
+           "AND fsi.status = 1 " +
+           "AND fsi.flashSale.status = 1 " +
+           "AND fsi.flashSale.startTime <= :now " +
+           "AND fsi.flashSale.endTime >= :now " +
+           "ORDER BY fsi.discountPrice ASC")
+    List<FlashSaleItem> findActiveFlashSalesByBookId(@Param("bookId") Long bookId, @Param("now") Long now);
+    
+    /**
+     * Tìm flash sale item theo ID và kiểm tra còn active không
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi " +
+           "WHERE fsi.id = :id " +
+           "AND fsi.status = 1 " +
+           "AND fsi.flashSale.status = 1 " +
+           "AND fsi.flashSale.startTime <= :now " +
+           "AND fsi.flashSale.endTime >= :now")
+    Optional<FlashSaleItem> findActiveFlashSaleItemById(@Param("id") Long id, @Param("now") Long now);
+    
+    /**
+     * Tìm flash sale item theo ID
+     */
+    Optional<FlashSaleItem> findById(Long id);
+    
+    /**
+     * ✅ FIX LAZY LOADING: Lấy tất cả FlashSaleItem với FlashSale được fetch sẵn
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi JOIN FETCH fsi.flashSale")
+    List<FlashSaleItem> findAllWithFlashSale();
+    
+    /**
+     * ✅ FIX LAZY LOADING: Lấy FlashSaleItem theo flashSaleId với FlashSale được fetch sẵn
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi JOIN FETCH fsi.flashSale WHERE fsi.flashSale.id = :flashSaleId")
+    List<FlashSaleItem> findByFlashSaleIdWithFlashSale(@Param("flashSaleId") Integer flashSaleId);
 }
