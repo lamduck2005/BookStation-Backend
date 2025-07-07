@@ -28,7 +28,6 @@ public class Author {
     private String authorName;
 
     @Nationalized
-    @Lob
     @Column(name = "biography")
     private String biography;
 
