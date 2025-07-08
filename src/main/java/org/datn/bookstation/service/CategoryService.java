@@ -27,4 +27,8 @@ public interface CategoryService {
     ApiResponse<List<ParentCategoryResponse>> getAllCategoryPagination();
 
     ApiResponse<Category> toggleStatus(Integer id);
+
+    ApiResponse<List<Category>> getAllByParentIsNull();
+    ApiResponse<List<Category>> getAllByParenId(Integer id);
+
 }

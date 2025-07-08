@@ -226,16 +226,16 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeRoles() {
         log.info("Initializing roles...");
         List<Role> roles = Arrays.asList(
-            createRole("ADMIN", "Quản trị viên hệ thống"),
-            createRole("STAFF", "Nhân viên"),
-            createRole("CUSTOMER", "Khách hàng")
+            createRole(RoleName.ADMIN, "Quản trị viên hệ thống"),
+            createRole(RoleName.STAFF, "Nhân viên"),
+            createRole(RoleName.CUSTOMER, "Khách hàng")
         );
         roleRepository.saveAll(roles);
     }
 
-    private Role createRole(String name, String description) {
+    private Role createRole(RoleName roleName, String description) {
         Role role = new Role();
-        role.setRoleName(name);
+        role.setRoleName(roleName);
         role.setDescription(description);
         role.setStatus((byte) 1);
         return role;
@@ -263,9 +263,9 @@ public class DataInitializationService implements CommandLineRunner {
 
     private void initializeUsers() {
         log.info("Initializing users...");
-        Role adminRole = roleRepository.findByRoleName("ADMIN").orElse(null);
-        Role staffRole = roleRepository.findByRoleName("STAFF").orElse(null);
-        Role customerRole = roleRepository.findByRoleName("CUSTOMER").orElse(null);
+        Role adminRole = roleRepository.findByRoleName(RoleName.ADMIN).orElse(null);
+        Role staffRole = roleRepository.findByRoleName(RoleName.STAFF).orElse(null);
+        Role customerRole = roleRepository.findByRoleName(RoleName.CUSTOMER).orElse(null);
 
         List<User> users = Arrays.asList(
             createUser("admin@bookstation.com", "admin123", "Admin BookStation", adminRole),
@@ -295,7 +295,7 @@ public class DataInitializationService implements CommandLineRunner {
 
     private void initializeUserRanks() {
         log.info("Initializing user ranks...");
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         Rank goldRank = rankRepository.findByRankName("VÀNG").orElse(null);
         for (int i = 0; i < Math.min(3, customers.size()); i++) {
             User customer = customers.get(i);
@@ -629,7 +629,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeUserVouchers() {
         log.info("Initializing user vouchers...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Voucher> vouchers = voucherRepository.findAll();
         
         // Gán một số voucher cho khách hàng
@@ -783,7 +783,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeAddresses() {
         log.info("Initializing addresses...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         
         for (int i = 0; i < customers.size(); i++) {
             User customer = customers.get(i);
@@ -810,7 +810,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeCarts() {
         log.info("Initializing carts...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         
         for (User customer : customers) {
@@ -836,7 +836,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeOrders() {
         log.info("Initializing orders...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         List<Address> addresses = addressRepository.findAll();
         
@@ -932,7 +932,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeReviews() {
         log.info("Initializing reviews...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         
         String[] comments = {
@@ -960,7 +960,7 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Initializing event participants...");
         
         List<Event> events = eventRepository.findAll();
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         
         for (Event event : events) {
             // Thêm một số participant cho mỗi event
@@ -1067,7 +1067,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeTrendingOrderData() {
         log.info("Initializing trending order data...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         List<Address> addresses = addressRepository.findAll();
         
@@ -1162,7 +1162,7 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeTrendingReviewData() {
         log.info("Initializing trending review data...");
         
-        List<User> customers = userRepository.findByRole_RoleName("CUSTOMER");
+        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         
         if (customers.isEmpty() || books.isEmpty()) {

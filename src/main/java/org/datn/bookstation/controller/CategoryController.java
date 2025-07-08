@@ -59,6 +59,10 @@ public class CategoryController {
 
     @PostMapping
     public ApiResponse<Category> add(@RequestBody Category category) {
+
+        System.out.println(category.toString());
+
+
         return categoryService.add(category);
     }
 
@@ -76,9 +80,19 @@ public class CategoryController {
     public ApiResponse<Category> toggleStatus(@PathVariable Integer id) {
         return categoryService.toggleStatus(id);
     }
+
     @GetMapping("/fiter")
-    public ApiResponse<List<ParentCategoryResponse>> getAllCategoriesForUser(
-            ) {
+    public ApiResponse<List<ParentCategoryResponse>> getAllCategoriesForUser() {
         return categoryService.getAllCategoryPagination();
+    }
+
+    @GetMapping("/parent-null")
+    public ApiResponse<List<Category>> getAllByParentIsNull() {
+        return categoryService.getAllByParentIsNull();
+    }
+
+    @GetMapping("/parent/{id}")
+    public ApiResponse<List<Category>> getAllByParenId(@PathVariable Integer id) {
+        return categoryService.getAllByParenId(id);
     }
 }

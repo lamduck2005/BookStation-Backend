@@ -35,8 +35,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> add(Category category) {
         try {
-            if (category.getParentCategory() != null
-                    && categoryRepository.getByParentCategoryIsNull(category.getId()) != null) {
+            if (category.getParentCategory() != null) {
                 Category parentCategory = categoryRepository.findById(category.getParentCategory().getId()).get();
                 category.setParentCategory(parentCategory);
             } else {
@@ -131,7 +130,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public ApiResponse<PaginationResponse<ParentCategoryResponse>> getAllCategoryPagination(Integer page, Integer size,
-                                                                                            String name, Byte status) {
+            String name, Byte status) {
         try {
             Specification<Category> spec = CategorySpecification.filterBy(name, status);
             List<Category> categoriesSpec = categoryRepository.findAll(spec);
@@ -174,7 +173,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<List<ParentCategoryResponse>> getAllCategoryPagination() {
         try {
-            List<Category> getAll=categoryRepository.findAll();
+            List<Category> getAll = categoryRepository.findAll();
             List<ParentCategoryResponse> parentCategoryResponseList = categoryMap.mapToCategoryTreeList(getAll);
 
             return new ApiResponse<>(200, "Lấy danh sách danh mục phân trang thành công", parentCategoryResponseList);
@@ -205,6 +204,26 @@ public class CategoryServiceImpl implements CategoryService {
             return new ApiResponse<>(200, "Cập nhật trạng thái category thành công", updatedCategory);
         } catch (Exception e) {
             return new ApiResponse<>(500, "Cập nhật trạng thái thất bại: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<List<Category>> getAllByParentIsNull() {
+        try {
+            List<Category> categories = categoryRepository.getAllByParentIsNull();
+            return new ApiResponse<>(200, "Lấy danh sách danh mục cha thành công", categories);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy danh mục cha: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<List<Category>> getAllByParenId(Integer id) {
+        try {
+            List<Category> categories = categoryRepository.getALlByParentId(id);
+            return new ApiResponse<>(200, "Lấy danh sách danh mục con thành công", categories);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy danh mục con: " + e.getMessage(), null);
         }
     }
 }

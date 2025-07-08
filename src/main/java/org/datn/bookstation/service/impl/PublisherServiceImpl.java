@@ -158,4 +158,9 @@ public class PublisherServiceImpl implements PublisherService {
     public List<Publisher> getActivePublishers() {
         return publisherRepository.findByStatus((byte) 1);
     }
+
+    @Override
+    public List<Publisher> getAllPublisher() {
+        return publisherRepository.findAll();
+    }
 }

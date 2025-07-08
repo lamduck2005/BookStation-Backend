@@ -24,7 +24,7 @@ public interface CategoryRepository extends JpaRepository<Category, Integer>, Jp
     List<Category> findCategoryHierarchy();
 
     @Query("""
-            select c from Category c where c.parentCategory is null and c.id = :id
+            select c from Category c where c.parentCategory is null 
             """)
     Category getByParentCategoryIsNull(@Param("id") Integer id);
 
@@ -32,7 +32,15 @@ public interface CategoryRepository extends JpaRepository<Category, Integer>, Jp
 
 
     @Query("""
-select c from Category  c where c.id != :id
+select c from Category  c where c.id != :id and c.parentCategory.id is null 
 """)
     List<Category> getAllExceptByID(@Param("id") Integer id);
+    @Query("""
+        select c from Category c where c.parentCategory.id is null 
+""")
+     List<Category> getAllByParentIsNull();
+    @Query("""
+select c from Category c where c.parentCategory.id=:id
+""")
+    List<Category> getALlByParentId(@Param("id") Integer id);
 }

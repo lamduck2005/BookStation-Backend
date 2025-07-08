@@ -63,8 +63,8 @@ public class BookServiceImpl implements BookService {
                                                                 BigDecimal minPrice, BigDecimal maxPrice, 
                                                                 Byte status, String bookCode) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Specification<Book> specification = BookSpecification.filterBy(bookName, categoryId, supplierId, publisherId,
-                                                                       minPrice, maxPrice, status, bookCode);
+        Specification<Book> specification = BookSpecification.filterBy(bookName, categoryId,publisherId,
+                                                                       minPrice, maxPrice);
         Page<Book> bookPage = bookRepository.findAll(specification, pageable);
         
         List<BookResponse> bookResponses = bookPage.getContent().stream()
@@ -78,6 +78,11 @@ public class BookServiceImpl implements BookService {
                 .totalElements(bookPage.getTotalElements())
                 .totalPages(bookPage.getTotalPages())
                 .build();
+    }
+
+    @Override
+    public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, Integer categoryId, Integer supplierId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice) {
+        return null;
     }
 
     @Override
