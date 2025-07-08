@@ -86,6 +86,18 @@ public class TrendingBookMapper {
             response.setAuthors(authors);
         }
         
+        // Set images (nhiều ảnh)
+        String imagesStr = (String) data[20];
+        if (imagesStr != null && !imagesStr.isEmpty()) {
+            List<String> images = java.util.Arrays.stream(imagesStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+            response.setImages(images);
+        } else {
+            response.setImages(java.util.Collections.emptyList());
+        }
+        
         return response;
     }
     

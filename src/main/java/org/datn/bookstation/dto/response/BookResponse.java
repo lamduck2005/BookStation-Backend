@@ -53,4 +53,7 @@ public class BookResponse {
     
     // ✅ THÊM MỚI: Kích thước (dài x rộng x cao) cm
     private String dimensions;
+    
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh)
+    private List<String> images;
 }

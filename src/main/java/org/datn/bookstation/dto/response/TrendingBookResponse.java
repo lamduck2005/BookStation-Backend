@@ -54,4 +54,7 @@ public class TrendingBookResponse {
     // Timestamps
     private Long createdAt;
     private Long updatedAt;
+    
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh)
+    private List<String> images;
 }

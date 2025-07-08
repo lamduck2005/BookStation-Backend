@@ -26,6 +26,9 @@ public class BookRequest {
     
     // ✅ THÊM MỚI: Ảnh bìa sách
     private String coverImageUrl;
+
+    // ✅ THÊM MỚI: Danh sách ảnh chính (nhiều ảnh)
+    private List<String> images;
     
     // ✅ THÊM MỚI: Người dịch
     private String translator;

@@ -69,6 +69,17 @@ public class BookResponseMapper {
             response.setAuthors(authors);
         }
         
+        // Set images (nhiều ảnh)
+        if (book.getImages() != null && !book.getImages().isEmpty()) {
+            List<String> images = java.util.Arrays.stream(book.getImages().split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+            response.setImages(images);
+        } else {
+            response.setImages(java.util.Collections.emptyList());
+        }
+        
         return response;
     }
 }

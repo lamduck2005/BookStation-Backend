@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.datn.bookstation.validator.ImageUrlValidator;
 
 @Service
 @AllArgsConstructor
@@ -56,6 +57,7 @@ public class BookServiceImpl implements BookService {
     private final BookMapper bookMapper;
     private final BookResponseMapper bookResponseMapper;
     private final TrendingBookMapper trendingBookMapper;
+    private final ImageUrlValidator imageUrlValidator;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, 
@@ -302,6 +304,20 @@ public class BookServiceImpl implements BookService {
                     return new ApiResponse<>(404, "Không tìm thấy nhà xuất bản", null);
                 }
                 existing.setPublisher(publisher);
+            }
+            
+            // Update images (multi-image support like EventServiceImpl)
+            if (request.getImages() != null) {
+                imageUrlValidator.validate(request.getImages());
+            }
+            String imagesString = null;
+            if (request.getImages() != null && !request.getImages().isEmpty()) {
+                imagesString = String.join(",", request.getImages());
+            } else if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isEmpty()) {
+                imagesString = request.getCoverImageUrl();
+            }
+            if (imagesString != null) {
+                existing.setImages(imagesString); // Đảm bảo entity Book có trường images (String)
             }
             
             existing.setUpdatedBy(1); // Default updated by system user
