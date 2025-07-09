@@ -16,9 +16,9 @@ public interface BookService {
                                                          Integer categoryId, Integer supplierId, Integer publisherId,
                                                          BigDecimal minPrice, BigDecimal maxPrice, 
                                                          Byte status, String bookCode);
-    PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
-                                                          Integer categoryId, Integer supplierId, Integer publisherId,
-                                                          BigDecimal minPrice, BigDecimal maxPrice);
+
+    PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,Integer parentId, Integer categoryId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice);
+
     List<Book> getAll();
     List<Book> getActiveBooks();
     List<Book> getBooksByCategory(Integer categoryId);

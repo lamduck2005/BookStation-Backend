@@ -54,7 +54,23 @@ public class BookController {
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/client")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAllClient(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String bookName,
+            @RequestParam(required = false) Integer parentCategoryId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer publisherId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
+        PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
+                page, size, bookName,parentCategoryId, categoryId, publisherId, minPrice, maxPrice);
+        ApiResponse<PaginationResponse<BookResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
+        return ResponseEntity.ok(response);
+    }
     /**
      * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
