@@ -115,6 +115,25 @@ public class UserServiceImpl implements UserService {
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", toResponse(saved));
     }
 
+    @Override
+    public ApiResponse<User> getUserByEmail(String email) {
+        return new ApiResponse<>(200, "Cập nhật trạng thái thành công",userRepository.findByEmail(email).get());
+
+    }
+
+    @Override
+    public ApiResponse<User> updateClient(User user, Integer id) {
+        User userById = userRepository.findById(id).get();
+        if (userById==null) {
+            return new ApiResponse<>(404, "Không tìm thấy", null);
+        }
+        userById.setUpdatedAt(System.currentTimeMillis());
+        userById.setFullName(user.getFullName());
+        userById.setPhoneNumber(user.getPhoneNumber());
+        User userUpdate = userRepository.save(userById);
+        return new ApiResponse<>(200, "Cập nhật thông tin thành công",userUpdate);
+    }
+
     // Helper chuyển status String -> Byte
     private Byte parseStatus(String status) {
         if (status == null) return 1;
