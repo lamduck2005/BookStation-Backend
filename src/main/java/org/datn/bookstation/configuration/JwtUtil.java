@@ -1,6 +1,7 @@
 package org.datn.bookstation.configuration;
 
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
 
 import org.datn.bookstation.entity.User;
 import org.springframework.stereotype.Component;
@@ -44,5 +45,49 @@ public class JwtUtil {
 
     public String extractRole(String token) {
         return (String) Jwts.parser().setSigningKey(props.getSecret()).parseClaimsJws(token).getBody().get("role");
+    }
+
+    // ====== RESET PASSWORD SUPPORT ======
+
+    /** Sinh token RESET, hết hạn sau 15 phút */
+    public String generateResetToken(User user) {
+        long expirationMillis = 15 * 60 * 1000; // 15 phút
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("id", user.getId())
+                .claim("type", "RESET")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expirationMillis))
+                .signWith(SignatureAlgorithm.HS256, props.getSecret())
+                .compact();
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser().setSigningKey(props.getSecret()).parseClaimsJws(token).getBody();
+    }
+
+    public boolean isResetToken(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return "RESET".equals(claims.get("type"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Integer extractUserId(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            Object idObj = claims.get("id");
+            if (idObj instanceof Integer) {
+                return (Integer) idObj;
+            }
+            if (idObj instanceof Number) {
+                return ((Number) idObj).intValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 } 
