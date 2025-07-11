@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
+import org.datn.bookstation.entity.enums.AddressType;
 
 @Getter
 @Setter
@@ -63,6 +64,10 @@ public class Address {
 
     @Column(name = "ward_code")
     private String wardCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "address_type", length = 20)
+    private AddressType addressType;
 
     @ColumnDefault("0")
     @Column(name = "is_default")
