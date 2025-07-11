@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -30,8 +31,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String uri = request.getRequestURI();
 
+        String[] publicEndpoints = {
+            "/api/auth",
+            "/api/payment/vnpay-return",
+            "/api/payment/vnpay-ipn",
+            "/api/payment/vnpay/manual"
+        };
+
         // Public endpoints
-        if (uri.startsWith("/api/auth")) {
+        if (Arrays.stream(publicEndpoints).anyMatch(uri::startsWith)) {
             filterChain.doFilter(request, response);
             return;
         }
