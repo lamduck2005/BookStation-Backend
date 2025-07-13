@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
+import org.datn.bookstation.entity.enums.AddressType;
 
 @Getter
 @Setter
@@ -39,6 +40,34 @@ public class Address {
     @Nationalized
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
+
+    @Size(max = 100)
+    @Nationalized
+    @Column(name = "province_name", length = 100)
+    private String provinceName;
+
+    @Column(name = "province_id")
+    private Integer provinceId;
+
+    @Size(max = 100)
+    @Nationalized
+    @Column(name = "district_name", length = 100)
+    private String districtName;
+
+    @Column(name = "district_id")
+    private Integer districtId;
+
+    @Size(max = 100)
+    @Nationalized
+    @Column(name = "ward_name", length = 100)
+    private String wardName;
+
+    @Column(name = "ward_code")
+    private String wardCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "address_type", length = 20)
+    private AddressType addressType;
 
     @ColumnDefault("0")
     @Column(name = "is_default")
