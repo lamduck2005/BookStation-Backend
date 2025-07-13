@@ -1,6 +1,7 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -241,5 +242,12 @@ public class BookController {
         ApiResponse<String> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated", "Feature available when TrendingCacheService is injected");
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/bycategoryid/{id}")
+    public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
+            @PathVariable("id") Integer id,
+            @RequestParam(name = "text", required = false) String text) {
+
+        return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
 }

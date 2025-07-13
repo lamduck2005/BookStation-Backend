@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -14,6 +15,7 @@ import org.datn.bookstation.entity.Publisher;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
+import org.datn.bookstation.mapper.BookCategoryMapper;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.TrendingBookMapper;
@@ -56,6 +58,7 @@ public class BookServiceImpl implements BookService {
     private final BookMapper bookMapper;
     private final BookResponseMapper bookResponseMapper;
     private final TrendingBookMapper trendingBookMapper;
+    private final BookCategoryMapper bookCategoryMapper;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -633,4 +636,15 @@ public class BookServiceImpl implements BookService {
 
         return getTrendingBooks(request);
     }
+
+    @Override
+    public ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text) {
+        Specification<Book> bookSpecification = BookSpecification.filterBy(id,text);
+        List<Book> books = bookRepository.findAll(bookSpecification);
+
+
+        return new ApiResponse<>(200, "Đã nhập được list search từ ", bookCategoryMapper.booksMapper(books));
+    }
+
+
 }

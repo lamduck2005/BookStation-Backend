@@ -95,4 +95,8 @@ public class CategoryController {
     public ApiResponse<List<Category>> getAllByParenId(@PathVariable Integer id) {
         return categoryService.getAllByParenId(id);
     }
+    @GetMapping("/parent-not-null")
+    public ApiResponse<List<Category>> getAllByParentIsNotNull() {
+        return categoryService.getAllByParentIsNotNull();
+    }
 }

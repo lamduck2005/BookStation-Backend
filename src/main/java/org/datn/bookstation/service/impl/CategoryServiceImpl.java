@@ -226,4 +226,9 @@ public class CategoryServiceImpl implements CategoryService {
             return new ApiResponse<>(500, "Lỗi khi lấy danh mục con: " + e.getMessage(), null);
         }
     }
+
+    @Override
+    public ApiResponse<List<Category>> getAllByParentIsNotNull() {
+        return new ApiResponse<>(200,"Lấy danh mục con thành công",categoryRepository.getAllByParentIsNotNull());
+    }
 }

@@ -30,5 +30,5 @@ public interface CategoryService {
 
     ApiResponse<List<Category>> getAllByParentIsNull();
     ApiResponse<List<Category>> getAllByParenId(Integer id);
-
+    ApiResponse<List<Category>> getAllByParentIsNotNull();
 }

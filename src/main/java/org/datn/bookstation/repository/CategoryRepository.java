@@ -40,6 +40,10 @@ select c from Category  c where c.id != :id and c.parentCategory.id is null
 """)
      List<Category> getAllByParentIsNull();
     @Query("""
+        select c from Category c where c.parentCategory.id is not null 
+""")
+    List<Category> getAllByParentIsNotNull();
+    @Query("""
 select c from Category c where c.parentCategory.id=:id
 """)
     List<Category> getALlByParentId(@Param("id") Integer id);

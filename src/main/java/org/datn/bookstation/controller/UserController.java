@@ -3,6 +3,7 @@ package org.datn.bookstation.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -105,5 +107,14 @@ public class UserController {
         String email = (String) request.getAttribute("userEmail");
         ApiResponse<User> user = userService.getUserByEmail(email);
         return ResponseEntity.ok(user);
+    }
+    @GetMapping("/userpos")
+    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text){
+        System.out.println(" sdsadklasdjasdkasdjaskdfkas"+text);
+        return ResponseEntity.ok(userService.getUserPOS(text));
+    }
+    @PostMapping("/addretail")
+    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user){
+        return ResponseEntity.ok(userService.addRetail(user));
     }
 }

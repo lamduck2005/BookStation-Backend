@@ -61,7 +61,8 @@ public class BookSpecification {
         };
     }
 
-    public static Specification<Book> filterBy(String bookName, Integer categoryId,Integer parentCategoryId , Integer publisherId,
+    public static Specification<Book> filterBy(String bookName, Integer categoryId, Integer parentCategoryId,
+            Integer publisherId,
             BigDecimal minPrice, BigDecimal maxPrice) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
@@ -94,6 +95,25 @@ public class BookSpecification {
             } else if (maxPrice != null) {
                 predicates = criteriaBuilder.and(predicates,
                         criteriaBuilder.lessThanOrEqualTo(root.get("price"), maxPrice));
+            }
+
+            return predicates;
+        };
+    }
+
+    public static Specification<Book> filterBy(Integer categoryId, String text) {
+        return (root, query, criteriaBuilder) -> {
+            var predicates = criteriaBuilder.conjunction();
+
+            if (categoryId != null) {
+                predicates = criteriaBuilder.and(predicates,
+                        criteriaBuilder.equal(root.get("category").get("id"), categoryId));
+            }
+
+            if (text != null && !text.isEmpty()) {
+                String likeText = "%" + text.toLowerCase() + "%";
+                predicates = criteriaBuilder.and(predicates,
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")), likeText));
             }
 
             return predicates;
