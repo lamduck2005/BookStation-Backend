@@ -828,6 +828,7 @@ public class DataInitializationService implements CommandLineRunner {
                 item.setQuantity(i + 1);
                 item.setCreatedBy(customer.getId());
                 item.setStatus((byte) 1);
+                item.setSelected(true);
                 cartItemRepository.save(item);
             }
         }

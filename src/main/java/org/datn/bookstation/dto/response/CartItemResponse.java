@@ -46,4 +46,6 @@ public class CartItemResponse {
     private String itemType; // "REGULAR" hoặc "FLASH_SALE"
     private String stockWarning; // "Chỉ còn 2 sản phẩm"
     private boolean canAddMore; // có thể tăng quantity không
+    // NEW: Trạng thái chọn/bỏ trên UI
+    private Boolean selected;
 }

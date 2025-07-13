@@ -61,6 +61,16 @@ public interface CartItemService {
     boolean isCartItemBelongsToUser(Integer cartItemId, Integer userId);
 
     /**
+     * Cập nhật trạng thái chọn/bỏ CartItem
+     */
+    ApiResponse<CartItemResponse> updateCartItemSelected(Integer cartItemId, Boolean selected);
+
+    /**
+     * Đảo trạng thái chọn/bỏ CartItem
+     */
+    ApiResponse<CartItemResponse> toggleCartItemSelected(Integer cartItemId);
+
+    /**
      * Thêm sản phẩm vào giỏ hàng thông minh (tự động chọn flash sale)
      * @param request SmartCartItemRequest
      * @return ApiResponse<CartItemResponse>

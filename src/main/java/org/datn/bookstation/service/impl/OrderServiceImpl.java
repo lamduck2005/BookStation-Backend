@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.OrderRequest;
 import org.datn.bookstation.dto.request.OrderDetailRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 @Transactional
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
@@ -92,19 +94,34 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<OrderResponse> create(OrderRequest request) {
         try {
+            log.info("🛒 Creating order for user: {}", request.getUserId());
+            
             // Validate user
             User user = userRepository.findById(request.getUserId()).orElse(null);
             if (user == null) {
+                log.error("❌ User not found: {}", request.getUserId());
                 return new ApiResponse<>(404, "Không tìm thấy người dùng", null);
             }
             
             // Validate address
+            if (request.getAddressId() == null) {
+                log.error("❌ Address ID is null for user: {}", request.getUserId());
+                return new ApiResponse<>(400, "Thiếu thông tin địa chỉ giao hàng", null);
+            }
+            
             Address address = addressRepository.findById(request.getAddressId()).orElse(null);
             if (address == null) {
-                return new ApiResponse<>(404, "Không tìm thấy địa chỉ", null);
+                log.error("❌ Address not found: {}", request.getAddressId());
+                return new ApiResponse<>(404, "Không tìm thấy địa chỉ giao hàng", null);
+            }
+            
+            // Validate order details
+            if (request.getOrderDetails() == null || request.getOrderDetails().isEmpty()) {
+                log.error("❌ No order details provided for user: {}", request.getUserId());
+                return new ApiResponse<>(400, "Không có sản phẩm nào để đặt hàng", null);
             }
             
             // Create order
@@ -113,7 +130,7 @@ public class OrderServiceImpl implements OrderService {
             order.setAddress(address);
             
             // Set basic order info from request (not subtotal - will be calculated)
-            order.setShippingFee(request.getShippingFee());
+            order.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
             
             // Set staff if provided
             if (request.getStaffId() != null) {
@@ -134,27 +151,42 @@ public class OrderServiceImpl implements OrderService {
             order.setCreatedBy(request.getUserId());
             order.setStatus((byte) 1); // Active
             
+            log.info("🔄 Saving order with code: {}", orderCode);
             Order savedOrder = orderRepository.save(order);
             
             // Create order details with proper price calculation
             BigDecimal calculatedSubtotal = BigDecimal.ZERO;
+            log.info("🔄 Processing {} order details", request.getOrderDetails().size());
+            
             for (OrderDetailRequest detailRequest : request.getOrderDetails()) {
-                BigDecimal itemSubtotal = createOrderDetailWithCalculation(savedOrder, detailRequest);
-                calculatedSubtotal = calculatedSubtotal.add(itemSubtotal);
+                try {
+                    BigDecimal itemSubtotal = createOrderDetailWithCalculation(savedOrder, detailRequest);
+                    calculatedSubtotal = calculatedSubtotal.add(itemSubtotal);
+                    log.debug("✅ Processed order detail for book {}: subtotal={}", 
+                        detailRequest.getBookId(), itemSubtotal);
+                } catch (Exception detailEx) {
+                    log.error("❌ Failed to create order detail for book {}: {}", 
+                        detailRequest.getBookId(), detailEx.getMessage(), detailEx);
+                    throw new RuntimeException("Lỗi khi xử lý sản phẩm ID " + detailRequest.getBookId() + ": " + detailEx.getMessage());
+                }
             }
             
             // Update order with calculated subtotal
             savedOrder.setSubtotal(calculatedSubtotal);
-            savedOrder.setShippingFee(request.getShippingFee());
-            savedOrder.setTotalAmount(calculatedSubtotal.add(request.getShippingFee()));
+            savedOrder.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
+            savedOrder.setTotalAmount(calculatedSubtotal.add(savedOrder.getShippingFee()));
+            
+            log.info("🔄 Calculated subtotal: {}, shipping: {}", calculatedSubtotal, savedOrder.getShippingFee());
             
             // Apply vouchers if provided - validate and calculate discounts
             if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
                 try {
+                    log.info("🔄 Processing {} vouchers", request.getVoucherIds().size());
+                    
                     // Create temporary order for voucher calculation
                     Order tempOrder = new Order();
                     tempOrder.setSubtotal(calculatedSubtotal);
-                    tempOrder.setShippingFee(request.getShippingFee());
+                    tempOrder.setShippingFee(savedOrder.getShippingFee());
                     
                     // Validate and calculate vouchers using VoucherCalculationService
                     VoucherCalculationService.VoucherCalculationResult voucherResult = 
@@ -168,10 +200,13 @@ public class OrderServiceImpl implements OrderService {
                     
                     // Recalculate total amount
                     BigDecimal recalculatedTotal = calculatedSubtotal
-                        .add(request.getShippingFee())
+                        .add(savedOrder.getShippingFee())
                         .subtract(voucherResult.getTotalProductDiscount())
                         .subtract(voucherResult.getTotalShippingDiscount());
                     savedOrder.setTotalAmount(recalculatedTotal);
+                    
+                    log.info("🔄 Applied vouchers: product discount={}, shipping discount={}, final total={}", 
+                        voucherResult.getTotalProductDiscount(), voucherResult.getTotalShippingDiscount(), recalculatedTotal);
                     
                     // Create order vouchers with calculated details
                     for (VoucherCalculationService.VoucherApplicationDetail voucherDetail : voucherResult.getAppliedVouchers()) {
@@ -182,7 +217,8 @@ public class OrderServiceImpl implements OrderService {
                     voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
                     
                 } catch (Exception e) {
-                    return new ApiResponse<>(400, "Lỗi áp dụng voucher: " + e.getMessage(), null);
+                    log.error("❌ Error applying vouchers: {}", e.getMessage(), e);
+                    throw new RuntimeException("Lỗi áp dụng voucher: " + e.getMessage());
                 }
             } else {
                 // No vouchers - set default discount values
@@ -195,11 +231,13 @@ public class OrderServiceImpl implements OrderService {
             // Save updated order
             savedOrder = orderRepository.save(savedOrder);
             
+            log.info("✅ Successfully created order: {}", orderCode);
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
             return new ApiResponse<>(201, "Tạo đơn hàng thành công", response);
             
         } catch (Exception e) {
-            return new ApiResponse<>(500, "Lỗi khi tạo đơn hàng: " + e.getMessage(), null);
+            log.error("💥 Error creating order for user {}: {}", request.getUserId(), e.getMessage(), e);
+            throw new RuntimeException("Lỗi khi tạo đơn hàng: " + e.getMessage(), e);
         }
     }
 
@@ -416,12 +454,14 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Số lượng flash sale không đủ. Có sẵn: " + flashSaleItem.getStockQuantity());
         }
         
-        // Check max purchase per user (if set)
+        // Kiểm tra giới hạn mua trên mỗi user cho flash sale item
         if (flashSaleItem.getMaxPurchasePerUser() != null) {
-            // TODO: Check user's previous purchases for this flash sale item
-            // This requires tracking user purchases per flash sale item
+            // TODO: Nếu cần, kiểm tra lịch sử mua của user cho sản phẩm này
             if (requestedQuantity > flashSaleItem.getMaxPurchasePerUser()) {
-                throw new RuntimeException("Vượt quá giới hạn mua " + flashSaleItem.getMaxPurchasePerUser() + " sản phẩm trên 1 user");
+                throw new RuntimeException(
+                    "Sản phẩm flash sale chỉ cho phép mua tối đa " + flashSaleItem.getMaxPurchasePerUser() +
+                    " sản phẩm trên mỗi user. Bạn đã chọn " + requestedQuantity + " sản phẩm."
+                );
             }
         }
     }

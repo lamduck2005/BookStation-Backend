@@ -631,4 +631,40 @@ public class CartItemServiceImpl implements CartItemService {
         
         return message.toString();
     }
+
+    @Override
+    public ApiResponse<CartItemResponse> updateCartItemSelected(Integer cartItemId, Boolean selected) {
+        try {
+            Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
+            if (cartItemOpt.isEmpty()) {
+                return new ApiResponse<>(404, "CartItem không tồn tại", null);
+            }
+            CartItem cartItem = cartItemOpt.get();
+            cartItem.setSelected(selected);
+            cartItem.setUpdatedAt(System.currentTimeMillis());
+            CartItem savedItem = cartItemRepository.save(cartItem);
+            CartItemResponse response = cartItemResponseMapper.toResponse(savedItem);
+            return new ApiResponse<>(200, "Cập nhật trạng thái chọn/bỏ thành công", response);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi cập nhật trạng thái chọn/bỏ: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<CartItemResponse> toggleCartItemSelected(Integer cartItemId) {
+        try {
+            Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
+            if (cartItemOpt.isEmpty()) {
+                return new ApiResponse<>(404, "CartItem không tồn tại", null);
+            }
+            CartItem cartItem = cartItemOpt.get();
+            cartItem.setSelected(!Boolean.TRUE.equals(cartItem.getSelected()));
+            cartItem.setUpdatedAt(System.currentTimeMillis());
+            CartItem savedItem = cartItemRepository.save(cartItem);
+            CartItemResponse response = cartItemResponseMapper.toResponse(savedItem);
+            return new ApiResponse<>(200, "Đã đảo trạng thái chọn/bỏ thành công", response);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi đảo trạng thái chọn/bỏ: " + e.getMessage(), null);
+        }
+    }
 }
