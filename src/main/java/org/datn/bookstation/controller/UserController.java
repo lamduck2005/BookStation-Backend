@@ -75,6 +75,7 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
+
     @PutMapping("/profile/{id}")
     public ResponseEntity<ApiResponse<User>> update(@PathVariable Integer id, @RequestBody User user) {
         ApiResponse<User> response = userService.updateClient(user, id);
@@ -86,6 +87,7 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thông tin thành công", response.getData()));
     }
+
     // Xóa user
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
@@ -102,19 +104,22 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
     }
+
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request){
+    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request) {
         String email = (String) request.getAttribute("userEmail");
         ApiResponse<User> user = userService.getUserByEmail(email);
         return ResponseEntity.ok(user);
     }
+
     @GetMapping("/userpos")
-    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text){
-        System.out.println(" sdsadklasdjasdkasdjaskdfkas"+text);
+    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text) {
+        System.out.println(" sdsadklasdjasdkasdjaskdfkas" + text);
         return ResponseEntity.ok(userService.getUserPOS(text));
     }
+
     @PostMapping("/addretail")
-    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user){
+    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
         return ResponseEntity.ok(userService.addRetail(user));
     }
 }

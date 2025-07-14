@@ -25,11 +25,13 @@ public class User {
 
     @Size(max = 100)
     @Nationalized
+    @Null
     @Column(name = "email", nullable = true, length = 100)
     private String email;
 
     @Size(max = 255)
     @Nationalized
+    @Null
     @Column(name = "password", nullable = true)
     private String password;
 
