@@ -27,4 +27,5 @@ public interface BookMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     void updateEntity(BookRequest request, @MappingTarget Book book);
+
 }

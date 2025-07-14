@@ -1,5 +1,7 @@
 package org.datn.bookstation.specification;
 
+import org.datn.bookstation.dto.request.UserRoleRequest;
+import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.UserRank;
 import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.criteria.Predicate;
@@ -7,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserRankSpecification {
-    public static Specification<UserRank> filterBy(Integer userId, Integer rankId, Byte status, String userEmail, String rankName) {
+    public static Specification<UserRank> filterBy(Integer userId, Integer rankId, Byte status, String userEmail,
+            String rankName) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (userId != null) {
@@ -21,15 +24,30 @@ public class UserRankSpecification {
             }
             if (userEmail != null && !userEmail.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.like(
-                    criteriaBuilder.lower(root.join("user").get("email")),
-                    "%" + userEmail.toLowerCase() + "%"
-                ));
+                        criteriaBuilder.lower(root.join("user").get("email")),
+                        "%" + userEmail.toLowerCase() + "%"));
             }
             if (rankName != null && !rankName.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.like(
-                    criteriaBuilder.lower(root.join("rank").get("name")),
-                    "%" + rankName.toLowerCase() + "%"
-                ));
+                        criteriaBuilder.lower(root.join("rank").get("name")),
+                        "%" + rankName.toLowerCase() + "%"));
+            }
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    public static Specification<User> filterBy(String text) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (text != null && !text.trim().isEmpty()) {
+                Predicate fullNamePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("fullName")),
+                        "%" + text.toLowerCase() + "%");
+                Predicate phonePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("phoneNumber")),
+                        "%" + text.toLowerCase() + "%");
+                predicates.add(criteriaBuilder.or(fullNamePredicate, phonePredicate));
             }
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };

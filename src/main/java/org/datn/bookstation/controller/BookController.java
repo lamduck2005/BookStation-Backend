@@ -1,6 +1,7 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -54,7 +55,23 @@ public class BookController {
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/client")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAllClient(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String bookName,
+            @RequestParam(required = false) Integer parentCategoryId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer publisherId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
+        PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
+                page, size, bookName,parentCategoryId, categoryId, publisherId, minPrice, maxPrice);
+        ApiResponse<PaginationResponse<BookResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
+        return ResponseEntity.ok(response);
+    }
     /**
      * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
@@ -225,5 +242,12 @@ public class BookController {
         ApiResponse<String> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated", "Feature available when TrendingCacheService is injected");
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/bycategoryid/{id}")
+    public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
+            @PathVariable("id") Integer id,
+            @RequestParam(name = "text", required = false) String text) {
+
+        return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
 }

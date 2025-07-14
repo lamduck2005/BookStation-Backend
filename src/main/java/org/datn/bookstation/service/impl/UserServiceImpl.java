@@ -2,16 +2,22 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
+import org.datn.bookstation.entity.Role;
 import org.datn.bookstation.entity.User;
+import org.datn.bookstation.mapper.UserMapper;
 import org.datn.bookstation.repository.RoleRepository;
 import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.service.UserService;
+import org.datn.bookstation.specification.UserRankSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -26,8 +32,8 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
     private final RoleRepository roleRepository;
-
     @Override
     public PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email, String phoneNumber, Integer roleId, String status) {
         Pageable pageable = PageRequest.of(page, size);
@@ -115,6 +121,47 @@ public class UserServiceImpl implements UserService {
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", toResponse(saved));
     }
 
+    @Override
+    public ApiResponse<User> getUserByEmail(String email) {
+        return new ApiResponse<>(200, "Cập nhật trạng thái thành công",userRepository.findByEmail(email).get());
+
+    }
+
+    @Override
+    public ApiResponse<User> updateClient(User user, Integer id) {
+        User userById = userRepository.findById(id).get();
+        if (userById==null) {
+            return new ApiResponse<>(404, "Không tìm thấy", null);
+        }
+        userById.setUpdatedAt(System.currentTimeMillis());
+        userById.setFullName(user.getFullName());
+        userById.setPhoneNumber(user.getPhoneNumber());
+        User userUpdate = userRepository.save(userById);
+        return new ApiResponse<>(200, "Cập nhật thông tin thành công",userUpdate);
+    }
+
+    @Override
+    public ApiResponse<List<UserRoleRequest>> getUserPOS(String text) {
+        Specification<User> userSpecification = UserRankSpecification.filterBy(text);
+        List<User> users = userRepository.findAll( userSpecification);
+
+        return new ApiResponse<>(200,"Lấy danh sách user thành công",userMapper.userMapper(users));
+    }
+
+    @Override
+    public ApiResponse<User> addRetail(User req) {
+        if (userRepository.getByPhoneNumber(req.getPhoneNumber())==null){
+            Role role = roleRepository.findById(3).get();
+            req.setRole(role);
+
+         User userSave=   userRepository.save(req);
+            return new ApiResponse<>(200,"Thêm khách vãng lai thành công",userSave);
+        }else {
+            return new ApiResponse<>(400,"Thêm khách lẻ thất bại ",null);
+        }
+
+    }
+
     // Helper chuyển status String -> Byte
     private Byte parseStatus(String status) {
         if (status == null) return 1;
@@ -150,4 +197,5 @@ public class UserServiceImpl implements UserService {
         if (millis == null) return null;
         return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
     }
+
 }
