@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.datn.bookstation.entity.User;
 
 @Service
 @AllArgsConstructor
@@ -113,6 +114,13 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(System.currentTimeMillis());
         User saved = userRepository.save(user);
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", toResponse(saved));
+    }
+
+    @Override
+    public List<User> getActiveUsers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getStatus() != null && u.getStatus() == 1)
+                .collect(Collectors.toList());
     }
 
     // Helper chuyển status String -> Byte

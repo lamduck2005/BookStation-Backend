@@ -10,6 +10,9 @@ import org.datn.bookstation.dto.response.EnumOptionResponse;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.service.OrderService;
+import org.datn.bookstation.dto.request.OrderCalculationRequest;
+import org.datn.bookstation.dto.response.OrderCalculationResponse;
+import org.datn.bookstation.service.OrderCalculationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+    private final OrderCalculationService orderCalculationService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<OrderResponse>>> getAll(
@@ -157,6 +161,31 @@ public class OrderController {
             .collect(Collectors.toList());
         ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách đơn hàng thành công", dropdown);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * API tính toán tạm tiền đơn hàng cho admin
+     * Trước khi tạo đơn thực tế, admin có thể xem trước số tiền cuối cùng
+     */
+    @PostMapping("/calculate")
+    public ResponseEntity<ApiResponse<OrderCalculationResponse>> calculateOrderTotal(@Valid @RequestBody OrderCalculationRequest request) {
+        ApiResponse<OrderCalculationResponse> response = orderCalculationService.calculateOrderTotal(request);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
+    /**
+     * API validate điều kiện tạo đơn
+     */
+    @PostMapping("/validate")
+    public ResponseEntity<ApiResponse<String>> validateOrderConditions(@Valid @RequestBody OrderCalculationRequest request) {
+        ApiResponse<String> response = orderCalculationService.validateOrderConditions(request);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
     }
 
     private String getOrderStatusDisplayName(OrderStatus orderStatus) {

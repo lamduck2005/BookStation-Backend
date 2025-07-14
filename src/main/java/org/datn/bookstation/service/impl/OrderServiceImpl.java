@@ -14,6 +14,7 @@ import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.VoucherCalculationService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.specification.OrderSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -41,9 +42,9 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final BookRepository bookRepository;
-    private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherRepository voucherRepository;
     private final VoucherCalculationService voucherCalculationService;
+    private final FlashSaleService flashSaleService;
     private final OrderMapper orderMapper;
     private final OrderResponseMapper orderResponseMapper;
 
@@ -131,6 +132,10 @@ public class OrderServiceImpl implements OrderService {
             
             // Set basic order info from request (not subtotal - will be calculated)
             order.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
+            
+            // Set required fields with default values to avoid validation error on first save
+            order.setSubtotal(BigDecimal.ZERO);
+            order.setTotalAmount(BigDecimal.ZERO);
             
             // Set staff if provided
             if (request.getStaffId() != null) {
@@ -249,17 +254,12 @@ public class OrderServiceImpl implements OrderService {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
         }
         
-        // Only allow update if order is still PENDING
-        if (existing.getOrderStatus() != OrderStatus.PENDING) {
-            return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng đang chờ xử lý", null);
+        // Validate if order can be updated
+        if (!canUpdateOrder(existing.getOrderStatus())) {
+            return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng ở trạng thái PENDING hoặc CONFIRMED", null);
         }
         
-        try {
-            // Only allow update if order is still PENDING
-            if (existing.getOrderStatus() != OrderStatus.PENDING) {
-                return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng đang chờ xử lý", null);
-            }
-            
+        try {            
             // Update basic info
             existing.setOrderStatus(request.getOrderStatus());
             existing.setOrderType(request.getOrderType());
@@ -294,6 +294,12 @@ public class OrderServiceImpl implements OrderService {
         Order order = getById(id);
         if (order == null) {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
+        }
+        
+        // Validate status transition
+        String validationError = validateStatusTransition(order.getOrderStatus(), newStatus);
+        if (validationError != null) {
+            return new ApiResponse<>(400, validationError, null);
         }
         
         try {
@@ -344,9 +350,9 @@ public class OrderServiceImpl implements OrderService {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
         }
         
-        // Only allow cancel if order is PENDING or CONFIRMED
-        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.CONFIRMED) {
-            return new ApiResponse<>(400, "Không thể hủy đơn hàng ở trạng thái này", null);
+        // Validate if order can be canceled
+        if (!canCancelOrder(order.getOrderStatus())) {
+            return new ApiResponse<>(400, "Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED", null);
         }
         
         try {
@@ -370,6 +376,7 @@ public class OrderServiceImpl implements OrderService {
     
     /**
      * Create order detail with proper price calculation for regular and flash sale items
+     * ✅ SECURITY FIX: Auto-detect flash sales instead of trusting frontend input
      * @return subtotal for this order detail (quantity * unit_price)
      */
     private BigDecimal createOrderDetailWithCalculation(Order order, OrderDetailRequest detailRequest) {
@@ -380,20 +387,25 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal unitPrice;
         FlashSaleItem flashSaleItem = null;
         
-        // Check if this is a flash sale item
-        if (detailRequest.getFlashSaleItemId() != null) {
-            flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId()).orElseThrow(
-                () -> new RuntimeException("Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId())
-            );
+        // ✅ AUTO-DETECT: Tự động phát hiện flash sale thay vì tin frontend
+        Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleService.findActiveFlashSaleForBook(book.getId().longValue());
+        
+        if (activeFlashSaleOpt.isPresent()) {
+            flashSaleItem = activeFlashSaleOpt.get();
             
             // Validate flash sale business rules
             validateFlashSaleItem(flashSaleItem, detailRequest.getQuantity(), order.getUser().getId());
             
             // Use flash sale price
             unitPrice = flashSaleItem.getDiscountPrice();
+            
+            log.info("🔥 AUTO-DETECTED flash sale for book {}: regular={}, flash={}", 
+                book.getId(), book.getPrice(), unitPrice);
         } else {
             // Use regular book price
             unitPrice = book.getPrice();
+            
+            log.info("💰 Using regular price for book {}: {}", book.getId(), unitPrice);
         }
         
         // Validate quantity vs stock
@@ -486,5 +498,73 @@ public class OrderServiceImpl implements OrderService {
         orderVoucher.setAppliedAt(System.currentTimeMillis());
         
         orderVoucherRepository.save(orderVoucher);
+    }
+    
+    /**
+     * Validate order status transition according to business rules
+     */
+    private String validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
+        // Allow any status change for PENDING orders
+        if (currentStatus == OrderStatus.PENDING) {
+            return null;
+        }
+        
+        // Define valid transitions
+        switch (currentStatus) {
+            case CONFIRMED:
+                if (newStatus != OrderStatus.SHIPPED && 
+                    newStatus != OrderStatus.CANCELED && 
+                    newStatus != OrderStatus.PENDING) {
+                    return "Đơn hàng đã xác nhận chỉ có thể chuyển sang: SHIPPED, CANCELED hoặc PENDING";
+                }
+                break;
+                
+            case SHIPPED:
+                if (newStatus != OrderStatus.DELIVERED && 
+                    newStatus != OrderStatus.RETURNED && 
+                    newStatus != OrderStatus.CONFIRMED) {
+                    return "Đơn hàng đã giao chỉ có thể chuyển sang: DELIVERED, RETURNED hoặc CONFIRMED";
+                }
+                break;
+                
+            case DELIVERED:
+                if (newStatus != OrderStatus.RETURNED && 
+                    newStatus != OrderStatus.SHIPPED) {
+                    return "Đơn hàng đã hoàn thành chỉ có thể chuyển sang: RETURNED hoặc SHIPPED";
+                }
+                break;
+                
+            case CANCELED:
+                if (newStatus != OrderStatus.PENDING) {
+                    return "Đơn hàng đã hủy chỉ có thể khôi phục về PENDING";
+                }
+                break;
+                
+            case RETURNED:
+                if (newStatus != OrderStatus.DELIVERED && 
+                    newStatus != OrderStatus.CANCELED) {
+                    return "Đơn hàng đã trả về chỉ có thể chuyển sang: DELIVERED hoặc CANCELED";
+                }
+                break;
+                
+            default:
+                return "Trạng thái đơn hàng không hợp lệ";
+        }
+        
+        return null; // Valid transition
+    }
+    
+    /**
+     * Validate if order can be updated
+     */
+    private boolean canUpdateOrder(OrderStatus status) {
+        return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
+    }
+    
+    /**
+     * Validate if order can be canceled
+     */
+    private boolean canCancelOrder(OrderStatus status) {
+        return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
     }
 }
