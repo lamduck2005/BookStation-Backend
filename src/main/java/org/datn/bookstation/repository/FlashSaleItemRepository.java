@@ -84,4 +84,23 @@ public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, In
      */
     @Query("SELECT fsi FROM FlashSaleItem fsi JOIN FETCH fsi.flashSale WHERE fsi.flashSale.id = :flashSaleId")
     List<FlashSaleItem> findByFlashSaleIdWithFlashSale(@Param("flashSaleId") Integer flashSaleId);
+    
+    /**
+     * ✅ ADMIN CẦN: Tìm Flash Sale đang active cho book (dùng cho BookResponseMapper)
+     */
+    @Query("SELECT fsi FROM FlashSaleItem fsi " +
+           "WHERE fsi.book.id = :bookId " +
+           "AND fsi.status = 1 " +
+           "AND fsi.flashSale.status = 1 " +
+           "AND fsi.flashSale.startTime <= :currentTime " +
+           "AND fsi.flashSale.endTime >= :currentTime " +
+           "ORDER BY fsi.discountPrice ASC")
+    FlashSaleItem findActiveFlashSaleByBook(@Param("bookId") Integer bookId, @Param("currentTime") Long currentTime);
+    
+    /**
+     * Helper method với current time tự động
+     */
+    default FlashSaleItem findActiveFlashSaleByBook(Integer bookId) {
+        return findActiveFlashSaleByBook(bookId, System.currentTimeMillis());
+    }
 }

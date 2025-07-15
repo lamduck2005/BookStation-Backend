@@ -3,6 +3,10 @@ package org.datn.bookstation.mapper;
 import org.datn.bookstation.dto.response.AuthorResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -10,6 +14,12 @@ import java.util.stream.Collectors;
 
 @Component
 public class BookResponseMapper {
+    
+    @Autowired
+    private FlashSaleItemRepository flashSaleItemRepository;
+    
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
     
     public BookResponse toResponse(Book book) {
         if (book == null) return null;
@@ -78,6 +88,31 @@ public class BookResponseMapper {
             response.setImages(images);
         } else {
             response.setImages(java.util.Collections.emptyList());
+        }
+        
+        // ✅ ADMIN CẦN: Tính số lượng đã bán
+        Integer totalSold = orderDetailRepository.countSoldQuantityByBook(book.getId());
+        response.setSoldCount(totalSold != null ? totalSold : 0);
+        
+        // ✅ ADMIN CẦN: Thông tin discount của book
+        response.setDiscountValue(book.getDiscountValue());
+        response.setDiscountPercent(book.getDiscountPercent());
+        response.setDiscountActive(book.getDiscountActive());
+        
+        // ✅ ADMIN CẦN: Kiểm tra Flash Sale hiện tại
+        FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+        if (currentFlashSale != null) {
+            response.setIsInFlashSale(true);
+            response.setFlashSalePrice(currentFlashSale.getDiscountPrice()); // discountPrice là giá sau giảm giá
+            response.setFlashSaleEndTime(currentFlashSale.getFlashSale().getEndTime());
+            
+            Integer flashSaleSold = flashSaleItemRepository.countSoldQuantityByFlashSaleItem(currentFlashSale.getId());
+            response.setFlashSaleSoldCount(flashSaleSold != null ? flashSaleSold : 0);
+        } else {
+            response.setIsInFlashSale(false);
+            response.setFlashSalePrice(null);
+            response.setFlashSaleSoldCount(0);
+            response.setFlashSaleEndTime(null);
         }
         
         return response;

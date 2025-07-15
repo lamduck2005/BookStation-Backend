@@ -50,6 +50,7 @@ public class TrendingBookResponse {
     private Boolean isInFlashSale; // Có đang trong flash sale không
     private BigDecimal flashSalePrice; // Giá flash sale
     private Integer flashSaleStockQuantity; // Số lượng còn lại trong flash sale
+    private Integer flashSaleSoldCount; // ✅ Số lượng đã bán riêng trong flash sale
     
     // Timestamps
     private Long createdAt;
