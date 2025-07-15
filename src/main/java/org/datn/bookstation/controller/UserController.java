@@ -2,6 +2,7 @@ package org.datn.bookstation.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
+
 import org.datn.bookstation.dto.request.UserRequest;
 import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -9,21 +10,31 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.datn.bookstation.repository.UserRankRepository;
 
 import java.util.List;
 import java.util.Optional;
+
+import org.datn.bookstation.entity.UserRank;
+import org.datn.bookstation.repository.PointRepository;
+
+import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
+
 
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
+    @Autowired
+    private UserRankRepository userRankRepo;
 
     // Lấy danh sách user (phân trang, lọc)
     @GetMapping
@@ -117,4 +128,11 @@ public class UserController {
     public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user){
         return ResponseEntity.ok(userService.addRetail(user));
     }
+
+@GetMapping("/userRank")
+public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestParam Integer userID) {
+    List<UserRank> userRank = userRankRepo.getByUserId(userID);
+    return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin hạng người dùng thành công", userRank));
+}
+
 }

@@ -5,11 +5,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+
 import org.datn.bookstation.entity.enums.VoucherType;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
+
+import org.datn.bookstation.entity.enums.VoucherCategory;
 
 @Getter
 @Setter

@@ -20,12 +20,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/vouchers")
 public class VoucherController {
+    private final VoucherService voucherService;
+    private final UserVoucherRepository userVoucherRepository;
+    private final VoucherRepository voucherRepository;
+
     @Autowired
-    private VoucherService voucherService;
-    @Autowired
-    private UserVoucherRepository userVoucherRepository;
-    @Autowired
-    private VoucherRepository voucherRepository; // Thêm dòng này nếu chưa có
+    public VoucherController(VoucherService voucherService, UserVoucherRepository userVoucherRepository, VoucherRepository voucherRepository) {
+        this.voucherService = voucherService;
+        this.userVoucherRepository = userVoucherRepository;
+        this.voucherRepository = voucherRepository;
+    }
 
     @GetMapping
     public PaginationResponse<VoucherResponse> getAllVouchers(
@@ -59,7 +63,7 @@ public class VoucherController {
     }
     @GetMapping("/new/{userId}")
     public List<voucherUserResponse> getVoucherByUserIdNew(@PathVariable Integer userId) {
-        String code = "WELCOMETOSHOP";
+        String code = "WELCOME";
         List<voucherUserResponse> vouchers = userVoucherRepository.findVouchersByVoucherUserId(code , userId);
         if (vouchers == null || vouchers.isEmpty()) {
             throw new RuntimeException("Không tìm thấy voucher với mã: " + code);

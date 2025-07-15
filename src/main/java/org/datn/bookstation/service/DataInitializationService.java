@@ -582,23 +582,23 @@ public class DataInitializationService implements CommandLineRunner {
         long currentTime = System.currentTimeMillis();
         long oneMonth = 30L * 24 * 60 * 60 * 1000; // 30 ngày
         
-        List<Voucher> vouchers = Arrays.asList(
-            createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
-                VoucherType.PERCENTAGE, new BigDecimal("10"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
-            createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 500K", 
-                VoucherType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
-                currentTime, currentTime + oneMonth, new BigDecimal("500000"), null, 50, 1, "admin"),
-            createVoucher("FREESHIP", "Miễn phí vận chuyển", "Miễn phí ship cho đơn từ 200K", 
-                VoucherType.FREE_SHIPPING, null, null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("200000"), null, 200, 1, "admin"),
-            createVoucher("SUMMER20", "Voucher hè", "Giảm 20% tối đa 100K", 
-                VoucherType.PERCENTAGE, new BigDecimal("20"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("300000"), new BigDecimal("100000"), 75, 1, "admin"),
-            createVoucher("NEWBIE15", "Voucher thành viên mới", "Giảm 15% cho khách hàng mới", 
-                VoucherType.PERCENTAGE, new BigDecimal("15"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("150000"), new BigDecimal("75000"), 150, 1, "admin")
-        );
+List<Voucher> vouchers = Arrays.asList(
+        createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
+            VoucherType.PERCENTAGE, new BigDecimal("10"), null, 
+            currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
+        createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 500K", 
+            VoucherType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
+            currentTime, currentTime + oneMonth, new BigDecimal("500000"), null, 50, 1, "admin"),
+        createVoucher("FREESHIP", "Miễn phí vận chuyển", "Miễn phí ship cho đơn từ 200K", 
+            VoucherType.FREE_SHIPPING, null, null, 
+            currentTime, currentTime + oneMonth, new BigDecimal("200000"), null, 200, 1, "admin"),
+        createVoucher("SUMMER20", "Voucher hè", "Giảm 20% tối đa 100K", 
+            VoucherType.PERCENTAGE, new BigDecimal("20"), null, 
+            currentTime, currentTime + oneMonth, new BigDecimal("300000"), new BigDecimal("100000"), 75, 1, "admin"),
+        createVoucher("NEWBIE15", "Voucher thành viên mới", "Giảm 15% cho khách hàng mới", 
+            VoucherType.PERCENTAGE, new BigDecimal("15"), null, 
+            currentTime, currentTime + oneMonth, new BigDecimal("150000"), new BigDecimal("75000"), 150, 1, "admin")
+    );
         voucherRepository.saveAll(vouchers);
     }
 
