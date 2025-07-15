@@ -104,6 +104,11 @@ public class Book {
     @Column(name = "dimensions", length = 50)
     private String dimensions;
 
+    // ✅ THÊM MỚI: Số lượng đã bán
+    @ColumnDefault("0")
+    @Column(name = "sold_count")
+    private Integer soldCount = 0;
+
     @ColumnDefault("1")
     @Column(name = "status")
     private Byte status;

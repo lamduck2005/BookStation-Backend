@@ -55,6 +55,12 @@ public class FlashSaleItem {
     @Column(name = "max_purchase_per_user")
     Integer maxPurchasePerUser;
 
+    // ✅ THÊM MỚI: Số lượng đã bán flash sale
+    @ColumnDefault("0")
+    @Column(name = "sold_count")
+    @Builder.Default
+    Integer soldCount = 0;
+
     @Column(name = "created_at", nullable = false)
     Long createdAt;
 

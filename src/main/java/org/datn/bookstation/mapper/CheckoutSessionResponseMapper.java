@@ -119,7 +119,8 @@ public class CheckoutSessionResponseMapper {
                 summary.setId(voucher.getId());
                 summary.setCode(voucher.getCode());
                 summary.setName(voucher.getName());
-                summary.setVoucherType(voucher.getVoucherType().toString());
+                // ✅ FIX: Sử dụng VoucherCategory mới thay vì VoucherType cũ
+                summary.setVoucherType(voucher.getVoucherCategory().toString());
                 
                 // Calculate discount value
                 BigDecimal discountValue = BigDecimal.ZERO;

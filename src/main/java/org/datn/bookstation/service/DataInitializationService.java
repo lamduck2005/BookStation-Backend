@@ -613,7 +613,23 @@ public class DataInitializationService implements CommandLineRunner {
         voucher.setCode(code);
         voucher.setName(name);
         voucher.setDescription(description);
-        voucher.setVoucherType(type);
+        
+        // ✅ FIX: Convert VoucherType cũ sang VoucherCategory + DiscountType mới
+        if (type == VoucherType.FREE_SHIPPING) {
+            voucher.setVoucherCategory(VoucherCategory.SHIPPING);
+            voucher.setDiscountType(DiscountType.FIXED_AMOUNT);
+        } else if (type == VoucherType.PERCENTAGE) {
+            voucher.setVoucherCategory(VoucherCategory.NORMAL);
+            voucher.setDiscountType(DiscountType.PERCENTAGE);
+        } else if (type == VoucherType.FIXED_AMOUNT) {
+            voucher.setVoucherCategory(VoucherCategory.NORMAL);
+            voucher.setDiscountType(DiscountType.FIXED_AMOUNT);
+        } else {
+            // Default fallback
+            voucher.setVoucherCategory(VoucherCategory.NORMAL);
+            voucher.setDiscountType(DiscountType.PERCENTAGE);
+        }
+        
         voucher.setDiscountPercentage(discountPercentage);
         voucher.setDiscountAmount(discountAmount);
         voucher.setStartTime(startTime);

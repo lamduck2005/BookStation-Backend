@@ -6,17 +6,19 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 
 @Data
 @Getter
 @Setter
 public class VoucherRepuest {
-private Integer id;
+    private Integer id;
     private String code;
     private String name;
     private String description;
-    private VoucherType voucherType;
+    private VoucherCategory voucherCategory;
+    private DiscountType discountType;
     private BigDecimal discountPercentage;
     private BigDecimal discountAmount;
     private Long startTime;

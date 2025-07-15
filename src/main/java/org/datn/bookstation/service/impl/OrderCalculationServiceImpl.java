@@ -6,7 +6,8 @@ import org.datn.bookstation.dto.request.OrderCalculationRequest;
 import org.datn.bookstation.dto.response.OrderCalculationResponse;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.entity.*;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderCalculationService;
 import org.datn.bookstation.service.FlashSaleService;
@@ -89,7 +90,7 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
                             .voucherId(voucher.getId())
                             .voucherCode(voucher.getCode())
                             .voucherName(voucher.getName())
-                            .voucherType(voucherApp.getVoucherType().name())
+                            .voucherType(voucherApp.getVoucherCategory().name() + "_" + voucherApp.getDiscountType().name())
                             .discountApplied(voucherApp.getDiscountApplied())
                             .description(generateVoucherDescription(voucher, voucherApp.getDiscountApplied()))
                             .build();
@@ -165,8 +166,8 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
                         return new ApiResponse<>(404, "Voucher ID " + voucherId + " không tồn tại", null);
                     }
                     
-                    // Kiểm tra loại voucher
-                    if (voucher.getVoucherType() == VoucherType.FREE_SHIPPING) {
+                    // Kiểm tra loại voucher với logic mới
+                    if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                         shippingCount++;
                     } else {
                         regularCount++;
@@ -244,20 +245,22 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
     }
     
     /**
-     * Tạo mô tả voucher
+     * Tạo mô tả voucher với logic mới
      */
     private String generateVoucherDescription(Voucher voucher, BigDecimal discountApplied) {
-        switch (voucher.getVoucherType()) {
-            case PERCENTAGE:
-                return String.format("Giảm %s%% (tối đa %s)", 
-                    voucher.getDiscountPercentage(), 
-                    voucher.getMaxDiscountValue() != null ? voucher.getMaxDiscountValue() + "đ" : "không giới hạn");
-            case FIXED_AMOUNT:
-                return String.format("Giảm %sđ", voucher.getDiscountAmount());
-            case FREE_SHIPPING:
-                return "Miễn phí vận chuyển";
-            default:
-                return voucher.getName();
+        if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
+            return "Miễn phí vận chuyển";
+        } else {
+            switch (voucher.getDiscountType()) {
+                case PERCENTAGE:
+                    return String.format("Giảm %s%% (tối đa %s)", 
+                        voucher.getDiscountPercentage(), 
+                        voucher.getMaxDiscountValue() != null ? voucher.getMaxDiscountValue() + "đ" : "không giới hạn");
+                case FIXED_AMOUNT:
+                    return String.format("Giảm %sđ", voucher.getDiscountAmount());
+                default:
+                    return voucher.getName();
+            }
         }
     }
     

@@ -43,6 +43,7 @@ public class OrderServiceImpl implements OrderService {
     private final AddressRepository addressRepository;
     private final BookRepository bookRepository;
     private final VoucherRepository voucherRepository;
+    private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherCalculationService voucherCalculationService;
     private final FlashSaleService flashSaleService;
     private final OrderMapper orderMapper;
@@ -377,6 +378,7 @@ public class OrderServiceImpl implements OrderService {
     /**
      * Create order detail with proper price calculation for regular and flash sale items
      * ✅ SECURITY FIX: Auto-detect flash sales instead of trusting frontend input
+     * ✅ STOCK MANAGEMENT: Update stock quantity after order creation
      * @return subtotal for this order detail (quantity * unit_price)
      */
     private BigDecimal createOrderDetailWithCalculation(Order order, OrderDetailRequest detailRequest) {
@@ -408,10 +410,53 @@ public class OrderServiceImpl implements OrderService {
             log.info("💰 Using regular price for book {}: {}", book.getId(), unitPrice);
         }
         
-        // Validate quantity vs stock
-        if (detailRequest.getQuantity() > book.getStockQuantity()) {
-            throw new RuntimeException("Số lượng yêu cầu vượt quá tồn kho. Có sẵn: " + book.getStockQuantity());
+        // Validate quantity vs stock for flash sale or regular book
+        if (flashSaleItem != null) {
+            if (detailRequest.getQuantity() > flashSaleItem.getStockQuantity()) {
+                throw new RuntimeException("Flash sale không đủ hàng. Có sẵn: " + flashSaleItem.getStockQuantity());
+            }
+        } else {
+            if (detailRequest.getQuantity() > book.getStockQuantity()) {
+                throw new RuntimeException("Số lượng yêu cầu vượt quá tồn kho. Có sẵn: " + book.getStockQuantity());
+            }
         }
+        
+        // ✅ STOCK UPDATE: Trừ stock ngay khi tạo order detail thành công
+        if (flashSaleItem != null) {
+            // Update flash sale stock
+            int newFlashSaleStock = flashSaleItem.getStockQuantity() - detailRequest.getQuantity();
+            flashSaleItem.setStockQuantity(newFlashSaleStock);
+            
+            // ✅ SOLD COUNT UPDATE: Cộng số lượng đã bán flash sale
+            int newFlashSaleSoldCount = (flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0) + detailRequest.getQuantity();
+            flashSaleItem.setSoldCount(newFlashSaleSoldCount);
+            
+            flashSaleItem.setUpdatedAt(System.currentTimeMillis());
+            flashSaleItem.setUpdatedBy(order.getCreatedBy().longValue());
+            flashSaleItemRepository.save(flashSaleItem);
+            
+            log.info("📦 FLASH SALE UPDATED: Book {} flash sale stock: {} → {}, sold count: {} → {}", 
+                book.getId(), 
+                flashSaleItem.getStockQuantity() + detailRequest.getQuantity(), newFlashSaleStock,
+                newFlashSaleSoldCount - detailRequest.getQuantity(), newFlashSaleSoldCount);
+        }
+        
+        // Always update regular book stock and sold count
+        int newBookStock = book.getStockQuantity() - detailRequest.getQuantity();
+        book.setStockQuantity(newBookStock);
+        
+        // ✅ SOLD COUNT UPDATE: Cộng số lượng đã bán book
+        int newBookSoldCount = (book.getSoldCount() != null ? book.getSoldCount() : 0) + detailRequest.getQuantity();
+        book.setSoldCount(newBookSoldCount);
+        
+        book.setUpdatedAt(System.currentTimeMillis());
+        book.setUpdatedBy(order.getCreatedBy());
+        bookRepository.save(book);
+        
+        log.info("📦 BOOK UPDATED: Book {} regular stock: {} → {}, sold count: {} → {}", 
+            book.getId(), 
+            book.getStockQuantity() + detailRequest.getQuantity(), newBookStock,
+            newBookSoldCount - detailRequest.getQuantity(), newBookSoldCount);
         
         // Create order detail
         OrderDetail orderDetail = new OrderDetail();
@@ -493,7 +538,9 @@ public class OrderServiceImpl implements OrderService {
         
         orderVoucher.setOrder(order);
         orderVoucher.setVoucher(voucher);
-        orderVoucher.setVoucherType(voucherDetail.getVoucherType());
+        // ✅ FIX: Sử dụng VoucherCategory và DiscountType mới thay vì VoucherType cũ
+        orderVoucher.setVoucherCategory(voucherDetail.getVoucherCategory());
+        orderVoucher.setDiscountType(voucherDetail.getDiscountType());
         orderVoucher.setDiscountApplied(voucherDetail.getDiscountApplied());
         orderVoucher.setAppliedAt(System.currentTimeMillis());
         

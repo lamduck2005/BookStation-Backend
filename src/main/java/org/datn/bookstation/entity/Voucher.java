@@ -5,7 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
@@ -37,15 +38,20 @@ public class Voucher {
     @Column(name = "description")
     private String description;
 
+    // ✅ NEW VOUCHER SYSTEM: Split VoucherType into VoucherCategory + DiscountType
     @Enumerated(EnumType.STRING)
-    @Column(name = "voucher_type", nullable = false, length = 20)
-    private VoucherType voucherType = VoucherType.PERCENTAGE;
+    @Column(name = "voucher_category", nullable = false, length = 20)
+    private VoucherCategory voucherCategory = VoucherCategory.NORMAL;
 
-    // Giảm giá theo phần trăm (cho PERCENTAGE type)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type", nullable = false, length = 20)
+    private DiscountType discountType = DiscountType.PERCENTAGE;
+
+    // Giảm giá theo phần trăm (cho PERCENTAGE discount type)
     @Column(name = "discount_percentage", precision = 5, scale = 2)
     private BigDecimal discountPercentage;
 
-    // Giảm giá cố định (cho FIXED_AMOUNT type)
+    // Giảm giá cố định (cho FIXED_AMOUNT discount type)
     @Column(name = "discount_amount", precision = 10, scale = 2)
     private BigDecimal discountAmount;
 

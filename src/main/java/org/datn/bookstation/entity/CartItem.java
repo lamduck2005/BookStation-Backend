@@ -53,6 +53,7 @@ public class CartItem {
     private Byte status;
     
     // NEW: Trạng thái chọn/bỏ sản phẩm trong giỏ hàng
+    @ColumnDefault("1")
     @Column(name = "selected", nullable = false)
     private Boolean selected = true;
 
