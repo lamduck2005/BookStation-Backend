@@ -9,6 +9,11 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = "spring")
 public interface BookMapper {
     
+    default String mapImagesToString(java.util.List<String> images) {
+        if (images == null || images.isEmpty()) return null;
+        return String.join(",", images);
+    }
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "category", ignore = true)
     @Mapping(target = "supplier", ignore = true)
@@ -17,6 +22,7 @@ public interface BookMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "images", expression = "java(mapImagesToString(request.getImages()))")
     Book toEntity(BookRequest request);
     
     @Mapping(target = "id", ignore = true)
@@ -26,5 +32,6 @@ public interface BookMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "images", expression = "java(mapImagesToString(request.getImages()))")
     void updateEntity(BookRequest request, @MappingTarget Book book);
 }

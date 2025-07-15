@@ -27,11 +27,6 @@ public interface BookService {
     void delete(Integer id);
     ApiResponse<Book> toggleStatus(Integer id);
     
-    // 🔥 NEW: Trending books API với TrendingRequest
+    // 🔥 Trending books API chỉ nhận TrendingRequest (type, page, size)
     PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request);
-    
-    // 🔥 DEPRECATED: Keep for backward compatibility
-    @Deprecated
-    PaginationResponse<TrendingBookResponse> getTrendingBooks(int page, int size, Integer categoryId, 
-                                                            BigDecimal minPrice, BigDecimal maxPrice);
 }

@@ -130,6 +130,12 @@ public class Book {
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<AuthorBook> authorBooks = new LinkedHashSet<>();
 
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh, cách nhau bằng dấu phẩy)
+    @Size(max = 2000)
+    @Nationalized
+    @Column(name = "images", length = 2000)
+    private String images; // Lưu: "url1,url2,url3"
+
     @PrePersist
     protected void onCreate() {
         createdAt = System.currentTimeMillis();

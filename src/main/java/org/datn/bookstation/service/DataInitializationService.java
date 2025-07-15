@@ -515,6 +515,8 @@ public class DataInitializationService implements CommandLineRunner {
         book.setCreatedBy(createdBy);
         book.setBookCode("BOOK" + System.currentTimeMillis());
         book.setStatus((byte) 1);
+        // Thêm dữ liệu mẫu cho images (nhiều ảnh, cách nhau bằng dấu phẩy)
+        book.setImages("https://yourdomain.com/uploads/products/sample1.jpg,https://yourdomain.com/uploads/products/sample2.jpg");
         return book;
     }
 

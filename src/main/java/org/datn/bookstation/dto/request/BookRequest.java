@@ -2,15 +2,28 @@ package org.datn.bookstation.dto.request;
 
 import lombok.Data;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
 import java.math.BigDecimal;
 import java.util.List;
 
 @Data
 public class BookRequest {
+    @NotBlank(message = "Tên sách không được để trống")
     private String bookName;
+    
     private String description;
+    
+    @NotNull(message = "Giá sách không được để trống")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Giá sách phải lớn hơn 0")
     private BigDecimal price;
+    
+    @NotNull(message = "Số lượng tồn kho không được để trống")
+    @Min(value = 0, message = "Số lượng tồn kho phải >= 0")
     private Integer stockQuantity;
+    
     private Long publicationDate;
     private Integer categoryId;
     private Integer supplierId;
@@ -26,6 +39,9 @@ public class BookRequest {
     
     // ✅ THÊM MỚI: Ảnh bìa sách
     private String coverImageUrl;
+
+    // ✅ THÊM MỚI: Danh sách ảnh chính (nhiều ảnh)
+    private List<String> images;
     
     // ✅ THÊM MỚI: Người dịch
     private String translator;

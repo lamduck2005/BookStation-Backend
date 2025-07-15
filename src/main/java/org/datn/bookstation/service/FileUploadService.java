@@ -71,18 +71,18 @@ public class FileUploadService {
             String month = now.format(DateTimeFormatter.ofPattern("MM"));
             
             String relativePath = module + "/" + year + "/" + month + "/";
-            Path uploadDir = Paths.get(uploadProperties.getPath(), relativePath);
+            Path uploadDir = Paths.get(uploadProperties.getPath(), relativePath);// nối đường dẫn ==> đối tượng Path(vị  trí của file ảnh)
             
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }
 
             // Generate unique filename: image{timestamp}_{randomId}.{extension}
-            String originalFilename = file.getOriginalFilename();
+            String originalFilename = file.getOriginalFilename();//tên file gốc từ client
             String extension = getFileExtension(originalFilename);
-            String filename = generateFilename(extension);
+            String filename = generateFilename(extension);// tạo tên file mới với định dạng: image{timestamp}_{randomId}.{extension}
             
-            Path filePath = uploadDir.resolve(filename);
+            Path filePath = uploadDir.resolve(filename);//nối thêm tên file.
             
             // Save file
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
@@ -117,7 +117,7 @@ public class FileUploadService {
             }
             
             String relativePath = imageUrl.substring(baseUrl.length());
-            Path filePath = Paths.get(uploadProperties.getPath(), relativePath);
+            Path filePath = Paths.get(uploadProperties.getPath(), relativePath);//vị trí file trên server 
             
             if (Files.exists(filePath)) {
                 Files.delete(filePath);
