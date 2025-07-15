@@ -54,7 +54,7 @@ public class VoucherController {
     }
     @GetMapping("/new")
     public voucherUserResponse getVoucherByuserId() {
-        String code = "WELCOMETOSHOP";
+        String code = "WELCOME";
         List<voucherUserResponse> vouchers = userVoucherRepository.findVouchersByVoucherId(code);
         if (vouchers == null || vouchers.isEmpty()) {
             throw new RuntimeException("Không tìm thấy voucher với mã: " + code);

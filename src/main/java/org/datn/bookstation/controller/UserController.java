@@ -16,6 +16,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.datn.bookstation.repository.UserRankRepository;
 
@@ -24,8 +26,11 @@ import java.util.Optional;
 
 import org.datn.bookstation.entity.UserRank;
 import org.datn.bookstation.repository.PointRepository;
+import org.datn.bookstation.repository.UserRepository;
+import org.springframework.data.repository.query.Param;
 
 import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
+
 
 
 @RestController
@@ -33,8 +38,16 @@ import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
+    
+    private final PasswordEncoder passwordEncoder;
     @Autowired
     private UserRankRepository userRankRepo;
+    @Autowired  
+    private UserRepository  userRepository;
+
+
+     
+
 
     // Lấy danh sách user (phân trang, lọc)
     @GetMapping
@@ -135,4 +148,27 @@ public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestP
     return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin hạng người dùng thành công", userRank));
 }
 
+
+@PutMapping("/userPass")
+public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
+                              @RequestParam String passCu,
+                              @RequestParam String passMoi) {
+    User user = userRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với id: " + id));
+
+    if (!passwordEncoder.matches(passCu, user.getPassword())) {
+        return ResponseEntity.ok(false);
+    }
+
+    if (passwordEncoder.matches(passMoi, user.getPassword())) {
+         return ResponseEntity.ok(false);
+    }
+
+    System.out.println("passMoi = " + passMoi);
+
+    user.setPassword(passwordEncoder.encode(passMoi));
+    userRepository.save(user);
+
+     return ResponseEntity.ok(true);
+}
 }

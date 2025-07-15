@@ -29,4 +29,5 @@ private Integer id;
     private Long updatedAt;
     private String createdBy;
     private String updatedBy;
+    
 }
