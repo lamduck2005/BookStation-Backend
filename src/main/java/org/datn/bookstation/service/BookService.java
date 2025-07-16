@@ -40,7 +40,7 @@ public interface BookService {
 
     ApiResponse<Book> toggleStatus(Integer id);
     
-    // 🔥 Trending books API chỉ nhận TrendingRequest (type, page, size)
+    // 🔥 Trending books API chỉ nhận TrendingRequest (type, page, size) ok
     PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request);
 
     ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text);
