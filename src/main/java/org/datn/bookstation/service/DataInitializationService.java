@@ -586,25 +586,25 @@ public class DataInitializationService implements CommandLineRunner {
         
         List<Voucher> vouchers = Arrays.asList(
             createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
-                VoucherType.PERCENTAGE, new BigDecimal("10"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("10"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
             createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 500K", 
-                VoucherType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
+                VoucherCategory.NORMAL, DiscountType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
                 currentTime, currentTime + oneMonth, new BigDecimal("500000"), null, 50, 1, "admin"),
             createVoucher("FREESHIP", "Miễn phí vận chuyển", "Miễn phí ship cho đơn từ 200K", 
-                VoucherType.FREE_SHIPPING, null, null, 
+                VoucherCategory.SHIPPING, DiscountType.FIXED_AMOUNT, null, null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("200000"), null, 200, 1, "admin"),
             createVoucher("SUMMER20", "Voucher hè", "Giảm 20% tối đa 100K", 
-                VoucherType.PERCENTAGE, new BigDecimal("20"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("20"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("300000"), new BigDecimal("100000"), 75, 1, "admin"),
             createVoucher("NEWBIE15", "Voucher thành viên mới", "Giảm 15% cho khách hàng mới", 
-                VoucherType.PERCENTAGE, new BigDecimal("15"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("15"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("150000"), new BigDecimal("75000"), 150, 1, "admin")
         );
         voucherRepository.saveAll(vouchers);
     }
 
-    private Voucher createVoucher(String code, String name, String description, VoucherType type,
+    private Voucher createVoucher(String code, String name, String description, VoucherCategory category, DiscountType discountType,
                                 BigDecimal discountPercentage, BigDecimal discountAmount,
                                 Long startTime, Long endTime, BigDecimal minOrderValue, 
                                 BigDecimal maxDiscountValue, Integer usageLimit, 
@@ -613,23 +613,8 @@ public class DataInitializationService implements CommandLineRunner {
         voucher.setCode(code);
         voucher.setName(name);
         voucher.setDescription(description);
-        
-        // ✅ FIX: Convert VoucherType cũ sang VoucherCategory + DiscountType mới
-        if (type == VoucherType.FREE_SHIPPING) {
-            voucher.setVoucherCategory(VoucherCategory.SHIPPING);
-            voucher.setDiscountType(DiscountType.FIXED_AMOUNT);
-        } else if (type == VoucherType.PERCENTAGE) {
-            voucher.setVoucherCategory(VoucherCategory.NORMAL);
-            voucher.setDiscountType(DiscountType.PERCENTAGE);
-        } else if (type == VoucherType.FIXED_AMOUNT) {
-            voucher.setVoucherCategory(VoucherCategory.NORMAL);
-            voucher.setDiscountType(DiscountType.FIXED_AMOUNT);
-        } else {
-            // Default fallback
-            voucher.setVoucherCategory(VoucherCategory.NORMAL);
-            voucher.setDiscountType(DiscountType.PERCENTAGE);
-        }
-        
+        voucher.setVoucherCategory(category);
+        voucher.setDiscountType(discountType);
         voucher.setDiscountPercentage(discountPercentage);
         voucher.setDiscountAmount(discountAmount);
         voucher.setStartTime(startTime);
