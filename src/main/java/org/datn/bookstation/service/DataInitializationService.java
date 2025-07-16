@@ -278,8 +278,168 @@ public class DataInitializationService implements CommandLineRunner {
             createUser("customer5@gmail.com", "customer123", "Vũ Văn G", customerRole)
         );
         userRepository.saveAll(users);
+        // Thêm hàng loạt voucher test cho Lê Văn C
+        addTestVouchersForLeVanC();
     }
 
+    /**
+     * Tạo và gán nhiều loại voucher cho user Lê Văn C để test đủ trường hợp
+     */
+    private void addTestVouchersForLeVanC() {
+        User leVanC = userRepository.findByEmail("customer1@gmail.com").orElse(null);
+        if (leVanC == null) return;
+
+        long now = System.currentTimeMillis();
+        long oneMonth = 30L * 24 * 60 * 60 * 1000;
+        List<Voucher> vouchersToAdd = new java.util.ArrayList<>();
+
+        // 5 voucher miễn phí vận chuyển (FREESHIP)
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "FREESHIP" + i,
+                "Miễn phí vận chuyển",
+                "Voucher miễn phí vận chuyển cho đơn bất kỳ",
+                VoucherCategory.SHIPPING,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("30000"), // Giảm tối đa 30k tiền ship
+                now,
+                now + oneMonth,
+                BigDecimal.ZERO,
+                new BigDecimal("30000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher giảm 20k tiền ship cho đơn từ 50k
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SHIP20K" + i,
+                "Giảm 20K tiền ship",
+                "Giảm 20.000đ phí vận chuyển cho đơn từ 50.000đ",
+                VoucherCategory.SHIPPING,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("20000"),
+                now,
+                now + oneMonth,
+                new BigDecimal("50000"),
+                new BigDecimal("20000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher thường giảm 40k cho đơn từ 100k
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SALE40K" + i,
+                "Giảm 40K cho đơn từ 100K",
+                "Giảm 40.000đ cho đơn hàng từ 100.000đ",
+                VoucherCategory.NORMAL,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("40000"),
+                now,
+                now + oneMonth,
+                new BigDecimal("100000"),
+                new BigDecimal("40000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher giảm theo % đơn hàng (10%, 15%, 20%, 25%, 30%)
+        int[] percents = {10, 15, 20, 25, 30};
+        for (int i = 0; i < percents.length; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SALE" + percents[i] + "PCT",
+                "Giảm " + percents[i] + "%",
+                "Giảm " + percents[i] + "% tối đa " + (percents[i] * 1000) + "đ cho đơn từ " + (percents[i] * 10000) + "đ",
+                VoucherCategory.NORMAL,
+                DiscountType.PERCENTAGE,
+                new BigDecimal(percents[i]),
+                null,
+                now,
+                now + oneMonth,
+                new BigDecimal(percents[i] * 10000),
+                new BigDecimal(percents[i] * 1000),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // Shopee style: các voucher đặc biệt
+        vouchersToAdd.add(createVoucher(
+            "FLASHSALE50K",
+            "Flash Sale Giảm 50K",
+            "Giảm 50.000đ cho đơn từ 300.000đ, chỉ áp dụng trong khung giờ vàng",
+            VoucherCategory.NORMAL,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("50000"),
+            now,
+            now + (3L * 24 * 60 * 60 * 1000), // 3 ngày
+            new BigDecimal("300000"),
+            new BigDecimal("50000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        vouchersToAdd.add(createVoucher(
+            "NEWUSER100K",
+            "Giảm 100K cho khách mới",
+            "Giảm 100.000đ cho đơn từ 500.000đ, chỉ cho khách mới",
+            VoucherCategory.NORMAL,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("100000"),
+            now,
+            now + oneMonth,
+            new BigDecimal("500000"),
+            new BigDecimal("100000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        vouchersToAdd.add(createVoucher(
+            "SHIPMAX",
+            "Miễn phí ship tối đa 50K",
+            "Miễn phí vận chuyển tối đa 50.000đ cho đơn từ 200.000đ",
+            VoucherCategory.SHIPPING,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("50000"),
+            now,
+            now + oneMonth,
+            new BigDecimal("200000"),
+            new BigDecimal("50000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        // Lưu voucher vào DB
+        voucherRepository.saveAll(vouchersToAdd);
+
+        // Gán cho user Lê Văn C
+        for (Voucher v : vouchersToAdd) {
+            for (int i = 0; i < v.getUsageLimitPerUser(); i++) {
+                UserVoucher uv = new UserVoucher();
+                uv.setUser(leVanC);
+                uv.setVoucher(v);
+                uv.setUsedCount(0);
+                userVoucherRepository.save(uv);
+            }
+        }
+    }
     private User createUser(String email, String password, String fullName, Role role) {
         User user = new User();
         user.setEmail(email);
