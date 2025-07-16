@@ -250,7 +250,9 @@ public class BookController {
     public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
             @PathVariable("id") Integer id,
             @RequestParam(name = "text", required = false) String text) {
-
+        if (id==null){
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
     @GetMapping("/flashsalebook")
