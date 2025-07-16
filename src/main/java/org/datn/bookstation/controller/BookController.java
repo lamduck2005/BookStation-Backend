@@ -3,6 +3,7 @@ package org.datn.bookstation.controller;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
@@ -11,9 +12,11 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.BookDetailResponseMapper;
 import org.datn.bookstation.service.BookService;
+import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +38,7 @@ public class BookController {
     private final BookService bookService;
     private final BookResponseMapper bookResponseMapper;
     private final BookDetailResponseMapper bookDetailResponseMapper;
-
+    private final FlashSaleItemService flashSaleItemService;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -249,5 +252,9 @@ public class BookController {
             @RequestParam(name = "text", required = false) String text) {
 
         return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
+    }
+    @GetMapping("/flashsalebook")
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
+        return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
     }
 }

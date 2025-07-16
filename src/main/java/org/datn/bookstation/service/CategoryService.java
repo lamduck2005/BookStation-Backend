@@ -23,12 +23,15 @@ public interface CategoryService {
     ApiResponse<List<Category>> getAllExceptById(Integer id); // localhost:8080/api/categories/except/1
 
     ApiResponse<PaginationResponse<ParentCategoryResponse>> getAllCategoryPagination(Integer page, Integer size,
-            String name, Byte status);
+                                                                                     String name, Byte status);
+
     ApiResponse<List<ParentCategoryResponse>> getAllCategoryPagination();
 
     ApiResponse<Category> toggleStatus(Integer id);
 
     ApiResponse<List<Category>> getAllByParentIsNull();
+
     ApiResponse<List<Category>> getAllByParenId(Integer id);
+
     ApiResponse<List<Category>> getAllByParentIsNotNull();
 }
