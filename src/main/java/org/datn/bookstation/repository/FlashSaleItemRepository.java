@@ -1,6 +1,8 @@
 package org.datn.bookstation.repository;
 
+import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -9,16 +11,17 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, Integer>, JpaSpecificationExecutor<FlashSaleItem> {
-    
-    @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.flashSale.id = :flashSaleId")
-    List<FlashSaleItem> findByFlashSaleId(@Param("flashSaleId") Integer flashSaleId);
-    
-    @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.book.id = :bookId")
-    List<FlashSaleItem> findByBookId(@Param("bookId") Integer bookId);
-    
-    @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.flashSale.id = :flashSaleId AND fsi.status = 1")
-    List<FlashSaleItem> findActiveByFlashSaleId(@Param("flashSaleId") Integer flashSaleId);
+public interface FlashSaleItemRepository
+                extends JpaRepository<FlashSaleItem, Integer>, JpaSpecificationExecutor<FlashSaleItem> {
+
+        @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.flashSale.id = :flashSaleId")
+        List<FlashSaleItem> findByFlashSaleId(@Param("flashSaleId") Integer flashSaleId);
+
+        @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.book.id = :bookId")
+        List<FlashSaleItem> findByBookId(@Param("bookId") Integer bookId);
+
+        @Query("SELECT fsi FROM FlashSaleItem fsi WHERE fsi.flashSale.id = :flashSaleId AND fsi.status = 1")
+        List<FlashSaleItem> findActiveByFlashSaleId(@Param("flashSaleId") Integer flashSaleId);
 
     boolean existsByFlashSaleIdAndBookId(Integer flashSaleId, Integer bookId);
     boolean existsByFlashSaleIdAndBookIdAndIdNot(Integer flashSaleId, Integer bookId, Integer id);
@@ -103,4 +106,39 @@ public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, In
     default FlashSaleItem findActiveFlashSaleByBook(Integer bookId) {
         return findActiveFlashSaleByBook(bookId, System.currentTimeMillis());
     }
+
+    
+        /**
+         * Lấy danh sách tất cả sách (Book) hiện đang trong flash‑sale còn hiệu lực.
+         */
+        @Query("""
+                            SELECT new org.datn.bookstation.dto.request.FlashSaleItemBookRequest(
+                                b.id,
+                                b.bookName,
+                                b.description,
+                                b.price,
+                                b.stockQuantity,
+                                b.publicationDate,
+                                b.bookCode,
+                                b.status,
+                                c.id,
+                                c.categoryName,
+                                b.coverImageUrl,
+                                b.discountValue,
+                                b.discountPercent,
+                                b.discountActive,
+                                fsi.id,
+                                                        fsi.discountPrice,fsi.discountPercentage
+                              
+                            )
+                            FROM FlashSaleItem fsi
+                            JOIN fsi.book b
+                            JOIN b.category c
+                            WHERE fsi.status = 1
+                              AND fsi.flashSale.status = 1
+                              AND fsi.flashSale.startTime <= :now
+                              AND fsi.flashSale.endTime >= :now
+                        """)
+        List<FlashSaleItemBookRequest> findAllBookFlashSaleDTO(@Param("now") Long now);
+
 }

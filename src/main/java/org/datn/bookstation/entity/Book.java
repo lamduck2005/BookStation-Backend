@@ -1,5 +1,6 @@
 package org.datn.bookstation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -29,7 +30,6 @@ public class Book {
     private String bookName;
 
     @Nationalized
-    @Lob
     @Column(name = "description")
     private String description;
 
@@ -73,7 +73,6 @@ public class Book {
     @Nationalized
     @Column(name = "cover_image_url", length = 2000)
     private String coverImageUrl;
-
     // ✅ THÊM MỚI: Người dịch
     @Size(max = 255)
     @Nationalized
@@ -130,7 +129,7 @@ public class Book {
     @NotNull
     @Column(name = "book_code", nullable = false)
     private String bookCode;
-    
+
     // ✅ THÊM MỚI: Relationship với AuthorBook
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<AuthorBook> authorBooks = new LinkedHashSet<>();

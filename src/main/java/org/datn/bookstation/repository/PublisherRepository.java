@@ -16,4 +16,5 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
     boolean existsByPublisherNameIgnoreCaseAndIdNot(String publisherName, Integer id);
     
     boolean existsByPublisherNameIgnoreCase(String publisherName);
+
 }

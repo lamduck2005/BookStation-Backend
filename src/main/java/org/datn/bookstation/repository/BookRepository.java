@@ -1,5 +1,6 @@
 package org.datn.bookstation.repository;
 
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.entity.Book;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -290,4 +291,5 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     List<Object[]> findGoodPriceBooks(
         Pageable pageable
     );
+
 }

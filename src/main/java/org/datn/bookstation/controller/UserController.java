@@ -1,7 +1,9 @@
 package org.datn.bookstation.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
@@ -9,6 +11,7 @@ import org.datn.bookstation.entity.User;
 import org.datn.bookstation.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -86,6 +89,18 @@ public class UserController {
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
 
+    @PutMapping("/profile/{id}")
+    public ResponseEntity<ApiResponse<User>> update(@PathVariable Integer id, @RequestBody User user) {
+        ApiResponse<User> response = userService.updateClient(user, id);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+        return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thông tin thành công", response.getData()));
+    }
+
     // Xóa user
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
@@ -101,5 +116,23 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request) {
+        String email = (String) request.getAttribute("userEmail");
+        ApiResponse<User> user = userService.getUserByEmail(email);
+        return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/userpos")
+    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text) {
+        System.out.println(" sdsadklasdjasdkasdjaskdfkas" + text);
+        return ResponseEntity.ok(userService.getUserPOS(text));
+    }
+
+    @PostMapping("/addretail")
+    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
+        return ResponseEntity.ok(userService.addRetail(user));
     }
 }

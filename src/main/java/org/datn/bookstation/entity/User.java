@@ -3,6 +3,7 @@ package org.datn.bookstation.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,15 +24,15 @@ public class User {
     private Integer id;
 
     @Size(max = 100)
-    @NotNull
     @Nationalized
-    @Column(name = "email", nullable = false, length = 100)
+    @Null
+    @Column(name = "email", nullable = true, length = 100)
     private String email;
 
     @Size(max = 255)
-    @NotNull
     @Nationalized
-    @Column(name = "password", nullable = false)
+    @Null
+    @Column(name = "password", nullable = true)
     private String password;
 
     @NotNull

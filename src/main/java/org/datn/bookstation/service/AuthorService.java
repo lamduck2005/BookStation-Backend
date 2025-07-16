@@ -8,12 +8,11 @@ import java.util.List;
 
 public interface AuthorService {
    ApiResponse<List<Author>> getAll();
-   ApiResponse<List<Author>> search();
     ApiResponse<Author> getById(Integer id);
     ApiResponse<Author> add(Author author);
     ApiResponse<Author> update(Author author, Integer id);
     ApiResponse<Author> delete(Integer id);
     ApiResponse<Author> toggleStatus(Integer id);
-    PaginationResponse<Author> getAllAuthorPagination(Integer page,Integer size,String name, Byte status);
-    List<Author> getActiveAuthors(); // For dropdown
+    ApiResponse<PaginationResponse<Author>> getAllAuthorPagination(Integer page,Integer size,String name, Byte status);
+    ApiResponse<List<Author>> getActiveAuthors(); // For dropdown
 }

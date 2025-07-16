@@ -6,12 +6,14 @@ import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
 
 @Getter
 @Setter
 @Entity
+@ToString
 @Table(name = "category")
 public class Category {
     @Id
@@ -26,7 +28,6 @@ public class Category {
     private String categoryName;
 
     @Nationalized
-    @Lob
     @Column(name = "description")
     private String description;
 

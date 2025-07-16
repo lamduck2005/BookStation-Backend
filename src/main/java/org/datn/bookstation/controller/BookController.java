@@ -1,7 +1,9 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
@@ -10,10 +12,12 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.BookDetailResponseMapper;
 import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
+import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +41,7 @@ public class BookController {
     private final BookDetailResponseMapper bookDetailResponseMapper;
     private final TrendingCacheService trendingCacheService;
 
+    private final FlashSaleItemService flashSaleItemService;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -56,7 +61,23 @@ public class BookController {
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/client")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAllClient(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String bookName,
+            @RequestParam(required = false) Integer parentCategoryId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer publisherId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
+        PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
+                page, size, bookName,parentCategoryId, categoryId, publisherId, minPrice, maxPrice);
+        ApiResponse<PaginationResponse<BookResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
+        return ResponseEntity.ok(response);
+    }
     /**
      * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
@@ -231,6 +252,19 @@ public class BookController {
         ApiResponse<String> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated successfully", "All trending cache has been cleared");
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/bycategoryid/{id}")
+    public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
+            @PathVariable("id") Integer id,
+            @RequestParam(name = "text", required = false) String text) {
+        if (id==null){
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
+    }
+    @GetMapping("/flashsalebook")
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
+        return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
     }
 }
 

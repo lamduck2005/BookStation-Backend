@@ -34,4 +34,5 @@ public interface BookMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "images", expression = "java(mapImagesToString(request.getImages()))")
     void updateEntity(BookRequest request, @MappingTarget Book book);
+
 }

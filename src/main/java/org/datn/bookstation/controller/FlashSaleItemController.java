@@ -4,11 +4,14 @@ import org.datn.bookstation.dto.request.FlashSaleItemRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/flash-sales/{flashSaleId}/items")
@@ -48,4 +51,6 @@ public class FlashSaleItemController {
     public ApiResponse<FlashSaleItemResponse> toggleStatus(@PathVariable Integer itemId) {
         return flashSaleItemService.toggleStatus(itemId);
     }
+
+
 } 
