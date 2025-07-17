@@ -1,10 +1,7 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
-import org.datn.bookstation.dto.request.BookCategoryRequest;
-import org.datn.bookstation.dto.request.BookRequest;
-import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
-import org.datn.bookstation.dto.request.TrendingRequest;
+import org.datn.bookstation.dto.request.*;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
@@ -258,5 +255,9 @@ public class BookController {
     @GetMapping("/flashsalebook")
     public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
         return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
+    }
+    @GetMapping("/searchbook")
+    public ResponseEntity<ApiResponse<List<BookSearchRequest>>> findAllBooksByName(@RequestParam(name = "text",required = false) String text){
+        return ResponseEntity.ok(bookService.getBookByName(text));
     }
 }

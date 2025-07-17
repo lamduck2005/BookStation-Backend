@@ -119,4 +119,16 @@ public class BookSpecification {
             return predicates;
         };
     }
+    public static Specification<Book> filterBy( String text) {
+        return (root, query, criteriaBuilder) -> {
+            var predicates = criteriaBuilder.conjunction();
+            if (text != null && !text.isEmpty()) {
+                String likeText = "%" + text.toLowerCase() + "%";
+                predicates = criteriaBuilder.and(predicates,
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")), likeText));
+            }
+
+            return predicates;
+        };
+    }
 }

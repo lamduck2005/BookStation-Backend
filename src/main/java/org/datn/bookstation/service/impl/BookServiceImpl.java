@@ -3,6 +3,7 @@ package org.datn.bookstation.service.impl;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.BookSearchRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class BookServiceImpl implements BookService {
 
+//    private static final Object T = ;
     private final BookRepository bookRepository;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
@@ -644,6 +646,16 @@ public class BookServiceImpl implements BookService {
 
 
         return new ApiResponse<>(200, "Đã nhập được list search từ ", bookCategoryMapper.booksMapper(books));
+    }
+
+    @Override
+    public ApiResponse<List<BookSearchRequest>> getBookByName(String text) {
+        Specification<Book> bookSpecification = BookSpecification.filterBy(text);
+        Pageable pageable = PageRequest.of(0, 5); // Trang đầu tiên (0), 5 bản ghi
+        List<Book> books = bookRepository.findAll(bookSpecification, pageable).getContent();
+
+
+        return new ApiResponse<>(200,"Lấy được books search rồi",bookCategoryMapper.bookSearchMapper(books));
     }
 
 

@@ -15,8 +15,11 @@ public interface FlashSaleItemService {
                                                                             BigDecimal minPrice, BigDecimal maxPrice,
                                                                             BigDecimal minPercent, BigDecimal maxPercent,
                                                                             Integer minQuantity, Integer maxQuantity);
+
     ApiResponse<FlashSaleItemResponse> create(FlashSaleItemRequest request);
+
     ApiResponse<FlashSaleItemResponse> update(Integer id, FlashSaleItemRequest request);
+
     ApiResponse<FlashSaleItemResponse> toggleStatus(Integer id);
 
     ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale();

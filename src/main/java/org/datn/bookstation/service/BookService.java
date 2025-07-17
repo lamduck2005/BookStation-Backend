@@ -2,6 +2,7 @@ package org.datn.bookstation.service;
 
 import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.BookSearchRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
@@ -49,4 +50,6 @@ public interface BookService {
                                                               BigDecimal minPrice, BigDecimal maxPrice);
 
     ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text);
+
+    ApiResponse<List<BookSearchRequest>> getBookByName(String text);
 }
