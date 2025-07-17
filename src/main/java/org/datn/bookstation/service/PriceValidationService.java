@@ -1,6 +1,6 @@
 package org.datn.bookstation.service;
+import org.datn.bookstation.dto.request.PriceValidationRequest;
 
-import org.datn.bookstation.dto.request.OrderDetailRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 
 import java.util.List;
@@ -15,12 +15,13 @@ public interface PriceValidationService {
      * @param orderDetails Danh sách chi tiết đơn hàng từ frontend
      * @return ApiResponse chứa thông tin validation
      */
-    ApiResponse<String> validateProductPrices(List<OrderDetailRequest> orderDetails);
+    ApiResponse<String> validateProductPrices(List<PriceValidationRequest> priceValidationRequests);
     
     /**
      * Validate một sản phẩm cụ thể
-     * @param orderDetail Chi tiết đơn hàng
+     * @param bookId ID của sách
+     * @param frontendPrice Giá từ frontend
      * @return Thông báo lỗi (null nếu hợp lệ)
      */
-    String validateSingleProductPrice(OrderDetailRequest orderDetail);
+    String validateSingleProductPrice(Integer bookId, java.math.BigDecimal frontendPrice);
 }

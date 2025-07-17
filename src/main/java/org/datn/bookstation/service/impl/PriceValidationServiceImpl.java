@@ -3,6 +3,7 @@ package org.datn.bookstation.service.impl;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.OrderDetailRequest;
+import org.datn.bookstation.dto.request.PriceValidationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
@@ -24,15 +25,15 @@ public class PriceValidationServiceImpl implements PriceValidationService {
     private final FlashSaleItemRepository flashSaleItemRepository;
     
     @Override
-    public ApiResponse<String> validateProductPrices(List<OrderDetailRequest> orderDetails) {
-        if (orderDetails == null || orderDetails.isEmpty()) {
+    public ApiResponse<String> validateProductPrices(List<PriceValidationRequest> priceValidationRequests) {
+        if (priceValidationRequests == null || priceValidationRequests.isEmpty()) {
             return new ApiResponse<>(400, "Danh sách sản phẩm không được để trống", null);
         }
         
         List<String> errors = new ArrayList<>();
         
-        for (OrderDetailRequest detail : orderDetails) {
-            String error = validateSingleProductPrice(detail);
+        for (PriceValidationRequest detail : priceValidationRequests) {
+            String error = validateSingleProductPrice(detail.getBookId(), detail.getFrontendPrice());
             if (error != null) {
                 errors.add(error);
             }
@@ -47,21 +48,18 @@ public class PriceValidationServiceImpl implements PriceValidationService {
     }
     
     @Override
-    public String validateSingleProductPrice(OrderDetailRequest orderDetail) {
-        if (orderDetail.getBookId() == null) {
+    public String validateSingleProductPrice(Integer bookId, BigDecimal frontendPrice) {
+        if (bookId == null) {
             return "Book ID không hợp lệ";
         }
         
-        Book book = bookRepository.findById(orderDetail.getBookId()).orElse(null);
+        Book book = bookRepository.findById(bookId).orElse(null);
         if (book == null) {
-            return "Không tìm thấy sách với ID: " + orderDetail.getBookId();
+            return "Không tìm thấy sách với ID: " + bookId;
         }
         
-        // Kiểm tra stock
-        if (book.getStockQuantity() == null || book.getStockQuantity() < orderDetail.getQuantity()) {
-            return String.format("Sách '%s' chỉ còn %d cuốn trong kho", 
-                                book.getBookName(), 
-                                book.getStockQuantity() != null ? book.getStockQuantity() : 0);
+        if (frontendPrice == null) {
+            return "Giá frontend không được để trống";
         }
         
         // Lấy giá hiện tại của sách
@@ -69,30 +67,19 @@ public class PriceValidationServiceImpl implements PriceValidationService {
         
         // Kiểm tra flash sale nếu có
         BigDecimal currentFlashSalePrice = null;
-        FlashSaleItem activeFlashSale = getCurrentActiveFlashSale(orderDetail.getBookId());
+        FlashSaleItem activeFlashSale = getCurrentActiveFlashSale(bookId);
         
         if (activeFlashSale != null) {
             currentFlashSalePrice = activeFlashSale.getDiscountPrice();            
-            // Kiểm tra số lượng flash sale còn lại
-            int quantityRemaining = activeFlashSale.getStockQuantity() - 
-                                   (activeFlashSale.getSoldCount() != null ? activeFlashSale.getSoldCount() : 0);
-            if (quantityRemaining < orderDetail.getQuantity()) {
-                return String.format("Flash sale cho sách '%s' chỉ còn %d sản phẩm", 
-                                    book.getBookName(), quantityRemaining);
-            }
         } else {
             // Không có flash sale, không cần kiểm tra các trường liên quan
         }
         
-        // Validate giá frontend
-        if (orderDetail.getFrontendPrice() == null) {
-            return "Giá frontend không được để trống";
-        }
         BigDecimal expectedPrice = currentFlashSalePrice != null ? currentFlashSalePrice : currentBookPrice;
-        if (orderDetail.getFrontendPrice().compareTo(expectedPrice) != 0) {
+        if (frontendPrice.compareTo(expectedPrice) != 0) {
             return String.format("Giá của sách '%s' đã thay đổi từ %s VND thành %s VND", 
                                 book.getBookName(), 
-                                formatPrice(orderDetail.getFrontendPrice()),
+                                formatPrice(frontendPrice),
                                  formatPrice(expectedPrice));
         }
         
