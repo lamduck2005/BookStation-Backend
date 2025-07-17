@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
+import org.datn.bookstation.entity.enums.BookFormat;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
@@ -107,6 +108,11 @@ public class Book {
     @ColumnDefault("0")
     @Column(name = "sold_count")
     private Integer soldCount = 0;
+
+    // ✅ THÊM MỚI: Hình thức sách (bìa mềm, bìa cứng, ebook, v.v.)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "book_format", length = 20)
+    private BookFormat bookFormat;
 
     @ColumnDefault("1")
     @Column(name = "status")

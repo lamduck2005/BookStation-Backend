@@ -25,4 +25,14 @@ public class OrderDetailRequest {
     @NotNull(message = "Đơn giá không được để trống")
     @Positive(message = "Đơn giá phải lớn hơn 0")
     private BigDecimal unitPrice;
+    
+    // ✅ THÊM MỚI: Giá frontend gửi lên để validation
+    @NotNull(message = "Giá frontend không được để trống")
+    private BigDecimal frontendPrice;
+    
+    // ✅ THÊM MỚI: Giá flash sale frontend gửi lên (nếu có)
+    private BigDecimal frontendFlashSalePrice;
+    
+    // ✅ THÊM MỚI: ID flash sale frontend gửi lên (để kiểm tra tính hợp lệ)
+    private Integer frontendFlashSaleId;
 }

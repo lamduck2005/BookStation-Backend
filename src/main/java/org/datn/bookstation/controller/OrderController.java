@@ -13,6 +13,7 @@ import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.dto.request.OrderCalculationRequest;
 import org.datn.bookstation.dto.response.OrderCalculationResponse;
 import org.datn.bookstation.service.OrderCalculationService;
+import org.datn.bookstation.service.PriceValidationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class OrderController {
     private final OrderService orderService;
     private final OrderCalculationService orderCalculationService;
+    private final PriceValidationService priceValidationService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<OrderResponse>>> getAll(
@@ -57,6 +59,14 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> create(@Valid @RequestBody OrderRequest orderRequest) {
+        // ✅ THÊM MỚI: Validate giá sản phẩm trước khi tạo đơn
+        ApiResponse<String> priceValidation = priceValidationService.validateProductPrices(orderRequest.getOrderDetails());
+        if (priceValidation.getStatus() != 200) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new ApiResponse<>(priceValidation.getStatus(), priceValidation.getMessage(), null)
+            );
+        }
+        
         ApiResponse<OrderResponse> response = orderService.create(orderRequest);
         HttpStatus status = response.getStatus() == 201 ? HttpStatus.CREATED : 
                            response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
@@ -184,6 +194,22 @@ public class OrderController {
         ApiResponse<String> response = orderCalculationService.validateOrderConditions(request);
         HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
                            response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
+    /**
+     * ✅ THÊM MỚI: API validate giá sản phẩm
+     */
+    @PostMapping("/validate-prices")
+    /**
+     * API validate giá sản phẩm chỉ nhận frontendPrice
+     * orderDetails chỉ cần truyền bookId, quantity, frontendPrice
+     */
+    public ResponseEntity<ApiResponse<String>> validateProductPrices(@Valid @RequestBody OrderRequest orderRequest) {
+        // Chỉ truyền bookId, quantity, frontendPrice từ frontend
+        ApiResponse<String> response = priceValidationService.validateProductPrices(orderRequest.getOrderDetails());
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
                            response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(status).body(response);
     }
