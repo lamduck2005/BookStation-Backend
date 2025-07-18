@@ -15,9 +15,10 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 import java.util.Optional;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 
 @RestController
 @AllArgsConstructor
@@ -40,6 +41,18 @@ public class UserController {
                 page, size, full_name, email, phone_number, role_id, status
         );
         ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", users);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * API lấy danh sách user dạng dropdown (id, name) cho frontend làm khoá ngoại
+     */
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownUsers() {
+        List<DropdownOptionResponse> dropdown = userService.getActiveUsers().stream()
+            .map(user -> new DropdownOptionResponse(user.getId(), user.getFullName()))
+            .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách user thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 

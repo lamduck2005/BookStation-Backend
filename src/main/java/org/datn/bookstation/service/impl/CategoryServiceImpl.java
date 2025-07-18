@@ -35,19 +35,51 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> add(Category category) {
         try {
-            if (category.getParentCategory() != null) {
-                Category parentCategory = categoryRepository.findById(category.getParentCategory().getId()).get();
+            // ✅ Validate tên danh mục
+            if (category.getCategoryName() == null || category.getCategoryName().trim().isEmpty()) {
+                return new ApiResponse<>(400, "Tên danh mục không được để trống", null);
+            }
+
+            // ✅ Trim và kiểm tra tên trùng
+            String trimmedName = category.getCategoryName().trim();
+            if (categoryRepository.existsByCategoryNameIgnoreCase(trimmedName)) {
+                return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
+            }
+
+            // ✅ Validate description length
+            if (category.getDescription() != null && category.getDescription().length() > 500) {
+                return new ApiResponse<>(400, "Mô tả không được vượt quá 500 ký tự", null);
+            }
+
+            // ✅ Validate parent category
+            if (category.getParentCategory() != null && category.getParentCategory().getId() != null) {
+                Category parentCategory = categoryRepository.findById(category.getParentCategory().getId())
+                        .orElse(null);
+
+                if (parentCategory == null) {
+                    return new ApiResponse<>(404, "Danh mục cha không tồn tại", null);
+                }
+
                 category.setParentCategory(parentCategory);
             } else {
                 category.setParentCategory(null);
             }
+            System.out.println(category.getId());
+            // ✅ Set default values
             category.setId(null);
+            category.setCategoryName(trimmedName);
             category.setCreatedBy(1);
+
+            // ✅ Set default status nếu chưa có
+            if (category.getStatus() == null) {
+                category.setStatus((byte) 1);
+            }
 
             Category savedCategory = categoryRepository.save(category);
             return new ApiResponse<>(201, "Thêm danh mục thành công", savedCategory);
+
         } catch (Exception e) {
-            return new ApiResponse<>(400, "Thêm danh mục thất bại: " + e.getMessage(), null);
+            return new ApiResponse<>(500, "Thêm danh mục thất bại: " + e.getMessage(), null);
         }
     }
 
@@ -67,23 +99,43 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> update(Category category, Integer id) {
         try {
+              // ✅ Kiểm tra tên trùng (loại trừ chính nó)
+        String trimmedName = category.getCategoryName().trim();
+        Category existingCategory = categoryRepository.findByCategoryNameIgnoreCase(trimmedName);
+        if (existingCategory != null && !existingCategory.getId().equals(id)) {
+            return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
+        }
+
+            // ✅ Validate ID
+            if (id == null || id <= 0) {
+                return new ApiResponse<>(400, "ID danh mục không hợp lệ", null);
+            }
             Category categoryById = categoryRepository.findById(id).orElse(null);
             if (categoryById == null) {
                 return new ApiResponse<>(404, "Không tìm thấy danh mục với ID: " + id, null);
             }
+            // ✅ Validate tên danh mục
+            if (category.getParentCategory() != null && category.getParentCategory().getId() != null) {
+                // Không thể tự làm cha của chính mình
+                if (category.getParentCategory().getId().equals(id)) {
+                    return new ApiResponse<>(400, "Danh mục không thể làm cha của chính nó", null);
+                }
 
+                // Kiểm tra parent category có tồn tại
+                Category parentCategory = categoryRepository.findById(category.getParentCategory().getId())
+                        .orElse(null);
+                if (parentCategory == null) {
+                    return new ApiResponse<>(404, "Danh mục cha không tồn tại", null);
+                }
+
+                categoryById.setParentCategory(parentCategory);
+            } else {
+                categoryById.setParentCategory(null);
+            }
             categoryById.setCategoryName(category.getCategoryName());
             categoryById.setDescription(category.getDescription());
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedBy(1);
-
-            if (category.getParentCategory() == null) {
-                categoryById.setParentCategory(null);
-            } else if (categoryRepository.getByParentCategoryIsNull(category.getParentCategory().getId()) != null) {
-                categoryById.setParentCategory(category.getParentCategory());
-            } else {
-                return new ApiResponse<>(400, "Danh mục cha không hợp lệ", null);
-            }
 
             categoryById.setId(id);
             Category updatedCategory = categoryRepository.save(categoryById);
@@ -100,7 +152,6 @@ public class CategoryServiceImpl implements CategoryService {
             if (categoryById == null) {
                 return new ApiResponse<>(404, "Không tìm thấy danh mục với ID: " + id, null);
             }
-
             categoryRepository.delete(categoryById);
             return new ApiResponse<>(200, "Xóa danh mục thành công", categoryById);
         } catch (Exception e) {
@@ -229,6 +280,12 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public ApiResponse<List<Category>> getAllByParentIsNotNull() {
-        return new ApiResponse<>(200,"Lấy danh mục con thành công",categoryRepository.getAllByParentIsNotNull());
+        return new ApiResponse<>(200, "Lấy danh mục con thành công", categoryRepository.getAllByParentIsNotNull());
+    }
+
+    @Override
+    public ApiResponse<List<Category>> getAllExceptByIdNotNull(Integer id) {
+        return new ApiResponse<>(200, "Lấy danh mục con thành công", categoryRepository.getAllExceptByIdNotNull(id));
+
     }
 }

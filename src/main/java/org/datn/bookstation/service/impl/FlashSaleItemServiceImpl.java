@@ -178,7 +178,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
     public ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale() {
         Long now = System.currentTimeMillis();
 
-        return new ApiResponse<>(200, "Cập nhật trạng thái thành công", flashSaleItemRepository.findAllBookFlashSaleDTO(now));
+        return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", flashSaleItemRepository.findAllBookFlashSaleDTO(now));
 
     }
 } 

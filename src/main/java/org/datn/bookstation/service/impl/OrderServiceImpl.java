@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.OrderRequest;
 import org.datn.bookstation.dto.request.OrderDetailRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -13,6 +14,7 @@ import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.VoucherCalculationService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.specification.OrderSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 @Transactional
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
@@ -39,9 +42,10 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final BookRepository bookRepository;
-    private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherRepository voucherRepository;
+    private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherCalculationService voucherCalculationService;
+    private final FlashSaleService flashSaleService;
     private final OrderMapper orderMapper;
     private final OrderResponseMapper orderResponseMapper;
 
@@ -92,19 +96,34 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<OrderResponse> create(OrderRequest request) {
         try {
+            log.info("🛒 Creating order for user: {}", request.getUserId());
+            
             // Validate user
             User user = userRepository.findById(request.getUserId()).orElse(null);
             if (user == null) {
+                log.error("❌ User not found: {}", request.getUserId());
                 return new ApiResponse<>(404, "Không tìm thấy người dùng", null);
             }
             
             // Validate address
+            if (request.getAddressId() == null) {
+                log.error("❌ Address ID is null for user: {}", request.getUserId());
+                return new ApiResponse<>(400, "Thiếu thông tin địa chỉ giao hàng", null);
+            }
+            
             Address address = addressRepository.findById(request.getAddressId()).orElse(null);
             if (address == null) {
-                return new ApiResponse<>(404, "Không tìm thấy địa chỉ", null);
+                log.error("❌ Address not found: {}", request.getAddressId());
+                return new ApiResponse<>(404, "Không tìm thấy địa chỉ giao hàng", null);
+            }
+            
+            // Validate order details
+            if (request.getOrderDetails() == null || request.getOrderDetails().isEmpty()) {
+                log.error("❌ No order details provided for user: {}", request.getUserId());
+                return new ApiResponse<>(400, "Không có sản phẩm nào để đặt hàng", null);
             }
             
             // Create order
@@ -113,7 +132,11 @@ public class OrderServiceImpl implements OrderService {
             order.setAddress(address);
             
             // Set basic order info from request (not subtotal - will be calculated)
-            order.setShippingFee(request.getShippingFee());
+            order.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
+            
+            // Set required fields with default values to avoid validation error on first save
+            order.setSubtotal(BigDecimal.ZERO);
+            order.setTotalAmount(BigDecimal.ZERO);
             
             // Set staff if provided
             if (request.getStaffId() != null) {
@@ -134,27 +157,42 @@ public class OrderServiceImpl implements OrderService {
             order.setCreatedBy(request.getUserId());
             order.setStatus((byte) 1); // Active
             
+            log.info("🔄 Saving order with code: {}", orderCode);
             Order savedOrder = orderRepository.save(order);
             
             // Create order details with proper price calculation
             BigDecimal calculatedSubtotal = BigDecimal.ZERO;
+            log.info("🔄 Processing {} order details", request.getOrderDetails().size());
+            
             for (OrderDetailRequest detailRequest : request.getOrderDetails()) {
-                BigDecimal itemSubtotal = createOrderDetailWithCalculation(savedOrder, detailRequest);
-                calculatedSubtotal = calculatedSubtotal.add(itemSubtotal);
+                try {
+                    BigDecimal itemSubtotal = createOrderDetailWithCalculation(savedOrder, detailRequest);
+                    calculatedSubtotal = calculatedSubtotal.add(itemSubtotal);
+                    log.debug("✅ Processed order detail for book {}: subtotal={}", 
+                        detailRequest.getBookId(), itemSubtotal);
+                } catch (Exception detailEx) {
+                    log.error("❌ Failed to create order detail for book {}: {}", 
+                        detailRequest.getBookId(), detailEx.getMessage(), detailEx);
+                    throw new RuntimeException("Lỗi khi xử lý sản phẩm ID " + detailRequest.getBookId() + ": " + detailEx.getMessage());
+                }
             }
             
             // Update order with calculated subtotal
             savedOrder.setSubtotal(calculatedSubtotal);
-            savedOrder.setShippingFee(request.getShippingFee());
-            savedOrder.setTotalAmount(calculatedSubtotal.add(request.getShippingFee()));
+            savedOrder.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
+            savedOrder.setTotalAmount(calculatedSubtotal.add(savedOrder.getShippingFee()));
+            
+            log.info("🔄 Calculated subtotal: {}, shipping: {}", calculatedSubtotal, savedOrder.getShippingFee());
             
             // Apply vouchers if provided - validate and calculate discounts
             if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
                 try {
+                    log.info("🔄 Processing {} vouchers", request.getVoucherIds().size());
+                    
                     // Create temporary order for voucher calculation
                     Order tempOrder = new Order();
                     tempOrder.setSubtotal(calculatedSubtotal);
-                    tempOrder.setShippingFee(request.getShippingFee());
+                    tempOrder.setShippingFee(savedOrder.getShippingFee());
                     
                     // Validate and calculate vouchers using VoucherCalculationService
                     VoucherCalculationService.VoucherCalculationResult voucherResult = 
@@ -168,10 +206,13 @@ public class OrderServiceImpl implements OrderService {
                     
                     // Recalculate total amount
                     BigDecimal recalculatedTotal = calculatedSubtotal
-                        .add(request.getShippingFee())
+                        .add(savedOrder.getShippingFee())
                         .subtract(voucherResult.getTotalProductDiscount())
                         .subtract(voucherResult.getTotalShippingDiscount());
                     savedOrder.setTotalAmount(recalculatedTotal);
+                    
+                    log.info("🔄 Applied vouchers: product discount={}, shipping discount={}, final total={}", 
+                        voucherResult.getTotalProductDiscount(), voucherResult.getTotalShippingDiscount(), recalculatedTotal);
                     
                     // Create order vouchers with calculated details
                     for (VoucherCalculationService.VoucherApplicationDetail voucherDetail : voucherResult.getAppliedVouchers()) {
@@ -182,7 +223,8 @@ public class OrderServiceImpl implements OrderService {
                     voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
                     
                 } catch (Exception e) {
-                    return new ApiResponse<>(400, "Lỗi áp dụng voucher: " + e.getMessage(), null);
+                    log.error("❌ Error applying vouchers: {}", e.getMessage(), e);
+                    throw new RuntimeException("Lỗi áp dụng voucher: " + e.getMessage());
                 }
             } else {
                 // No vouchers - set default discount values
@@ -195,11 +237,13 @@ public class OrderServiceImpl implements OrderService {
             // Save updated order
             savedOrder = orderRepository.save(savedOrder);
             
+            log.info("✅ Successfully created order: {}", orderCode);
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
             return new ApiResponse<>(201, "Tạo đơn hàng thành công", response);
             
         } catch (Exception e) {
-            return new ApiResponse<>(500, "Lỗi khi tạo đơn hàng: " + e.getMessage(), null);
+            log.error("💥 Error creating order for user {}: {}", request.getUserId(), e.getMessage(), e);
+            throw new RuntimeException("Lỗi khi tạo đơn hàng: " + e.getMessage(), e);
         }
     }
 
@@ -211,17 +255,12 @@ public class OrderServiceImpl implements OrderService {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
         }
         
-        // Only allow update if order is still PENDING
-        if (existing.getOrderStatus() != OrderStatus.PENDING) {
-            return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng đang chờ xử lý", null);
+        // Validate if order can be updated
+        if (!canUpdateOrder(existing.getOrderStatus())) {
+            return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng ở trạng thái PENDING hoặc CONFIRMED", null);
         }
         
-        try {
-            // Only allow update if order is still PENDING
-            if (existing.getOrderStatus() != OrderStatus.PENDING) {
-                return new ApiResponse<>(400, "Chỉ có thể cập nhật đơn hàng đang chờ xử lý", null);
-            }
-            
+        try {            
             // Update basic info
             existing.setOrderStatus(request.getOrderStatus());
             existing.setOrderType(request.getOrderType());
@@ -256,6 +295,12 @@ public class OrderServiceImpl implements OrderService {
         Order order = getById(id);
         if (order == null) {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
+        }
+        
+        // Validate status transition
+        String validationError = validateStatusTransition(order.getOrderStatus(), newStatus);
+        if (validationError != null) {
+            return new ApiResponse<>(400, validationError, null);
         }
         
         try {
@@ -306,9 +351,9 @@ public class OrderServiceImpl implements OrderService {
             return new ApiResponse<>(404, "Không tìm thấy đơn hàng", null);
         }
         
-        // Only allow cancel if order is PENDING or CONFIRMED
-        if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.CONFIRMED) {
-            return new ApiResponse<>(400, "Không thể hủy đơn hàng ở trạng thái này", null);
+        // Validate if order can be canceled
+        if (!canCancelOrder(order.getOrderStatus())) {
+            return new ApiResponse<>(400, "Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED", null);
         }
         
         try {
@@ -332,6 +377,8 @@ public class OrderServiceImpl implements OrderService {
     
     /**
      * Create order detail with proper price calculation for regular and flash sale items
+     * ✅ SECURITY FIX: Auto-detect flash sales instead of trusting frontend input
+     * ✅ STOCK MANAGEMENT: Update stock quantity after order creation
      * @return subtotal for this order detail (quantity * unit_price)
      */
     private BigDecimal createOrderDetailWithCalculation(Order order, OrderDetailRequest detailRequest) {
@@ -342,26 +389,74 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal unitPrice;
         FlashSaleItem flashSaleItem = null;
         
-        // Check if this is a flash sale item
-        if (detailRequest.getFlashSaleItemId() != null) {
-            flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId()).orElseThrow(
-                () -> new RuntimeException("Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId())
-            );
+        // ✅ AUTO-DETECT: Tự động phát hiện flash sale thay vì tin frontend
+        Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleService.findActiveFlashSaleForBook(book.getId().longValue());
+        
+        if (activeFlashSaleOpt.isPresent()) {
+            flashSaleItem = activeFlashSaleOpt.get();
             
             // Validate flash sale business rules
             validateFlashSaleItem(flashSaleItem, detailRequest.getQuantity(), order.getUser().getId());
             
             // Use flash sale price
             unitPrice = flashSaleItem.getDiscountPrice();
+            
+            log.info("🔥 AUTO-DETECTED flash sale for book {}: regular={}, flash={}", 
+                book.getId(), book.getPrice(), unitPrice);
         } else {
             // Use regular book price
             unitPrice = book.getPrice();
+            
+            log.info("💰 Using regular price for book {}: {}", book.getId(), unitPrice);
         }
         
-        // Validate quantity vs stock
-        if (detailRequest.getQuantity() > book.getStockQuantity()) {
-            throw new RuntimeException("Số lượng yêu cầu vượt quá tồn kho. Có sẵn: " + book.getStockQuantity());
+        // Validate quantity vs stock for flash sale or regular book
+        if (flashSaleItem != null) {
+            if (detailRequest.getQuantity() > flashSaleItem.getStockQuantity()) {
+                throw new RuntimeException("Flash sale không đủ hàng. Có sẵn: " + flashSaleItem.getStockQuantity());
+            }
+        } else {
+            if (detailRequest.getQuantity() > book.getStockQuantity()) {
+                throw new RuntimeException("Số lượng yêu cầu vượt quá tồn kho. Có sẵn: " + book.getStockQuantity());
+            }
         }
+        
+        // ✅ STOCK UPDATE: Trừ stock ngay khi tạo order detail thành công
+        if (flashSaleItem != null) {
+            // Update flash sale stock
+            int newFlashSaleStock = flashSaleItem.getStockQuantity() - detailRequest.getQuantity();
+            flashSaleItem.setStockQuantity(newFlashSaleStock);
+            
+            // ✅ SOLD COUNT UPDATE: Cộng số lượng đã bán flash sale
+            int newFlashSaleSoldCount = (flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0) + detailRequest.getQuantity();
+            flashSaleItem.setSoldCount(newFlashSaleSoldCount);
+            
+            flashSaleItem.setUpdatedAt(System.currentTimeMillis());
+            flashSaleItem.setUpdatedBy(order.getCreatedBy().longValue());
+            flashSaleItemRepository.save(flashSaleItem);
+            
+            log.info("📦 FLASH SALE UPDATED: Book {} flash sale stock: {} → {}, sold count: {} → {}", 
+                book.getId(), 
+                flashSaleItem.getStockQuantity() + detailRequest.getQuantity(), newFlashSaleStock,
+                newFlashSaleSoldCount - detailRequest.getQuantity(), newFlashSaleSoldCount);
+        }
+        
+        // Always update regular book stock and sold count
+        int newBookStock = book.getStockQuantity() - detailRequest.getQuantity();
+        book.setStockQuantity(newBookStock);
+        
+        // ✅ SOLD COUNT UPDATE: Cộng số lượng đã bán book
+        int newBookSoldCount = (book.getSoldCount() != null ? book.getSoldCount() : 0) + detailRequest.getQuantity();
+        book.setSoldCount(newBookSoldCount);
+        
+        book.setUpdatedAt(System.currentTimeMillis());
+        book.setUpdatedBy(order.getCreatedBy());
+        bookRepository.save(book);
+        
+        log.info("📦 BOOK UPDATED: Book {} regular stock: {} → {}, sold count: {} → {}", 
+            book.getId(), 
+            book.getStockQuantity() + detailRequest.getQuantity(), newBookStock,
+            newBookSoldCount - detailRequest.getQuantity(), newBookSoldCount);
         
         // Create order detail
         OrderDetail orderDetail = new OrderDetail();
@@ -416,12 +511,14 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Số lượng flash sale không đủ. Có sẵn: " + flashSaleItem.getStockQuantity());
         }
         
-        // Check max purchase per user (if set)
+        // Kiểm tra giới hạn mua trên mỗi user cho flash sale item
         if (flashSaleItem.getMaxPurchasePerUser() != null) {
-            // TODO: Check user's previous purchases for this flash sale item
-            // This requires tracking user purchases per flash sale item
+            // TODO: Nếu cần, kiểm tra lịch sử mua của user cho sản phẩm này
             if (requestedQuantity > flashSaleItem.getMaxPurchasePerUser()) {
-                throw new RuntimeException("Vượt quá giới hạn mua " + flashSaleItem.getMaxPurchasePerUser() + " sản phẩm trên 1 user");
+                throw new RuntimeException(
+                    "Sản phẩm flash sale chỉ cho phép mua tối đa " + flashSaleItem.getMaxPurchasePerUser() +
+                    " sản phẩm trên mỗi user. Bạn đã chọn " + requestedQuantity + " sản phẩm."
+                );
             }
         }
     }
@@ -441,10 +538,80 @@ public class OrderServiceImpl implements OrderService {
         
         orderVoucher.setOrder(order);
         orderVoucher.setVoucher(voucher);
-        orderVoucher.setVoucherType(voucherDetail.getVoucherType());
+        // ✅ FIX: Sử dụng VoucherCategory và DiscountType mới thay vì VoucherType cũ
+        orderVoucher.setVoucherCategory(voucherDetail.getVoucherCategory());
+        orderVoucher.setDiscountType(voucherDetail.getDiscountType());
         orderVoucher.setDiscountApplied(voucherDetail.getDiscountApplied());
         orderVoucher.setAppliedAt(System.currentTimeMillis());
         
         orderVoucherRepository.save(orderVoucher);
+    }
+    
+    /**
+     * Validate order status transition according to business rules
+     */
+    private String validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
+        // Allow any status change for PENDING orders
+        if (currentStatus == OrderStatus.PENDING) {
+            return null;
+        }
+        
+        // Define valid transitions
+        switch (currentStatus) {
+            case CONFIRMED:
+                if (newStatus != OrderStatus.SHIPPED && 
+                    newStatus != OrderStatus.CANCELED && 
+                    newStatus != OrderStatus.PENDING) {
+                    return "Đơn hàng đã xác nhận chỉ có thể chuyển sang: SHIPPED, CANCELED hoặc PENDING";
+                }
+                break;
+                
+            case SHIPPED:
+                if (newStatus != OrderStatus.DELIVERED && 
+                    newStatus != OrderStatus.RETURNED && 
+                    newStatus != OrderStatus.CONFIRMED) {
+                    return "Đơn hàng đã giao chỉ có thể chuyển sang: DELIVERED, RETURNED hoặc CONFIRMED";
+                }
+                break;
+                
+            case DELIVERED:
+                if (newStatus != OrderStatus.RETURNED && 
+                    newStatus != OrderStatus.SHIPPED) {
+                    return "Đơn hàng đã hoàn thành chỉ có thể chuyển sang: RETURNED hoặc SHIPPED";
+                }
+                break;
+                
+            case CANCELED:
+                if (newStatus != OrderStatus.PENDING) {
+                    return "Đơn hàng đã hủy chỉ có thể khôi phục về PENDING";
+                }
+                break;
+                
+            case RETURNED:
+                if (newStatus != OrderStatus.DELIVERED && 
+                    newStatus != OrderStatus.CANCELED) {
+                    return "Đơn hàng đã trả về chỉ có thể chuyển sang: DELIVERED hoặc CANCELED";
+                }
+                break;
+                
+            default:
+                return "Trạng thái đơn hàng không hợp lệ";
+        }
+        
+        return null; // Valid transition
+    }
+    
+    /**
+     * Validate if order can be updated
+     */
+    private boolean canUpdateOrder(OrderStatus status) {
+        return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
+    }
+    
+    /**
+     * Validate if order can be canceled
+     */
+    private boolean canCancelOrder(OrderStatus status) {
+        return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
     }
 }

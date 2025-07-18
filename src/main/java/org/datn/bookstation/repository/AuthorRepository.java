@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 
-public interface AuthorRepository extends JpaRepository<Author,Integer>, JpaSpecificationExecutor<Author> {
+public interface AuthorRepository extends JpaRepository<Author, Integer>, JpaSpecificationExecutor<Author> {
     List<Author> findByStatus(Byte status);
+
+    boolean existsByAuthorNameIgnoreCase(String authorName);
+
+    Author findByAuthorNameIgnoreCase(String authorName);
 }

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -30,8 +31,6 @@ public class AuthorServiceImpl implements AuthorService {
         }
     }
 
-
-
     @Override
     public ApiResponse<Author> getById(Integer id) {
         try {
@@ -48,32 +47,136 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public ApiResponse<Author> add(Author author) {
         try {
-            author.setCreatedBy(1); // Hoặc lấy từ user hiện tại
+            // ✅ Validate tên tác giả không được null hoặc rỗng
+            if (author.getAuthorName() == null || author.getAuthorName().trim().isEmpty()) {
+                return new ApiResponse<>(400, "Tên tác giả không được để trống", null);
+            }
+
+            // ✅ Validate tên tác giả đã tồn tại
+            String trimmedName = author.getAuthorName().trim();
+            if (authorRepository.existsByAuthorNameIgnoreCase(trimmedName)) {
+                return new ApiResponse<>(400, "Tên tác giả đã tồn tại", null);
+            }
+
+            // ✅ Validate độ dài tên tác giả (max 100 ký tự theo entity)
+            if (trimmedName.length() > 100) {
+                return new ApiResponse<>(400, "Tên tác giả không được vượt quá 100 ký tự", null);
+            }
+
+            // ✅ Validate biography length (nếu có)
+            if (author.getBiography() != null && author.getBiography().length() > 1000) {
+                return new ApiResponse<>(400, "Tiểu sử không được vượt quá 1000 ký tự", null);
+            }
+
+            // ✅ Validate birth date (không được trong tương lai và phải trên 18 tuổi)
+            if (author.getBirthDate() != null) {
+                LocalDate today = LocalDate.now();
+
+                // Kiểm tra không được trong tương lai
+                if (author.getBirthDate().isAfter(today)) {
+                    return new ApiResponse<>(400, "Ngày sinh không được trong tương lai", null);
+                }
+
+                // Kiểm tra tuổi phải trên 18
+                LocalDate eighteenYearsAgo = today.minusYears(18);
+                if (author.getBirthDate().isAfter(eighteenYearsAgo)) {
+                    return new ApiResponse<>(400, "Tác giả phải từ 18 tuổi trở lên", null);
+                }
+            }
+
+            // ✅ Reset ID và set default values
+            author.setId(null);
+            author.setAuthorName(trimmedName);
+            author.setCreatedBy(1);
+
+            // ✅ Set default status nếu chưa có
+            if (author.getStatus() == null) {
+                author.setStatus((byte) 1); // Active by default
+            }
+
+            // ✅ Validate status
+            if (author.getStatus() != null && author.getStatus() != 0 && author.getStatus() != 1) {
+                return new ApiResponse<>(400, "Trạng thái chỉ được là 0 hoặc 1", null);
+            }
+
             Author savedAuthor = authorRepository.save(author);
             return new ApiResponse<>(201, "Thêm tác giả thành công", savedAuthor);
+
         } catch (Exception e) {
-            return new ApiResponse<>(400, "Thêm tác giả thất bại: " + e.getMessage(), null);
+            return new ApiResponse<>(500, "Thêm tác giả thất bại: " + e.getMessage(), null);
         }
     }
 
     @Override
     public ApiResponse<Author> update(Author author, Integer id) {
         try {
+            // ✅ Validate ID
+            if (id == null || id <= 0) {
+                return new ApiResponse<>(400, "ID tác giả không hợp lệ", null);
+            }
+
+            // ✅ Tìm tác giả cần update
             Author authorToUpdate = authorRepository.findById(id).orElse(null);
             if (authorToUpdate == null) {
                 return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
             }
 
-            // Giữ lại thông tin gốc
-            author.setId(id);
-            author.setCreatedAt(authorToUpdate.getCreatedAt());
-            author.setCreatedBy(authorToUpdate.getCreatedBy());
-            author.setUpdatedBy(1); // Hoặc lấy từ user hiện tại
+            // ✅ Validate tên tác giả không được null hoặc rỗng
+            if (author.getAuthorName() == null || author.getAuthorName().trim().isEmpty()) {
+                return new ApiResponse<>(400, "Tên tác giả không được để trống", null);
+            }
 
-            Author updatedAuthor = authorRepository.save(author);
+            // ✅ Validate độ dài tên tác giả
+            String trimmedName = author.getAuthorName().trim();
+            if (trimmedName.length() > 100) {
+                return new ApiResponse<>(400, "Tên tác giả không được vượt quá 100 ký tự", null);
+            }
+
+            // ✅ Kiểm tra tên tác giả trùng (loại trừ chính nó)
+            Author existingAuthor = authorRepository.findByAuthorNameIgnoreCase(trimmedName);
+            if (existingAuthor != null && !existingAuthor.getId().equals(id)) {
+                return new ApiResponse<>(400, "Tên tác giả đã tồn tại", null);
+            }
+
+            // ✅ Validate biography length
+            if (author.getBiography() != null && author.getBiography().length() > 1000) {
+                return new ApiResponse<>(400, "Tiểu sử không được vượt quá 1000 ký tự", null);
+            }
+
+            // ✅ Validate birth date (không được trong tương lai và phải trên 18 tuổi)
+            if (author.getBirthDate() != null) {
+                LocalDate today = LocalDate.now();
+
+                // Kiểm tra không được trong tương lai
+                if (author.getBirthDate().isAfter(today)) {
+                    return new ApiResponse<>(400, "Ngày sinh không được trong tương lai", null);
+                }
+
+                // Kiểm tra tuổi phải trên 18
+                LocalDate eighteenYearsAgo = today.minusYears(18);
+                if (author.getBirthDate().isAfter(eighteenYearsAgo)) {
+                    return new ApiResponse<>(400, "Tác giả phải từ 18 tuổi trở lên", null);
+                }
+            }
+
+            // ✅ Validate status
+            if (author.getStatus() != null && author.getStatus() != 0 && author.getStatus() != 1) {
+                return new ApiResponse<>(400, "Trạng thái chỉ được là 0 hoặc 1", null);
+            }
+
+            // ✅ Update các trường
+            authorToUpdate.setAuthorName(trimmedName);
+            authorToUpdate.setBiography(author.getBiography());
+            authorToUpdate.setBirthDate(author.getBirthDate());
+            authorToUpdate.setStatus(author.getStatus());
+            authorToUpdate.setUpdatedBy(1);
+            authorToUpdate.setUpdatedAt(System.currentTimeMillis());
+
+            Author updatedAuthor = authorRepository.save(authorToUpdate);
             return new ApiResponse<>(200, "Cập nhật tác giả thành công", updatedAuthor);
+
         } catch (Exception e) {
-            return new ApiResponse<>(400, "Cập nhật tác giả thất bại: " + e.getMessage(), null);
+            return new ApiResponse<>(500, "Cập nhật tác giả thất bại: " + e.getMessage(), null);
         }
     }
 

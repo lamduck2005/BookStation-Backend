@@ -25,7 +25,9 @@ public class BookCategoryMapper {
                 .map(book -> new BookSearchRequest(
                         book.getId(),
                         book.getBookName(),
-                        book.getPrice()))
+                        book.getPrice(),
+                        book.getCoverImageUrl()
+                ))
                 .toList();
     }
 }

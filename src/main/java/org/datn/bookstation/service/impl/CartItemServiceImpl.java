@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-@Transactional
 @Slf4j
 public class CartItemServiceImpl implements CartItemService {
     
@@ -69,6 +68,7 @@ public class CartItemServiceImpl implements CartItemService {
      * 🔥 ENHANCED: Thêm cart item với AUTO-DETECTION và validation toàn diện
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<CartItemResponse> addItemToCart(CartItemRequest request) {
         try {
             // 1. Validate user
@@ -168,12 +168,17 @@ public class CartItemServiceImpl implements CartItemService {
             
             return new ApiResponse<>(200, "Thêm sản phẩm vào giỏ hàng thành công" + flashSaleMessage, response);
             
+        } catch (RuntimeException e) {
+            log.error("Runtime error adding item to cart: {}", e.getMessage(), e);
+            return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), null);
         } catch (Exception e) {
+            log.error("Unexpected error adding item to cart", e);
             return new ApiResponse<>(500, "Lỗi khi thêm sản phẩm: " + e.getMessage(), null);
         }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<CartItemResponse> updateCartItem(Integer cartItemId, Integer quantity) {
         try {
             Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
@@ -209,6 +214,7 @@ public class CartItemServiceImpl implements CartItemService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<String> removeCartItem(Integer cartItemId) {
         try {
             Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
@@ -594,23 +600,40 @@ public class CartItemServiceImpl implements CartItemService {
      * Get or create cart for user
      */
     private Cart getOrCreateCart(Integer userId) {
-        Optional<Cart> cartOpt = cartRepository.findActiveCartByUserId(userId);
-        
-        if (cartOpt.isPresent()) {
-            return cartOpt.get();
+        try {
+            log.debug("Getting or creating cart for user: {}", userId);
+            
+            Optional<Cart> cartOpt = cartRepository.findActiveCartByUserId(userId);
+            
+            if (cartOpt.isPresent()) {
+                log.debug("Found existing cart for user: {}", userId);
+                return cartOpt.get();
+            }
+            
+            // Tạo cart mới
+            log.debug("Creating new cart for user: {}", userId);
+            
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                log.error("User not found with id: {}", userId);
+                throw new RuntimeException("User not found with id: " + userId);
+            }
+            
+            User user = userOpt.get();
+            Cart newCart = new Cart();
+            newCart.setUser(user);
+            newCart.setCreatedAt(System.currentTimeMillis());
+            newCart.setCreatedBy(userId);
+            newCart.setStatus((byte) 1); // Active
+            
+            Cart savedCart = cartRepository.save(newCart);
+            log.debug("Created new cart with id: {} for user: {}", savedCart.getId(), userId);
+            
+            return savedCart;
+        } catch (Exception e) {
+            log.error("Error getting or creating cart for user: {}", userId, e);
+            throw new RuntimeException("Error getting or creating cart: " + e.getMessage(), e);
         }
-        
-        // Tạo cart mới
-        Cart newCart = new Cart();
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        
-        newCart.setUser(user);
-        newCart.setCreatedAt(System.currentTimeMillis());
-        newCart.setCreatedBy(userId);
-        newCart.setStatus((byte) 1); // Active
-        
-        return cartRepository.save(newCart);
     }
     
     /**
@@ -630,5 +653,41 @@ public class CartItemServiceImpl implements CartItemService {
         }
         
         return message.toString();
+    }
+
+    @Override
+    public ApiResponse<CartItemResponse> updateCartItemSelected(Integer cartItemId, Boolean selected) {
+        try {
+            Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
+            if (cartItemOpt.isEmpty()) {
+                return new ApiResponse<>(404, "CartItem không tồn tại", null);
+            }
+            CartItem cartItem = cartItemOpt.get();
+            cartItem.setSelected(selected);
+            cartItem.setUpdatedAt(System.currentTimeMillis());
+            CartItem savedItem = cartItemRepository.save(cartItem);
+            CartItemResponse response = cartItemResponseMapper.toResponse(savedItem);
+            return new ApiResponse<>(200, "Cập nhật trạng thái chọn/bỏ thành công", response);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi cập nhật trạng thái chọn/bỏ: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<CartItemResponse> toggleCartItemSelected(Integer cartItemId) {
+        try {
+            Optional<CartItem> cartItemOpt = cartItemRepository.findById(cartItemId);
+            if (cartItemOpt.isEmpty()) {
+                return new ApiResponse<>(404, "CartItem không tồn tại", null);
+            }
+            CartItem cartItem = cartItemOpt.get();
+            cartItem.setSelected(!Boolean.TRUE.equals(cartItem.getSelected()));
+            cartItem.setUpdatedAt(System.currentTimeMillis());
+            CartItem savedItem = cartItemRepository.save(cartItem);
+            CartItemResponse response = cartItemResponseMapper.toResponse(savedItem);
+            return new ApiResponse<>(200, "Đã đảo trạng thái chọn/bỏ thành công", response);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi đảo trạng thái chọn/bỏ: " + e.getMessage(), null);
+        }
     }
 }

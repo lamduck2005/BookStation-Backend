@@ -24,6 +24,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     
     @Query("SELECT b FROM Book b WHERE b.supplier.id = :supplierId")
     List<Book> findBySupplierId(@Param("supplierId") Integer supplierId);
+
     
     @Query("SELECT b FROM Book b WHERE b.publisher.id = :publisherId")
     List<Book> findByPublisherId(@Param("publisherId") Integer publisherId);
@@ -55,7 +56,9 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                COALESCE(reviewData.reviewCount, 0) as reviewCount,
                CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
                flashSale.discountPrice as flashSalePrice,
-               flashSale.stockQuantity as flashSaleStockQuantity
+               flashSale.stockQuantity as flashSaleStockQuantity,
+               0 as flashSaleSoldCount,
+               b.images as images
         FROM Book b
         LEFT JOIN (
             SELECT od.book.id as bookId,
@@ -89,9 +92,6 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
         ) flashSale ON b.id = flashSale.bookId
         WHERE b.status = 1 
               AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
         ORDER BY (
             (COALESCE(salesData.soldCount, 0) * 0.4) +
             (COALESCE(reviewData.avgRating, 0) * COALESCE(reviewData.reviewCount, 0) * 0.3) +
@@ -103,9 +103,6 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
         @Param("thirtyDaysAgo") Long thirtyDaysAgo,
         @Param("sixtyDaysAgo") Long sixtyDaysAgo, 
         @Param("currentTime") Long currentTime,
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice,
         Pageable pageable
     );
     
@@ -151,7 +148,8 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                0 as reviewCount,
                false as isInFlashSale,
                NULL as flashSalePrice,
-               NULL as flashSaleStockQuantity
+               NULL as flashSaleStockQuantity,
+               b.images as images
         FROM Book b
         WHERE b.status = 1 
               AND b.stockQuantity > 0
@@ -165,9 +163,6 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             b.id DESC
         """)
     List<Object[]> findFallbackTrendingBooks(
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice,
         Pageable pageable
     );
 
@@ -212,7 +207,9 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                COALESCE(reviewData.reviewCount, 0) as reviewCount,
                CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
                flashSale.discountPrice as flashSalePrice,
-               flashSale.stockQuantity as flashSaleStockQuantity
+               flashSale.stockQuantity as flashSaleStockQuantity,
+               0 as flashSaleSoldCount,
+               b.images as images
         FROM Book b
         LEFT JOIN (
             SELECT od.book.id as bookId,
@@ -244,30 +241,15 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
         ) flashSale ON b.id = flashSale.bookId
         WHERE b.status = 1 
               AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
-              AND (
-                  (:flashSaleOnly = true AND flashSale.id IS NOT NULL) OR
-                  (:flashSaleOnly = false AND (
-                      flashSale.id IS NOT NULL OR 
-                      (:minDiscountPercentage IS NULL OR 
-                       ((b.price - COALESCE(flashSale.discountPrice, b.price)) / b.price * 100) >= :minDiscountPercentage)
-                  ))
-              )
-        ORDER BY 
-            CASE WHEN flashSale.id IS NOT NULL THEN 1 ELSE 2 END,
-            ((b.price - COALESCE(flashSale.discountPrice, b.price)) / b.price * 100) DESC,
-            COALESCE(salesData.soldCount, 0) DESC,
-            COALESCE(reviewData.avgRating, 0) DESC
+              AND (flashSale.id IS NOT NULL OR b.discountActive = true)
+        ORDER BY (
+            (CASE WHEN flashSale.id IS NOT NULL THEN 20 ELSE 0 END) +
+            (CASE WHEN b.discountActive = true THEN 15 ELSE 0 END) +
+            COALESCE(reviewData.avgRating, 0)
+        ) DESC
         """)
     Page<Object[]> findHotDiscountBooks(
         @Param("currentTime") Long currentTime,
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice,
-        @Param("minDiscountPercentage") Integer minDiscountPercentage,
-        @Param("flashSaleOnly") Boolean flashSaleOnly,
         Pageable pageable
     );
 
@@ -294,7 +276,8 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                0 as reviewCount,
                false as isInFlashSale,
                NULL as flashSalePrice,
-               NULL as flashSaleStockQuantity
+               NULL as flashSaleStockQuantity,
+               b.images as images
         FROM Book b
         WHERE b.status = 1 
               AND b.stockQuantity > 0
@@ -307,9 +290,6 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             b.createdAt DESC
         """)
     List<Object[]> findGoodPriceBooks(
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice,
         Pageable pageable
     );
 

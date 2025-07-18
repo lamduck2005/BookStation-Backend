@@ -8,9 +8,9 @@ import java.math.BigDecimal;
 public class BookSpecification {
 
     public static Specification<Book> filterBy(String bookName, Integer categoryId, Integer supplierId,
-            Integer publisherId,
-            BigDecimal minPrice, BigDecimal maxPrice, Byte status,
-            String bookCode) {
+                                               Integer publisherId,
+                                               BigDecimal minPrice, BigDecimal maxPrice, Byte status,
+                                               String bookCode) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
 
@@ -62,11 +62,13 @@ public class BookSpecification {
     }
 
     public static Specification<Book> filterBy(String bookName, Integer categoryId, Integer parentCategoryId,
-            Integer publisherId,
-            BigDecimal minPrice, BigDecimal maxPrice) {
+                                               Integer publisherId,
+                                               BigDecimal minPrice, BigDecimal maxPrice) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
-
+            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            predicates = criteriaBuilder.and(predicates,
+                    criteriaBuilder.equal(root.get("status"), 1));
             if (bookName != null && !bookName.isEmpty()) {
                 predicates = criteriaBuilder.and(predicates,
                         criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
@@ -104,8 +106,11 @@ public class BookSpecification {
     public static Specification<Book> filterBy(Integer categoryId, String text) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
+            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            predicates = criteriaBuilder.and(predicates,
+                    criteriaBuilder.equal(root.get("status"), 1));
             System.out.println(categoryId);
-            if (categoryId != null&&categoryId!=0) {
+            if (categoryId != null && categoryId != 0) {
                 predicates = criteriaBuilder.and(predicates,
                         criteriaBuilder.equal(root.get("category").get("id"), categoryId));
             }
@@ -119,9 +124,13 @@ public class BookSpecification {
             return predicates;
         };
     }
-    public static Specification<Book> filterBy( String text) {
+
+    public static Specification<Book> filterBy(String text) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
+            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            predicates = criteriaBuilder.and(predicates,
+                    criteriaBuilder.equal(root.get("status"), 1));
             if (text != null && !text.isEmpty()) {
                 String likeText = "%" + text.toLowerCase() + "%";
                 predicates = criteriaBuilder.and(predicates,

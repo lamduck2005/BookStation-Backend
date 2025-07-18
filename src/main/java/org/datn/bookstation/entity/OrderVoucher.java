@@ -3,7 +3,8 @@ package org.datn.bookstation.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 
 import java.math.BigDecimal;
 
@@ -25,10 +26,14 @@ public class OrderVoucher {
     @JoinColumn(name = "voucher_id", nullable = false)
     private Voucher voucher;
 
-    // Loại voucher được áp dụng 
+    // ✅ NEW VOUCHER SYSTEM: Store both category and discount type
     @Enumerated(EnumType.STRING)
-    @Column(name = "voucher_type", length = 20)
-    private VoucherType voucherType;
+    @Column(name = "voucher_category", length = 20)
+    private VoucherCategory voucherCategory;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type", length = 20)
+    private DiscountType discountType;
 
     // Số tiền giảm giá thực tế được áp dụng
     @Column(name = "discount_applied", precision = 10, scale = 2)
@@ -42,7 +47,8 @@ public class OrderVoucher {
     protected void onCreate() {
         appliedAt = System.currentTimeMillis();
         if (voucher != null) {
-            voucherType = voucher.getVoucherType();
+            voucherCategory = voucher.getVoucherCategory();
+            discountType = voucher.getDiscountType();
         }
     }
 }

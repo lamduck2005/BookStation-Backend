@@ -1,5 +1,6 @@
 package org.datn.bookstation.controller;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
@@ -7,10 +8,14 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.ParentCategoryResponse;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.service.CategoryService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.springframework.data.jpa.domain.AbstractPersistable_.id;
 
 @RestController
 @AllArgsConstructor
@@ -58,12 +63,25 @@ public class CategoryController {
     }
 
     @PostMapping
-    public ApiResponse<Category> add(@RequestBody Category category) {
-
+    public ResponseEntity<ApiResponse<Category>> add(@RequestBody Category category) {
         System.out.println(category.toString());
 
+        ApiResponse<Category> response = categoryService.add(category);
 
-        return categoryService.add(category);
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, response.getMessage(), null));
+        }
+
+        if (response.getStatus() == 400) {
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+
+                    .body(new ApiResponse<>(400, response.getMessage(), null));
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(201, "Tạo danh mục thành công", response.getData()));
     }
 
     @PutMapping("/{id}")
@@ -95,8 +113,16 @@ public class CategoryController {
     public ApiResponse<List<Category>> getAllByParenId(@PathVariable Integer id) {
         return categoryService.getAllByParenId(id);
     }
+
     @GetMapping("/parent-not-null")
     public ApiResponse<List<Category>> getAllByParentIsNotNull() {
+        System.out.println(categoryService.getAllByParentIsNotNull());
         return categoryService.getAllByParentIsNotNull();
     }
+
+    @GetMapping("/parent-excep-not-null/{id}")
+    public ApiResponse<List<Category>> getAllExceptByIdNotNull(@PathVariable int id) {
+        return categoryService.getAllExceptByIdNotNull(id);
+    }
+
 }

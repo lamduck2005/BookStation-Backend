@@ -51,7 +51,8 @@ public class VoucherServiceImpl implements VoucherService {
             dto.setCode(voucher.getCode());
             dto.setName(voucher.getName());
             dto.setDescription(voucher.getDescription());
-            dto.setVoucherType(voucher.getVoucherType());
+            dto.setVoucherCategory(voucher.getVoucherCategory());
+            dto.setDiscountType(voucher.getDiscountType());
             dto.setDiscountPercentage(voucher.getDiscountPercentage());
             dto.setDiscountAmount(voucher.getDiscountAmount());
             dto.setStartTime(voucher.getStartTime());
@@ -84,7 +85,8 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setCode(request.getCode()); // Mã voucher
         voucher.setName(request.getName()); // Tên voucher
         voucher.setDescription(request.getDescription()); // Mô tả voucher
-        voucher.setVoucherType(request.getVoucherType()); // Loại voucher (PERCENTAGE, FIXED_AMOUNT, ...)
+        voucher.setVoucherCategory(request.getVoucherCategory()); // Category voucher (NORMAL, SHIPPING)
+        voucher.setDiscountType(request.getDiscountType()); // Discount type (PERCENTAGE, FIXED_AMOUNT)
         voucher.setDiscountPercentage(request.getDiscountPercentage()); // Phần trăm giảm giá (nếu là loại phần trăm)
         voucher.setDiscountAmount(request.getDiscountAmount()); // Số tiền giảm giá cố định (nếu là loại cố định)
         voucher.setStartTime(request.getStartTime()); // Thời gian bắt đầu hiệu lực (epoch millis)
@@ -110,7 +112,8 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setCode(request.getCode());
         voucher.setName(request.getName());
         voucher.setDescription(request.getDescription());
-        voucher.setVoucherType(request.getVoucherType());
+        voucher.setVoucherCategory(request.getVoucherCategory());
+        voucher.setDiscountType(request.getDiscountType());
         voucher.setDiscountPercentage(request.getDiscountPercentage());
         voucher.setDiscountAmount(request.getDiscountAmount());
         voucher.setStartTime(request.getStartTime());

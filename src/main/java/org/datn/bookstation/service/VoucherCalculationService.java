@@ -2,7 +2,8 @@ package org.datn.bookstation.service;
 
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.Voucher;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -60,12 +61,14 @@ public interface VoucherCalculationService {
 
     class VoucherApplicationDetail {
         private Integer voucherId;
-        private VoucherType voucherType;
+        private VoucherCategory voucherCategory;
+        private DiscountType discountType;
         private BigDecimal discountApplied;
 
-        public VoucherApplicationDetail(Integer voucherId, VoucherType voucherType, BigDecimal discountApplied) {
+        public VoucherApplicationDetail(Integer voucherId, VoucherCategory voucherCategory, DiscountType discountType, BigDecimal discountApplied) {
             this.voucherId = voucherId;
-            this.voucherType = voucherType;
+            this.voucherCategory = voucherCategory;
+            this.discountType = discountType;
             this.discountApplied = discountApplied;
         }
 
@@ -73,8 +76,11 @@ public interface VoucherCalculationService {
         public Integer getVoucherId() { return voucherId; }
         public void setVoucherId(Integer voucherId) { this.voucherId = voucherId; }
         
-        public VoucherType getVoucherType() { return voucherType; }
-        public void setVoucherType(VoucherType voucherType) { this.voucherType = voucherType; }
+        public VoucherCategory getVoucherCategory() { return voucherCategory; }
+        public void setVoucherCategory(VoucherCategory voucherCategory) { this.voucherCategory = voucherCategory; }
+        
+        public DiscountType getDiscountType() { return discountType; }
+        public void setDiscountType(DiscountType discountType) { this.discountType = discountType; }
         
         public BigDecimal getDiscountApplied() { return discountApplied; }
         public void setDiscountApplied(BigDecimal discountApplied) { this.discountApplied = discountApplied; }

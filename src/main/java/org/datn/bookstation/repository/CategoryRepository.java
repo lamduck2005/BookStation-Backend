@@ -32,19 +32,35 @@ public interface CategoryRepository extends JpaRepository<Category, Integer>, Jp
 
 
     @Query("""
-select c from Category  c where c.id != :id and c.parentCategory.id is null 
-""")
+            select c from Category  c where c.id != :id and c.parentCategory.id is null 
+            """)
     List<Category> getAllExceptByID(@Param("id") Integer id);
+
     @Query("""
-        select c from Category c where c.parentCategory.id is null 
-""")
-     List<Category> getAllByParentIsNull();
+            select c from Category  c where c.id != :id and c.parentCategory.id is not null 
+            """)
+    List<Category> getAllExceptByIdNotNull(@Param("id") Integer id);
+
     @Query("""
-        select c from Category c where c.parentCategory.id is not null 
-""")
+                    select c from Category c where c.parentCategory.id is null 
+            """)
+    List<Category> getAllByParentIsNull();
+
+    @Query("""
+                    select c from Category c where c.parentCategory.id is not null 
+            """)
     List<Category> getAllByParentIsNotNull();
+
     @Query("""
-select c from Category c where c.parentCategory.id=:id
-""")
+            select c from Category c where c.parentCategory.id=:id
+            """)
     List<Category> getALlByParentId(@Param("id") Integer id);
+
+
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Category c WHERE UPPER(TRIM(c.categoryName)) = UPPER(TRIM(:categoryName))")
+    boolean existsByCategoryNameIgnoreCase(@Param("categoryName") String categoryName);
+
+
+    // Trong CategoryRepository
+    Category findByCategoryNameIgnoreCase(String categoryName);
 }

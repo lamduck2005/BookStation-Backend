@@ -1,5 +1,6 @@
 package org.datn.bookstation.controller;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
@@ -7,6 +8,7 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.service.AuthorService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,14 +39,42 @@ public class AuthorController {
         return authorService.getById(id);
     }
 
+    // ✅ Sửa ADD với validation đầy đủ
     @PostMapping
-    public ApiResponse<Author> add(@RequestBody Author author) {
-        return authorService.add(author);
+    public ResponseEntity<ApiResponse<Author>> add( @RequestBody Author author) {
+        ApiResponse<Author> response = authorService.add(author);
+
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, response.getMessage(), null));
+        }
+
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(400, response.getMessage(), null));
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(201, "Tạo tác giả thành công", response.getData()));
     }
 
+    // ✅ Sửa UPDATE với validation đầy đủ
     @PutMapping("/{id}")
-    public ApiResponse<Author> update(@PathVariable Integer id, @RequestBody Author author) {
-        return authorService.update(author, id);
+    public ResponseEntity<ApiResponse<Author>> update(@PathVariable Integer id,  @RequestBody Author author) {
+        ApiResponse<Author> response = authorService.update(author, id);
+
+        if (response.getStatus() == 404) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, response.getMessage(), null));
+        }
+
+        if (response.getStatus() == 400) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(400, response.getMessage(), null));
+        }
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(new ApiResponse<>(200, "Cập nhật tác giả thành công", response.getData()));
     }
 
     @DeleteMapping("/{id}")

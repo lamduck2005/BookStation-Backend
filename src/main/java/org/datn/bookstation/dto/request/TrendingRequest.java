@@ -7,8 +7,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 
-import java.math.BigDecimal;
-
 /**
  * 🔥 TRENDING REQUEST DTO
  * Hỗ trợ 2 loại trending: DAILY_TRENDING và HOT_DISCOUNT
@@ -27,7 +25,7 @@ public class TrendingRequest {
     private String type; // DAILY_TRENDING hoặc HOT_DISCOUNT
     
     /**
-     * Pagination
+     * Pagination - chỉ còn lại type, page, size
      */
     @Min(value = 0, message = "Page phải >= 0")
     private int page = 0;
@@ -35,19 +33,6 @@ public class TrendingRequest {
     @Min(value = 1, message = "Size phải >= 1")
     @Max(value = 50, message = "Size không được vượt quá 50")
     private int size = 10;
-    
-    /**
-     * Filters
-     */
-    private Integer categoryId;
-    private BigDecimal minPrice;
-    private BigDecimal maxPrice;
-    
-    /**
-     * 🔥 HOT_DISCOUNT specific filters
-     */
-    private Integer minDiscountPercentage; // Giảm giá tối thiểu (%)
-    private Boolean flashSaleOnly = false; // Chỉ lấy flash sale
     
     /**
      * Validation methods

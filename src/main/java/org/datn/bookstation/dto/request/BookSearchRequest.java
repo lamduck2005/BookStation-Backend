@@ -14,4 +14,6 @@ public class BookSearchRequest {
     private Integer bookId;
     private String bookName;
     private BigDecimal price;
+    private String coverImageUrl;
+
 }
