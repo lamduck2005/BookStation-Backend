@@ -472,10 +472,12 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
         List<String> errors = new ArrayList<>();
         
         try {
-            // 1. Kiểm tra session còn active,fronend cho chuyển về cart để handle again
+            // 1. Kiểm tra session còn active, frontend cho chuyển về cart để handle again
             if (!session.isActive()) {
                 if (session.isExpired()) {
                     errors.add("Phiên checkout đã hết hạn. Vui lòng tạo phiên mới.");
+                } else if (session.getStatus() == 2) {
+                    errors.add("Phiên checkout này đã được sử dụng để tạo đơn hàng. Vui lòng tạo phiên checkout mới.");
                 } else {
                     errors.add("Phiên checkout không hợp lệ.");
                 }

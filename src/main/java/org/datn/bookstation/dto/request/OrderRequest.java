@@ -40,7 +40,8 @@ public class OrderRequest {
     
     private String notes; // Optional order notes
 
-    // Add subtotal and totalAmount for validation and persistence
-    private BigDecimal subtotal;
-    private BigDecimal totalAmount;
+    // ✅ BACKEND TỰ TÍNH TOÁN - Frontend không cần truyền
+    // subtotal và totalAmount sẽ được backend tự tính dựa trên orderDetails và vouchers
+    private BigDecimal subtotal; // Optional - backend sẽ tự tính từ orderDetails
+    private BigDecimal totalAmount; // Optional - backend sẽ tự tính: subtotal + shipping - discounts
 }

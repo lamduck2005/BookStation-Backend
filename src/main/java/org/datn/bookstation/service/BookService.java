@@ -3,10 +3,12 @@ package org.datn.bookstation.service;
 import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
+import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
+import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
 import org.datn.bookstation.entity.Book;
 import org.springframework.stereotype.Service;
 
@@ -44,4 +46,10 @@ public interface BookService {
     PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request);
 
     ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text);
+    
+    /**
+     * 🔥 API tính giá sách cho Frontend
+     * Tính giá sách sau khi áp dụng discount và so sánh với flash sale
+     */
+    BookPriceCalculationResponse calculateBookPrice(Book book, BookPriceCalculationRequest request);
 }

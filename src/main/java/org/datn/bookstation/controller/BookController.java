@@ -6,6 +6,7 @@ import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.request.QuantityValidationRequest;
+import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
@@ -13,6 +14,7 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.dto.response.QuantityValidationResponse;
+import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
@@ -339,6 +341,24 @@ public class BookController {
     @GetMapping("/flashsalebook")
     public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
         return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
+    }
+
+    /**
+     * 🔥 API tính giá sách cho Frontend
+     * POST /api/books/calculate-price
+     */
+    @PostMapping("/calculate-price")
+    public ResponseEntity<ApiResponse<BookPriceCalculationResponse>> calculateBookPrice(
+            @Valid @RequestBody BookPriceCalculationRequest request) {
+        
+        Book book = bookService.getById(request.getBookId());
+        if (book == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
+        }
+        
+        BookPriceCalculationResponse response = bookService.calculateBookPrice(book, request);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Tính giá thành công", response));
     }
 }
 

@@ -1,5 +1,10 @@
 package org.datn.bookstation.controller;
 import org.datn.bookstation.dto.request.PriceValidationRequest;
+import org.datn.bookstation.dto.request.OrderDetailRefundRequest;
+import org.datn.bookstation.dto.request.RefundRequestDto;
+import org.datn.bookstation.dto.request.AdminRefundDecisionDto;
+import org.datn.bookstation.dto.request.OrderStatusTransitionRequest;
+import org.datn.bookstation.dto.response.OrderStatusTransitionResponse;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.OrderRequest;
@@ -11,6 +16,7 @@ import org.datn.bookstation.dto.response.EnumOptionResponse;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.service.OrderService;
+import org.datn.bookstation.service.OrderStatusTransitionService;
 import org.datn.bookstation.dto.request.OrderCalculationRequest;
 import org.datn.bookstation.dto.response.OrderCalculationResponse;
 import org.datn.bookstation.service.OrderCalculationService;
@@ -31,6 +37,7 @@ public class OrderController {
     private final OrderService orderService;
     private final OrderCalculationService orderCalculationService;
     private final PriceValidationService priceValidationService;
+    private final OrderStatusTransitionService orderStatusTransitionService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<OrderResponse>>> getAll(
@@ -89,6 +96,24 @@ public class OrderController {
         return ResponseEntity.status(status).body(response);
     }
 
+    /**
+     * Endpoint chuyển trạng thái đơn hàng theo tài liệu nghiệp vụ
+     * POST /api/orders/{orderId}/status-transition
+     */
+    @PostMapping("/{orderId}/status-transition")
+    public ResponseEntity<ApiResponse<OrderStatusTransitionResponse>> statusTransition(
+            @PathVariable Integer orderId,
+            @Valid @RequestBody OrderStatusTransitionRequest request) {
+        // Set orderId từ path parameter vào request
+        request.setOrderId(orderId);
+        
+        ApiResponse<OrderStatusTransitionResponse> response = orderStatusTransitionService.transitionOrderStatus(request);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
     @PatchMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @PathVariable Integer id,
@@ -101,10 +126,68 @@ public class OrderController {
         return ResponseEntity.status(status).body(response);
     }
 
+    /**
+     * ✅ THÊM MỚI: API đánh dấu giao hàng thất bại
+     * PATCH /api/orders/{id}/delivery-failed
+     */
+    @PatchMapping("/{id}/delivery-failed")
+    public ResponseEntity<ApiResponse<OrderResponse>> markDeliveryFailed(
+            @PathVariable Integer id,
+            @RequestParam(required = false) String reason,
+            @RequestParam Integer staffId) {
+        ApiResponse<OrderResponse> response = orderService.updateStatus(id, OrderStatus.DELIVERY_FAILED, staffId);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
+    /**
+     * ✅ THÊM MỚI: API hoàn trả đơn hàng một phần
+     */
+    @PostMapping("/{id}/partial-refund")
+    public ResponseEntity<ApiResponse<OrderResponse>> partialRefund(
+            @PathVariable Integer id,
+            @RequestParam Integer userId,
+            @RequestParam(required = false) String reason,
+            @RequestBody List<OrderDetailRefundRequest> refundDetails) {
+        ApiResponse<OrderResponse> response = orderService.partialRefund(id, userId, reason, refundDetails);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
+    /**
+     * ✅ THÊM MỚI: API hoàn trả đơn hàng toàn bộ
+     */
+    @PostMapping("/{id}/full-refund")
+    public ResponseEntity<ApiResponse<OrderResponse>> fullRefund(
+            @PathVariable Integer id,
+            @RequestParam Integer userId,
+            @RequestParam(required = false) String reason) {
+        ApiResponse<OrderResponse> response = orderService.fullRefund(id, userId, reason);
+        HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
+                           response.getStatus() == 404 ? HttpStatus.NOT_FOUND :
+                           response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
+        return ResponseEntity.status(status).body(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         orderService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ✅ THÊM MỚI: API lấy đơn hàng của user có phân trang
+    @GetMapping("/user/{userId}/pagination")
+    public ResponseEntity<ApiResponse<PaginationResponse<OrderResponse>>> getOrdersByUserWithPagination(
+            @PathVariable Integer userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PaginationResponse<OrderResponse> orders = orderService.getOrdersByUserWithPagination(userId, page, size);
+        ApiResponse<PaginationResponse<OrderResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", orders);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/user/{userId}")
@@ -144,10 +227,8 @@ public class OrderController {
     @GetMapping("/order-types")
     public ResponseEntity<ApiResponse<List<EnumOptionResponse>>> getOrderTypes() {
         List<EnumOptionResponse> orderTypes = List.of(
-            new EnumOptionResponse("NORMAL", "Đơn hàng thường"),
-            new EnumOptionResponse("EVENT_GIFT", "Đơn hàng giao quà sự kiện"),
-            new EnumOptionResponse("PROMOTIONAL", "Đơn hàng khuyến mãi đặc biệt"),
-            new EnumOptionResponse("SAMPLE", "Đơn hàng gửi mẫu")
+            new EnumOptionResponse("ONLINE", "Đơn hàng online"),
+            new EnumOptionResponse("COUNTER", "Đơn hàng tại quầy")
         );
         ApiResponse<List<EnumOptionResponse>> response = new ApiResponse<>(
             HttpStatus.OK.value(), 
@@ -212,13 +293,59 @@ public class OrderController {
             case PENDING: return "Chờ xử lý";
             case CONFIRMED: return "Đã xác nhận";
             case SHIPPED: return "Đang giao hàng";
-            case DELIVERED: return "Đã giao hàng";
+            case DELIVERED: return "Đã giao hàng thành công";
+            case DELIVERY_FAILED: return "Giao hàng thất bại";
             case CANCELED: return "Đã hủy";
+            case REFUND_REQUESTED: return "Yêu cầu hoàn trả";
             case REFUNDING: return "Đang hoàn tiền";
-            case REFUNDED: return "Đã hoàn tiền";
-            case RETURNED: return "Đã trả hàng";
+            case REFUNDED: return "Đã hoàn tiền hoàn tất";
+            case RETURNED: return "Đã trả hàng về kho";
             case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";
             default: return orderStatus.name();
         }
+    }
+    
+    /**
+     * ✅ THÊM MỚI: API cho khách hàng gửi yêu cầu hoàn trả
+     */
+    @PostMapping("/{orderId}/request-refund")
+    public ResponseEntity<ApiResponse<OrderResponse>> requestRefund(
+            @PathVariable Integer orderId,
+            @Valid @RequestBody RefundRequestDto refundRequest) {
+        ApiResponse<OrderResponse> response = orderService.requestRefund(orderId, refundRequest);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * ✅ THÊM MỚI: API cho admin chấp nhận yêu cầu hoàn trả
+     */
+    @PostMapping("/admin/approve-refund")
+    public ResponseEntity<ApiResponse<OrderResponse>> approveRefundRequest(
+            @Valid @RequestBody AdminRefundDecisionDto decision) {
+        ApiResponse<OrderResponse> response = orderService.approveRefundRequest(decision);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * ✅ THÊM MỚI: API cho admin từ chối yêu cầu hoàn trả
+     */
+    @PostMapping("/admin/reject-refund")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectRefundRequest(
+            @Valid @RequestBody AdminRefundDecisionDto decision) {
+        ApiResponse<OrderResponse> response = orderService.rejectRefundRequest(decision);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * ✅ API lấy chi tiết đơn hàng theo id (phục vụ hoàn hàng)
+     */
+    @GetMapping("/{id}/detail")
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrderDetail(@PathVariable Integer id) {
+        OrderResponse orderResponse = orderService.getOrderDetailById(id);
+        if (orderResponse == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, "Không tìm thấy đơn hàng với id: " + id, null));
+        }
+        return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", orderResponse));
     }
 }

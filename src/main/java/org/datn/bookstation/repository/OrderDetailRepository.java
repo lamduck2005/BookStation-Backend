@@ -16,6 +16,10 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT od FROM OrderDetail od WHERE od.book.id = :bookId")
     List<OrderDetail> findByBookId(@Param("bookId") Integer bookId);
     
+    // ✅ THÊM MỚI: Tìm order detail cụ thể theo orderId và bookId
+    @Query("SELECT od FROM OrderDetail od WHERE od.order.id = :orderId AND od.book.id = :bookId")
+    OrderDetail findByOrderIdAndBookId(@Param("orderId") Integer orderId, @Param("bookId") Integer bookId);
+    
     // ✅ ADMIN CẦN: Đếm tổng số lượng đã bán của một book
     @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
            "JOIN od.order o WHERE od.book.id = :bookId AND o.status IN (2, 3, 4)")

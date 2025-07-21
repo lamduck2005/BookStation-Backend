@@ -23,6 +23,8 @@ public class TrendingBookResponse {
     private String bookCode;
     private Long publicationDate;
     
+    // Trạng thái giảm giá có đang kích hoạt không
+    private Boolean discountActive;
     // Category info
     private Integer categoryId;
     private String categoryName;

@@ -71,8 +71,10 @@ public class TrendingBookMapper {
             response.setDiscountPercentage(discountPercentage.intValue());
             // Giá gốc vẫn giữ nguyên, price sẽ là giá sau discount
             response.setPrice(flashSalePrice);
+            response.setDiscountActive(true);
         } else {
             response.setDiscountPercentage(0);
+            response.setDiscountActive(false);
         }
         
         // Trending info

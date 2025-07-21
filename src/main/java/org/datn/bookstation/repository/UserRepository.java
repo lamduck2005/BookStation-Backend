@@ -32,4 +32,15 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
     List<UserRoleRequest> getUserByIdRole(@Param("text") String text);
 
     User getByPhoneNumber(@Size(max = 20) String phoneNumber);
+    
+    /**
+     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     */
+    @Query("SELECT u FROM User u WHERE " +
+           "LOWER(u.fullName) LIKE LOWER(:searchTerm) OR " +
+           "LOWER(u.email) LIKE LOWER(:searchTerm)")
+    List<User> findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+        @Param("searchTerm") String searchTerm, 
+        @Param("searchTerm") String searchTerm2
+    );
 }

@@ -97,8 +97,10 @@ public class BookResponseMapper {
         // ✅ ADMIN CẦN: Thông tin discount của book
         response.setDiscountValue(book.getDiscountValue());
         response.setDiscountPercent(book.getDiscountPercent());
+        // ✅ Thêm discountActive vào response
         response.setDiscountActive(book.getDiscountActive());
-        
+        // ✅ SỬA: Trả về soldCount từ Book entity
+        response.setSoldCount(book.getSoldCount() != null ? book.getSoldCount() : 0);
         // ✅ ADMIN CẦN: Kiểm tra Flash Sale hiện tại
         FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
         if (currentFlashSale != null) {

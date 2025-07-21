@@ -135,4 +135,20 @@ public class UserController {
     public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
         return ResponseEntity.ok(userService.addRetail(user));
     }
+
+    /**
+     * ✅ THÊM MỚI: API tìm kiếm khách hàng cho admin tạo đơn
+     * Tìm kiếm theo tên hoặc email
+     */
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> searchCustomers(
+            @RequestParam String search) {
+        List<UserResponse> customers = userService.searchCustomers(search);
+        ApiResponse<List<UserResponse>> response = new ApiResponse<>(
+            HttpStatus.OK.value(), 
+            "Tìm kiếm khách hàng thành công", 
+            customers
+        );
+        return ResponseEntity.ok(response);
+    }
 }

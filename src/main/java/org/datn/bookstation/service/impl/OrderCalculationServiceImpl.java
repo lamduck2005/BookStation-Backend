@@ -205,7 +205,24 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
             BigDecimal savedAmount = BigDecimal.ZERO;
             String flashSaleName = null;
             
-            // Tự động phát hiện flash sale
+            // 🔥 THÊM: Áp dụng discount thường nếu có discountActive = true
+            if (book.getDiscountActive() != null && book.getDiscountActive()) {
+                if (book.getDiscountValue() != null) {
+                    // Discount theo giá trị cố định
+                    unitPrice = originalPrice.subtract(book.getDiscountValue());
+                    log.info("💰 Applied discount value for book {}: {} -> {}", book.getId(), originalPrice, unitPrice);
+                } else if (book.getDiscountPercent() != null) {
+                    // Discount theo phần trăm
+                    BigDecimal discountAmount = originalPrice
+                        .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
+                        .divide(BigDecimal.valueOf(100));
+                    unitPrice = originalPrice.subtract(discountAmount);
+                    log.info("💰 Applied discount percent {}% for book {}: {} -> {}", 
+                        book.getDiscountPercent(), book.getId(), originalPrice, unitPrice);
+                }
+            }
+            
+            // Tự động phát hiện flash sale (ưu tiên hơn discount thường)
             Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleService.findActiveFlashSaleForBook(book.getId().longValue());
             if (activeFlashSaleOpt.isPresent()) {
                 FlashSaleItem flashSaleItem = activeFlashSaleOpt.get();

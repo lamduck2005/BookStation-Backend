@@ -41,4 +41,11 @@ public interface UserService {
 
     ApiResponse<User> addRetail(User req);
 
+    /**
+     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     * @param search Từ khóa tìm kiếm (tên hoặc email)
+     * @return Danh sách khách hàng phù hợp
+     */
+    List<UserResponse> searchCustomers(String search);
+
 }

@@ -3,7 +3,6 @@ package org.datn.bookstation.service.impl;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.entity.*;
-import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.PointManagementService;
 import org.springframework.stereotype.Service;
@@ -31,12 +30,8 @@ public class PointManagementServiceImpl implements PointManagementService {
             return;
         }
         
-        // Chỉ tích điểm cho đơn hàng DELIVERED
-        if (order.getOrderStatus() != OrderStatus.DELIVERED) {
-            log.warn("Cannot earn points: order is not delivered. Order ID: {}, Status: {}", 
-                     order.getId(), order.getOrderStatus());
-            return;
-        }
+        // ✅ BỎ CHECK TRẠNG THÁI VÌ HÀM NÀY ĐƯỢC GỌI KHI CHUYỂN SANG DELIVERED
+        // Hàm này sẽ được gọi từ handlePointImpact khi newStatus = DELIVERED
         
         // Kiểm tra xem đã tích điểm cho đơn hàng này chưa
         List<Point> existingPoints = pointRepository.findAll().stream()
@@ -149,6 +144,47 @@ public class PointManagementServiceImpl implements PointManagementService {
         // Logic tương tự deductPointsFromCancelledOrder
         deductPointsFromCancelledOrder(order, user);
         log.info("Refunded points for returned order {}", order.getCode());
+    }
+    
+    @Override
+    public void deductPointsFromPartialRefund(BigDecimal refundAmount, Order order, User user) {
+        try {
+            if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("Invalid refund amount for partial refund: {}", refundAmount);
+                return;
+            }
+            
+            // ✅ Tính điểm cần trừ dựa trên số tiền hoàn trả
+            int pointsToDeduct = calculateEarnedPoints(refundAmount, user);
+            
+            if (pointsToDeduct <= 0) {
+                log.info("No points to deduct for partial refund amount: {}", refundAmount);
+                return;
+            }
+            
+            // Tạo Point record để trừ điểm (sử dụng pointSpent)
+            Point pointDeduction = new Point();
+            pointDeduction.setUser(user);
+            pointDeduction.setOrder(order);
+            pointDeduction.setPointSpent(pointsToDeduct); // Điểm bị trừ
+            pointDeduction.setMinSpent(refundAmount); // Số tiền tương ứng
+            pointDeduction.setDescription(String.format("Trừ điểm do hoàn trả một phần đơn hàng %s (%.0f VND)", 
+                                                       order.getCode(), refundAmount));
+            pointDeduction.setCreatedAt(System.currentTimeMillis());
+            pointDeduction.setStatus((byte) 1); // Active
+            pointRepository.save(pointDeduction);
+            
+            // Cập nhật tổng điểm user
+            int currentPoints = user.getTotalPoint() != null ? user.getTotalPoint() : 0;
+            user.setTotalPoint(Math.max(0, currentPoints - pointsToDeduct)); // Không cho phép âm
+            userRepository.save(user);
+            
+            log.info("✅ Deducted {} points for partial refund {} VND from order {}", 
+                    pointsToDeduct, refundAmount, order.getCode());
+                    
+        } catch (Exception e) {
+            log.error("Error deducting points for partial refund order {}: {}", order.getCode(), e.getMessage(), e);
+        }
     }
     
     @Override

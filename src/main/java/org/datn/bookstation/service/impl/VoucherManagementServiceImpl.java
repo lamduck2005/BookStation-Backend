@@ -40,11 +40,12 @@ public class VoucherManagementServiceImpl implements VoucherManagementService {
     
     @Override
     public void refundVouchersFromCancelledOrder(Order order) {
+        // ✅ THEO YÊU CẦU: Khi hủy đơn KHÔNG hoàn lại voucher
+        // Method này chỉ ghi log để theo dõi, không thực hiện hoàn voucher
         if (order == null) {
             return;
         }
         
-        // Tìm tất cả voucher đã sử dụng cho đơn hàng này
         List<OrderVoucher> orderVouchers = orderVoucherRepository.findAll().stream()
             .filter(ov -> ov.getOrder() != null && ov.getOrder().getId().equals(order.getId()))
             .toList();
@@ -52,13 +53,37 @@ public class VoucherManagementServiceImpl implements VoucherManagementService {
         for (OrderVoucher orderVoucher : orderVouchers) {
             Voucher voucher = orderVoucher.getVoucher();
             if (voucher != null) {
-                // Giảm used_count
-                int currentUsedCount = voucher.getUsedCount() != null ? voucher.getUsedCount() : 0;
-                voucher.setUsedCount(Math.max(0, currentUsedCount - 1));
-                voucher.setUpdatedAt(System.currentTimeMillis());
-                voucherRepository.save(voucher);
-                
-                log.info("Refunded voucher {} from cancelled order {}", voucher.getCode(), order.getCode());
+                // KHÔNG hoàn voucher khi hủy đơn
+                log.info("Order {} was cancelled but voucher {} will NOT be refunded (as per business rule)", 
+                         order.getCode(), voucher.getCode());
+            }
+        }
+    }
+    
+    @Override
+    public void refundVouchersFromReturnedOrder(Order order) {
+        // ✅ HOÀN VOUCHER KHI TRẢ HÀNG
+        log.info("Bắt đầu hoàn voucher cho đơn hàng trả {} ", order.getCode());
+        
+        if (order == null) {
+            return;
+        }
+        
+        List<OrderVoucher> orderVouchers = orderVoucherRepository.findAll().stream()
+            .filter(ov -> ov.getOrder() != null && ov.getOrder().getId().equals(order.getId()))
+            .toList();
+        
+        for (OrderVoucher orderVoucher : orderVouchers) {
+            Voucher voucher = orderVoucher.getVoucher();
+            if (voucher != null) {
+                // Giảm số lượng đã sử dụng
+                if (voucher.getUsedCount() != null && voucher.getUsedCount() > 0) {
+                    voucher.setUsedCount(voucher.getUsedCount() - 1);
+                    voucher.setUpdatedAt(System.currentTimeMillis());
+                    voucherRepository.save(voucher);
+                    
+                    log.info("✅ Đã hoàn voucher {} cho đơn hàng trả {}", voucher.getCode(), order.getCode());
+                }
             }
         }
     }

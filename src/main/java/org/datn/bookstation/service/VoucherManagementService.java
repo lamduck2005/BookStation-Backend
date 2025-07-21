@@ -24,6 +24,12 @@ public interface VoucherManagementService {
     void refundVouchersFromCancelledOrder(Order order);
     
     /**
+     * ✅ THÊM MỚI: Hoàn lại voucher khi trả hàng (RETURN)
+     * @param order Đơn hàng bị trả
+     */
+    void refundVouchersFromReturnedOrder(Order order);
+    
+    /**
      * Kiểm tra voucher có thể sử dụng không
      * @param voucher Voucher cần kiểm tra
      * @param userId ID người dùng

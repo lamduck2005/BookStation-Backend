@@ -22,7 +22,13 @@ public interface BookMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "authorBooks", ignore = true)
+    @Mapping(target = "bookFormat", ignore = true)
+    @Mapping(target = "soldCount", ignore = true)
     @Mapping(target = "images", expression = "java(mapImagesToString(request.getImages()))")
+    @Mapping(target = "discountValue", source = "discountValue")
+    @Mapping(target = "discountPercent", source = "discountPercent")
+    @Mapping(target = "discountActive", source = "discountActive")
     Book toEntity(BookRequest request);
     
     @Mapping(target = "id", ignore = true)
@@ -32,7 +38,14 @@ public interface BookMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "authorBooks", ignore = true)
+    @Mapping(target = "bookFormat", ignore = true)
+    @Mapping(target = "soldCount", ignore = true)
     @Mapping(target = "images", expression = "java(mapImagesToString(request.getImages()))")
+    @Mapping(target = "discountValue", source = "discountValue")
+    @Mapping(target = "discountPercent", source = "discountPercent")
+    @Mapping(target = "discountActive", source = "discountActive")
     void updateEntity(BookRequest request, @MappingTarget Book book);
 
 }

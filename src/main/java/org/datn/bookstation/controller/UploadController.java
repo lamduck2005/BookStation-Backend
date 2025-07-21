@@ -44,6 +44,45 @@ public class UploadController {
         }
     }
 
+    // ✅ THÊM MỚI: Upload video cho refund evidence
+    @PostMapping("/videos/{module}")
+    public ResponseEntity<?> uploadVideos(
+            @PathVariable String module,
+            @RequestParam("videos") MultipartFile[] files) {
+        try {
+            List<String> urls = fileUploadService.saveVideos(files, module);
+            MultipleUploadResponse response = new MultipleUploadResponse(true, urls, "Video upload successful");
+            return ResponseEntity.ok(response);
+            
+        } catch (FileUploadException e) {
+            log.error("Video upload error for module {}: {}", module, e.getMessage());
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage(), e.getErrorCode()));
+        } catch (Exception e) {
+            log.error("Unexpected error during video upload for module {}: {}", module, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal server error", "INTERNAL_ERROR"));
+        }
+    }
+
+    @PostMapping("/video/{module}")
+    public ResponseEntity<?> uploadVideo(
+            @PathVariable String module,
+            @RequestParam("video") MultipartFile file) {
+        try {
+            String url = fileUploadService.saveVideo(file, module);
+            SingleUploadResponse response = new SingleUploadResponse(true, url, "Video upload successful");
+            return ResponseEntity.ok(response);
+            
+        } catch (FileUploadException e) {
+            log.error("Video upload error for module {}: {}", module, e.getMessage());
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage(), e.getErrorCode()));
+        } catch (Exception e) {
+            log.error("Unexpected error during video upload for module {}: {}", module, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal server error", "INTERNAL_ERROR"));
+        }
+    }
+
     @PostMapping("/image/{module}")
     public ResponseEntity<?> uploadImage(
             @PathVariable String module,

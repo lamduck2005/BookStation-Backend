@@ -99,6 +99,24 @@ public class Order {
     private Integer shippingVoucherCount = 0;
 
     @Column(name = "created_at", nullable = false)
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    private java.util.List<OrderDetail> orderDetails;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "order_voucher",
+        joinColumns = @JoinColumn(name = "order_id"),
+        inverseJoinColumns = @JoinColumn(name = "voucher_id")
+    )
+    private java.util.List<Voucher> vouchers;
+
+    public java.util.List<OrderDetail> getOrderDetails() {
+        return orderDetails;
+    }
+
+    public java.util.List<Voucher> getVouchers() {
+        return vouchers;
+    }
     private Long createdAt;
 
     @Column(name = "updated_at")
