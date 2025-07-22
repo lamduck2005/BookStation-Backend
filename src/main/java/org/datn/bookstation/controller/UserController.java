@@ -23,6 +23,9 @@ import org.datn.bookstation.repository.UserRankRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 
 import org.datn.bookstation.entity.UserRank;
 import org.datn.bookstation.repository.PointRepository;
@@ -67,6 +70,18 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * API lấy danh sách user dạng dropdown (id, name) cho frontend làm khoá ngoại
+     */
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownUsers() {
+        List<DropdownOptionResponse> dropdown = userService.getActiveUsers().stream()
+            .map(user -> new DropdownOptionResponse(user.getId(), user.getFullName()))
+            .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách user thành công", dropdown);
+        return ResponseEntity.ok(response);
+    }
+
     // Lấy chi tiết user
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> getById(@PathVariable Integer id) {
@@ -76,6 +91,17 @@ public class UserController {
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
     }
+
+@GetMapping("/userIdByEmail")
+public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam String email) {
+    return userRepository.findByEmail(email)
+            .map(u -> ResponseEntity.ok(new ApiResponse<>(200, "Lấy ID thành công", u.getId())))
+            .orElseGet(() -> ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, "Không tìm thấy người dùng", null)));
+}
+
+
 
     // Tạo mới user
     @PostMapping
@@ -99,6 +125,7 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thành công", response.getData()));
     }
+
     @PutMapping("/profile/{id}")
     public ResponseEntity<ApiResponse<User>> update(@PathVariable Integer id, @RequestBody User user) {
         ApiResponse<User> response = userService.updateClient(user, id);
@@ -110,6 +137,7 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật thông tin thành công", response.getData()));
     }
+
     // Xóa user
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
@@ -126,19 +154,22 @@ public class UserController {
         }
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
     }
+
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request){
+    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request) {
         String email = (String) request.getAttribute("userEmail");
         ApiResponse<User> user = userService.getUserByEmail(email);
         return ResponseEntity.ok(user);
     }
+
     @GetMapping("/userpos")
-    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text){
-        System.out.println(" sdsadklasdjasdkasdjaskdfkas"+text);
+    public ResponseEntity<ApiResponse<List<UserRoleRequest>>> getUserPOS(@RequestParam(required = false) String text) {
+        System.out.println(" sdsadklasdjasdkasdjaskdfkas" + text);
         return ResponseEntity.ok(userService.getUserPOS(text));
     }
+
     @PostMapping("/addretail")
-    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user){
+    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
         return ResponseEntity.ok(userService.addRetail(user));
     }
 

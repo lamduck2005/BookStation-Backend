@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.FlashSaleItemRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
@@ -171,5 +172,13 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         item.setUpdatedAt(System.currentTimeMillis());
         flashSaleItemRepository.save(item);
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", flashSaleItemMapper.toResponse(item));
+    }
+
+    @Override
+    public ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale() {
+        Long now = System.currentTimeMillis();
+
+        return new ApiResponse<>(200, "Cập nhật trạng thái thành công", flashSaleItemRepository.findAllBookFlashSaleDTO(now));
+
     }
 } 

@@ -103,6 +103,11 @@ public class Book {
     @Column(name = "dimensions", length = 50)
     private String dimensions;
 
+    // ✅ THÊM MỚI: Số lượng đã bán
+    @ColumnDefault("0")
+    @Column(name = "sold_count")
+    private Integer soldCount = 0;
+
     @ColumnDefault("1")
     @Column(name = "status")
     private Byte status;
@@ -128,6 +133,12 @@ public class Book {
     // ✅ THÊM MỚI: Relationship với AuthorBook
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<AuthorBook> authorBooks = new LinkedHashSet<>();
+
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh, cách nhau bằng dấu phẩy)
+    @Size(max = 2000)
+    @Nationalized
+    @Column(name = "images", length = 2000)
+    private String images; // Lưu: "url1,url2,url3"
 
     @PrePersist
     protected void onCreate() {

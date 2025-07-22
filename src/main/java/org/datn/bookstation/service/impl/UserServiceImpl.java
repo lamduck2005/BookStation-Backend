@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.datn.bookstation.entity.User;
 
 @Service
 @AllArgsConstructor
@@ -160,6 +161,13 @@ public class UserServiceImpl implements UserService {
             return new ApiResponse<>(400,"Thêm khách lẻ thất bại ",null);
         }
 
+    }
+
+    @Override
+    public List<User> getActiveUsers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getStatus() != null && u.getStatus() == 1)
+                .collect(Collectors.toList());
     }
 
     // Helper chuyển status String -> Byte

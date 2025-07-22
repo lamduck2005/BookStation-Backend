@@ -39,4 +39,8 @@ public class OrderRequest {
     private List<Integer> voucherIds; // Optional vouchers applied
     
     private String notes; // Optional order notes
+
+    // Add subtotal and totalAmount for validation and persistence
+    private BigDecimal subtotal;
+    private BigDecimal totalAmount;
 }

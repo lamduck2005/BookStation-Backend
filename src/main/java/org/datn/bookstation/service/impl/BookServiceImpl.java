@@ -8,17 +8,18 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
+import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.entity.Supplier;
 import org.datn.bookstation.entity.Publisher;
 import org.datn.bookstation.entity.Author;
-import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
 import org.datn.bookstation.mapper.BookCategoryMapper;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.TrendingBookMapper;
+import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.repository.SupplierRepository;
@@ -26,6 +27,7 @@ import org.datn.bookstation.repository.PublisherRepository;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
 import org.datn.bookstation.service.BookService;
+import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.specification.BookSpecification;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.datn.bookstation.validator.ImageUrlValidator;
 
 @Service
 @AllArgsConstructor
@@ -55,9 +58,11 @@ public class BookServiceImpl implements BookService {
     private final PublisherRepository publisherRepository;
     private final AuthorRepository authorRepository;
     private final AuthorBookRepository authorBookRepository;
-    private final BookMapper bookMapper;
     private final BookResponseMapper bookResponseMapper;
+    private final BookMapper bookMapper;
     private final TrendingBookMapper trendingBookMapper;
+    private final ImageUrlValidator imageUrlValidator;
+    private final TrendingCacheService trendingCacheService;
     private final BookCategoryMapper bookCategoryMapper;
 
     @Override
@@ -209,7 +214,10 @@ public class BookServiceImpl implements BookService {
                 authorBook.setAuthor(author);
                 authorBookRepository.save(authorBook);
             }
-
+            
+            // 🔥 INVALIDATE TRENDING CACHE ON NEW BOOK
+            trendingCacheService.invalidateAllTrendingCache();
+            
             return new ApiResponse<>(201, "Tạo sách thành công", savedBook);
 
         } catch (Exception e) {
@@ -326,11 +334,29 @@ public class BookServiceImpl implements BookService {
                 }
                 existing.setPublisher(publisher);
             }
-
+            
+            // Update images (multi-image support like EventServiceImpl)
+            if (request.getImages() != null) {
+                imageUrlValidator.validate(request.getImages());
+            }
+            String imagesString = null;
+            if (request.getImages() != null && !request.getImages().isEmpty()) {
+                imagesString = String.join(",", request.getImages());
+            } else if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isEmpty()) {
+                imagesString = request.getCoverImageUrl();
+            }
+            if (imagesString != null) {
+                existing.setImages(imagesString); // Đảm bảo entity Book có trường images (String)
+            }
+            
             existing.setUpdatedBy(1); // Default updated by system user
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
+            
+            // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
+            trendingCacheService.invalidateAllTrendingCache();
+            
             return new ApiResponse<>(200, "Cập nhật sách thành công", saved);
 
         } catch (Exception e) {
@@ -357,6 +383,10 @@ public class BookServiceImpl implements BookService {
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
+            
+            // 🔥 INVALIDATE TRENDING CACHE ON STATUS CHANGE
+            trendingCacheService.invalidateAllTrendingCache();
+            
             return new ApiResponse<>(200, "Cập nhật trạng thái thành công", saved);
 
         } catch (Exception e) {
@@ -373,11 +403,8 @@ public class BookServiceImpl implements BookService {
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
      */
     @Override
-    @Cacheable(value = "trending-books",
-            key = "#request.type + '-' + #request.page + '-' + #request.size + '-' + " +
-                    "(#request.isDailyTrending() ? 'no-category' : (#request.categoryId != null ? #request.categoryId : 'all')) + '-' + " +
-                    "(#request.minPrice != null ? #request.minPrice : '0') + '-' + " +
-                    "(#request.maxPrice != null ? #request.maxPrice : 'max')")
+    @Cacheable(value = "trending-books", 
+        key = "#request.type + '-' + #request.page + '-' + #request.size")
     public PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request) {
         try {
             // Validate request
@@ -406,19 +433,13 @@ public class BookServiceImpl implements BookService {
         long currentTime = System.currentTimeMillis();
         long thirtyDaysAgo = currentTime - (30L * 24 * 60 * 60 * 1000);
         long sixtyDaysAgo = currentTime - (60L * 24 * 60 * 60 * 1000);
-
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
-
-        // 🔥 DAILY_TRENDING: Không filter theo category, lấy tổng thể
+        // Không truyền filter, chỉ lấy tổng thể
         Page<Object[]> trendingData = bookRepository.findTrendingBooksData(
-                thirtyDaysAgo, sixtyDaysAgo, currentTime,
-                null, request.getMinPrice(), request.getMaxPrice(), pageable);
-
-        // 🔥 FALLBACK STRATEGY: Nếu không có đủ dữ liệu từ database thực tế
+            thirtyDaysAgo, sixtyDaysAgo, currentTime, pageable);
         if (trendingData.getTotalElements() < request.getSize()) {
             return getDailyTrendingWithFallback(request, trendingData, thirtyDaysAgo, sixtyDaysAgo, currentTime);
         }
-
         return mapTrendingDataToResponse(trendingData, request.getPage(), request.getSize());
     }
 
@@ -427,19 +448,12 @@ public class BookServiceImpl implements BookService {
      */
     private PaginationResponse<TrendingBookResponse> getHotDiscountBooks(TrendingRequest request) {
         long currentTime = System.currentTimeMillis();
-
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
-
-        // Lấy sách có flash sale hoặc discount cao
-        Page<Object[]> hotDiscountData = bookRepository.findHotDiscountBooks(
-                currentTime, request.getCategoryId(), request.getMinPrice(), request.getMaxPrice(),
-                request.getMinDiscountPercentage(), request.getFlashSaleOnly(), pageable);
-
-        // 🔥 FALLBACK: Nếu không có đủ sách giảm giá, lấy sách có giá tốt
+        // Không truyền filter, chỉ lấy tổng thể
+        Page<Object[]> hotDiscountData = bookRepository.findHotDiscountBooks(currentTime, pageable);
         if (hotDiscountData.getTotalElements() < request.getSize()) {
             return getHotDiscountWithFallback(request, hotDiscountData, currentTime);
         }
-
         return mapTrendingDataToResponse(hotDiscountData, request.getPage(), request.getSize());
     }
 
@@ -463,9 +477,8 @@ public class BookServiceImpl implements BookService {
         int needMore = request.getSize() - allTrendingBooks.size();
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findFallbackTrendingBooks(
-                    null, request.getMinPrice(), request.getMaxPrice(),
-                    PageRequest.of(0, needMore * 2));
-
+                PageRequest.of(0, needMore * 2));
+            
             // Lọc bỏ những sách đã có
             Set<Integer> existingBookIds = allTrendingBooks.stream()
                     .map(TrendingBookResponse::getId)
@@ -491,9 +504,8 @@ public class BookServiceImpl implements BookService {
         }
 
         // 3. Tính tổng số phần tử dựa trên database thực tế (DAILY_TRENDING không filter category)
-        long totalElements = bookRepository.countActiveBooks(
-                null, request.getMinPrice(), request.getMaxPrice());
-
+        long totalElements = bookRepository.countActiveBooks(null, null, null);
+        
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allTrendingBooks)
                 .pageNumber(request.getPage())
@@ -522,9 +534,8 @@ public class BookServiceImpl implements BookService {
         int needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findGoodPriceBooks(
-                    request.getCategoryId(), request.getMinPrice(), request.getMaxPrice(),
-                    PageRequest.of(0, needMore * 2));
-
+                PageRequest.of(0, needMore * 2));
+            
             Set<Integer> existingBookIds = allDiscountBooks.stream()
                     .map(TrendingBookResponse::getId)
                     .collect(Collectors.toSet());
@@ -550,9 +561,8 @@ public class BookServiceImpl implements BookService {
         }
 
         // 3. Tính tổng số phần tử
-        long totalElements = bookRepository.countActiveBooks(
-                request.getCategoryId(), request.getMinPrice(), request.getMaxPrice());
-
+        long totalElements = bookRepository.countActiveBooks(null, null, null);
+        
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allDiscountBooks)
                 .pageNumber(request.getPage())
@@ -618,25 +628,6 @@ public class BookServiceImpl implements BookService {
                 .build();
     }
 
-    /**
-     * 🔥 DEPRECATED: Keep for backward compatibility
-     * ❌ DAILY_TRENDING không sử dụng categoryId
-     */
-    @Override
-    @Deprecated
-    public PaginationResponse<TrendingBookResponse> getTrendingBooks(int page, int size, Integer categoryId,
-                                                                     BigDecimal minPrice, BigDecimal maxPrice) {
-        TrendingRequest request = new TrendingRequest();
-        request.setType("DAILY_TRENDING");
-        request.setPage(page);
-        request.setSize(size);
-        // ❌ DAILY_TRENDING không sử dụng categoryId nữa
-        request.setMinPrice(minPrice);
-        request.setMaxPrice(maxPrice);
-
-        return getTrendingBooks(request);
-    }
-
     @Override
     public ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text) {
         Specification<Book> bookSpecification = BookSpecification.filterBy(id,text);
@@ -645,6 +636,5 @@ public class BookServiceImpl implements BookService {
 
         return new ApiResponse<>(200, "Đã nhập được list search từ ", bookCategoryMapper.booksMapper(books));
     }
-
 
 }

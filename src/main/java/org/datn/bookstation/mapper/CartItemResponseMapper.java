@@ -23,6 +23,7 @@ public class CartItemResponseMapper {
         response.setCreatedBy(cartItem.getCreatedBy());
         response.setUpdatedBy(cartItem.getUpdatedBy());
         response.setStatus(cartItem.getStatus());
+        response.setSelected(cartItem.getSelected());
         
         // Book info
         if (cartItem.getBook() != null) {

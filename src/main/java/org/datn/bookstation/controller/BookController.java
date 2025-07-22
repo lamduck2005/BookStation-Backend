@@ -3,6 +3,7 @@ package org.datn.bookstation.controller;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
@@ -11,9 +12,12 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.BookDetailResponseMapper;
 import org.datn.bookstation.service.BookService;
+import org.datn.bookstation.service.TrendingCacheService;
+import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +39,9 @@ public class BookController {
     private final BookService bookService;
     private final BookResponseMapper bookResponseMapper;
     private final BookDetailResponseMapper bookDetailResponseMapper;
+    private final TrendingCacheService trendingCacheService;
 
+    private final FlashSaleItemService flashSaleItemService;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -80,14 +86,18 @@ public class BookController {
     @PostMapping("/trending")
     public ResponseEntity<ApiResponse<PaginationResponse<TrendingBookResponse>>> getTrendingBooks(
             @Valid @RequestBody TrendingRequest request) {
-        
-        PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(request);
-        
-        String message = request.isDailyTrending() ? 
-            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" : 
+        // Bỏ toàn bộ filter, chỉ giữ lại type, page, size
+        TrendingRequest cleanRequest = new TrendingRequest();
+        cleanRequest.setType(request.getType());
+        cleanRequest.setPage(request.getPage());
+        cleanRequest.setSize(request.getSize());
+        // Các trường filter khác sẽ bị bỏ qua
+
+        PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(cleanRequest);
+        String message = cleanRequest.isDailyTrending() ?
+            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" :
             "Lấy danh sách sách hot giảm sốc thành công";
-            
-        ApiResponse<PaginationResponse<TrendingBookResponse>> response = 
+        ApiResponse<PaginationResponse<TrendingBookResponse>> response =
             new ApiResponse<>(HttpStatus.OK.value(), message, trendingBooks);
         return ResponseEntity.ok(response);
     }
@@ -230,24 +240,31 @@ public class BookController {
      */
     @GetMapping("/admin/cache/trending/stats")
     public ResponseEntity<ApiResponse<String>> getTrendingCacheStats() {
-        // Note: Inject TrendingCacheService if needed
+        String stats = trendingCacheService.getCacheStatistics();
         ApiResponse<String> response = 
-            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", "Feature available when TrendingCacheService is injected");
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", stats);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/admin/cache/trending/invalidate")
     public ResponseEntity<ApiResponse<String>> invalidateTrendingCache() {
-        // Note: Inject TrendingCacheService if needed
+        trendingCacheService.invalidateAllTrendingCache();
         ApiResponse<String> response = 
-            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated", "Feature available when TrendingCacheService is injected");
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated successfully", "All trending cache has been cleared");
         return ResponseEntity.ok(response);
     }
     @GetMapping("/bycategoryid/{id}")
     public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
             @PathVariable("id") Integer id,
             @RequestParam(name = "text", required = false) String text) {
-
+        if (id==null){
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
+    @GetMapping("/flashsalebook")
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
+        return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
+    }
 }
+

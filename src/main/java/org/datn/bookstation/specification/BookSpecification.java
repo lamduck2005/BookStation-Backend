@@ -104,8 +104,8 @@ public class BookSpecification {
     public static Specification<Book> filterBy(Integer categoryId, String text) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
-
-            if (categoryId != null) {
+            System.out.println(categoryId);
+            if (categoryId != null&&categoryId!=0) {
                 predicates = criteriaBuilder.and(predicates,
                         criteriaBuilder.equal(root.get("category").get("id"), categoryId));
             }

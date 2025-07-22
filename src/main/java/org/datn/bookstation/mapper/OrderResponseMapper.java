@@ -30,11 +30,22 @@ public class OrderResponseMapper {
         response.setRecipientName(order.getAddress() != null ? order.getAddress().getRecipientName() : null);
         response.setPhoneNumber(order.getAddress() != null ? order.getAddress().getPhoneNumber() : null);
         response.setOrderDate(order.getOrderDate());
+        
+        // Financial fields - FIXED: Add missing financial mappings
+        response.setSubtotal(order.getSubtotal());
+        response.setShippingFee(order.getShippingFee());
+        response.setDiscountAmount(order.getDiscountAmount());
+        response.setDiscountShipping(order.getDiscountShipping());
         response.setTotalAmount(order.getTotalAmount());
+        response.setRegularVoucherCount(order.getRegularVoucherCount());
+        response.setShippingVoucherCount(order.getShippingVoucherCount());
+        
         response.setStatus(order.getStatus());
         response.setOrderStatus(order.getOrderStatus());
         response.setOrderStatusDisplay(getOrderStatusDisplayName(order.getOrderStatus()));
         response.setOrderType(order.getOrderType());
+        response.setNotes(order.getNotes());
+        response.setCancelReason(order.getCancelReason());
         response.setCreatedAt(order.getCreatedAt());
         response.setUpdatedAt(order.getUpdatedAt());
         response.setCreatedBy(order.getCreatedBy());
