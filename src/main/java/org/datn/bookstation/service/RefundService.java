@@ -38,6 +38,11 @@ public interface RefundService {
      * ✅ Lấy chi tiết yêu cầu hoàn trả
      */
     RefundRequestResponse getRefundRequestById(Integer refundRequestId);
+
+    /**
+     * ✅ Lấy tất cả yêu cầu hoàn trả (Admin, có phân trang, sort)
+     */
+    List<RefundRequestResponse> getAllRefundRequests(int page, int size, String sortBy, String sortDir);
     
     /**
      * ✅ Validate yêu cầu hoàn trả

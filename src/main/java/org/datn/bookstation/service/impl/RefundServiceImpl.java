@@ -31,6 +31,17 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional
 public class RefundServiceImpl implements RefundService {
+    @Override
+    public List<RefundRequestResponse> getAllRefundRequests(int page, int size, String sortBy, String sortDir) {
+        org.springframework.data.domain.Pageable pageable =
+            org.springframework.data.domain.PageRequest.of(page, size,
+                "desc".equalsIgnoreCase(sortDir)
+                    ? org.springframework.data.domain.Sort.by(sortBy).descending()
+                    : org.springframework.data.domain.Sort.by(sortBy).ascending()
+            );
+        org.springframework.data.domain.Page<RefundRequest> refundPage = refundRequestRepository.findAll(pageable);
+        return refundPage.stream().map(this::convertToResponse).collect(java.util.stream.Collectors.toList());
+    }
 
     @Autowired
     private RefundRequestRepository refundRequestRepository;
@@ -162,16 +173,27 @@ public class RefundServiceImpl implements RefundService {
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("Admin không tồn tại"));
 
+        // 🔥 Update RefundRequest status
         request.setStatus(RefundStatus.valueOf(approval.getStatus()));
         request.setApprovedBy(admin);
         request.setAdminNote(approval.getAdminNote());
         request.setApprovedAt(System.currentTimeMillis());
         request.setUpdatedAt(System.currentTimeMillis());
 
+        // 🔥 CRITICAL FIX: Đồng bộ Order status
+        Order order = request.getOrder();
+        if (approval.getStatus().equals("APPROVED")) {
+            order.setOrderStatus(OrderStatus.REFUNDING); // Đã phê duyệt, đang hoàn tiền
+        } else if (approval.getStatus().equals("REJECTED")) {
+            order.setOrderStatus(OrderStatus.DELIVERED); // Từ chối, trở về delivered
+        }
+        order.setUpdatedBy(adminId);
+        orderRepository.save(order);
+
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("✅ REFUND REQUEST {}: id={}, adminId={}, status={}", 
-                 approval.getStatus(), refundRequestId, adminId, approval.getStatus());
+        log.info("✅ REFUND REQUEST {}: id={}, adminId={}, refundStatus={}, orderStatus={}", 
+                 approval.getStatus(), refundRequestId, adminId, approval.getStatus(), order.getOrderStatus());
 
         return convertToResponse(savedRequest);
     }

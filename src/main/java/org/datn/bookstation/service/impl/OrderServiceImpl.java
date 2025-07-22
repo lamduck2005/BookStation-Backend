@@ -11,6 +11,8 @@ import org.datn.bookstation.dto.response.OrderResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.*;
 import org.datn.bookstation.entity.enums.OrderStatus;
+import org.datn.bookstation.entity.RefundRequest.RefundStatus;
+import org.datn.bookstation.entity.RefundRequest.RefundType;
 import org.datn.bookstation.exception.BusinessException;
 import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
@@ -44,6 +46,8 @@ public class OrderServiceImpl implements OrderService {
     private final BookRepository bookRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final AddressRepository addressRepository;
+    private final RefundRequestRepository refundRequestRepository;
+    private final RefundItemRepository refundItemRepository;
     private final PointManagementService pointManagementService;
     private final OrderResponseMapper orderResponseMapper;
     private final VoucherCalculationService voucherCalculationService;
@@ -412,9 +416,10 @@ public class OrderServiceImpl implements OrderService {
         
         Order order = getById(orderId);
         
-        // Validate order status - only allow refund for DELIVERED orders
-        if (order.getOrderStatus() != OrderStatus.DELIVERED) {
-            throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao");
+        // Validate order status - Cho phép REFUNDING từ admin approval process
+        if (order.getOrderStatus() != OrderStatus.DELIVERED && 
+            order.getOrderStatus() != OrderStatus.REFUNDING) {
+            throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao hoặc đã được phê duyệt hoàn trả");
         }
 
         // Validate user authorization
@@ -445,9 +450,11 @@ public class OrderServiceImpl implements OrderService {
         
         Order order = getById(orderId);
         
-        // Validate order status
-        if (order.getOrderStatus() != OrderStatus.DELIVERED && order.getOrderStatus() != OrderStatus.SHIPPED) {
-            throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao hoặc đang vận chuyển");
+        // Validate order status - Cho phép REFUNDING từ admin approval process
+        if (order.getOrderStatus() != OrderStatus.DELIVERED && 
+            order.getOrderStatus() != OrderStatus.SHIPPED && 
+            order.getOrderStatus() != OrderStatus.REFUNDING) {
+            throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao, đang vận chuyển hoặc đã được phê duyệt hoàn trả");
         }
 
         // Validate user authorization
@@ -707,6 +714,7 @@ public class OrderServiceImpl implements OrderService {
     
     /**
      * ✅ THÊM MỚI: Khách hàng gửi yêu cầu hoàn trả
+     * 🔥 FIXED: Tạo RefundRequest record trong database
      */
     @Override
     @Transactional
@@ -725,26 +733,56 @@ public class OrderServiceImpl implements OrderService {
                 throw new BusinessException("Chỉ có thể yêu cầu hoàn trả đơn hàng đã giao thành công");
             }
             
-            // Cập nhật trạng thái đơn hàng
-            order.setOrderStatus(OrderStatus.REFUND_REQUESTED);
-            order.setCancelReason(refundRequest.getReason());
-            order.setUpdatedBy(refundRequest.getUserId().intValue());
-            orderRepository.save(order);
+            // 🔥 SOLUTION: Tạo RefundRequest record thông qua RefundService
+            RefundRequest newRefundRequest = new RefundRequest();
+            newRefundRequest.setOrder(order);
+            newRefundRequest.setUser(order.getUser());
+            newRefundRequest.setReason(refundRequest.getReason());
+            newRefundRequest.setRefundType(RefundType.PARTIAL); // Default, có thể điều chỉnh theo logic
+            newRefundRequest.setStatus(RefundStatus.PENDING);
+            newRefundRequest.setCreatedAt(System.currentTimeMillis());
             
-            // Lưu thông tin chi tiết yêu cầu hoàn trả vào order_detail (evidence)
+            // Set evidence images/videos if provided
+            if (refundRequest.getEvidenceImages() != null) {
+                newRefundRequest.setEvidenceImages(new ArrayList<>(refundRequest.getEvidenceImages()));
+            }
+            if (refundRequest.getEvidenceVideos() != null) {
+                newRefundRequest.setEvidenceVideos(new ArrayList<>(refundRequest.getEvidenceVideos()));
+            }
+            
+            // Save RefundRequest first
+            RefundRequest savedRefundRequest = refundRequestRepository.save(newRefundRequest);
+            
+            // 🔥 Tạo RefundItem records cho từng sản phẩm
             if (refundRequest.getRefundDetails() != null) {
+                List<RefundItem> refundItems = new ArrayList<>();
                 for (OrderDetailRefundRequest detail : refundRequest.getRefundDetails()) {
                     OrderDetail orderDetail = orderDetailRepository.findByOrderIdAndBookId(orderId, detail.getBookId());
                     if (orderDetail == null) {
                         throw new BusinessException("Không tìm thấy sản phẩm trong đơn hàng");
                     }
                     
-                    // Lưu evidence vào order detail (có thể cần thêm field mới trong OrderDetail)
-                    // Hoặc tạo bảng riêng để lưu refund request details
+                    RefundItem refundItem = new RefundItem();
+                    refundItem.setRefundRequest(savedRefundRequest);
+                    refundItem.setBook(orderDetail.getBook());
+                    refundItem.setRefundQuantity(detail.getRefundQuantity());
+                    refundItem.setUnitPrice(orderDetail.getUnitPrice());
+                    refundItem.setTotalAmount(orderDetail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getRefundQuantity())));
+                    refundItem.setCreatedAt(System.currentTimeMillis());
+                    
+                    refundItems.add(refundItem);
                 }
+                refundItemRepository.saveAll(refundItems);
             }
             
-            log.info("Customer {} requested refund for order {}", refundRequest.getUserId(), order.getCode());
+            // Cập nhật trạng thái đơn hàng
+            order.setOrderStatus(OrderStatus.REFUND_REQUESTED);
+            order.setCancelReason(refundRequest.getReason());
+            order.setUpdatedBy(refundRequest.getUserId().intValue());
+            orderRepository.save(order);
+            
+            log.info("Customer {} requested refund for order {} - RefundRequest ID: {}", 
+                refundRequest.getUserId(), order.getCode(), savedRefundRequest.getId());
             
             OrderResponse response = orderResponseMapper.toResponse(order);
             return new ApiResponse<>(
