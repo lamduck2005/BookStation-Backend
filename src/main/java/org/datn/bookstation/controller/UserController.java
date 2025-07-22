@@ -2,6 +2,7 @@ package org.datn.bookstation.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
+
 import org.datn.bookstation.dto.request.UserRequest;
 import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
@@ -9,22 +10,47 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.datn.bookstation.repository.UserRankRepository;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
+
+import org.datn.bookstation.entity.UserRank;
+import org.datn.bookstation.repository.PointRepository;
+import org.datn.bookstation.repository.UserRepository;
+import org.springframework.data.repository.query.Param;
+
+import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
+
+
 
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
+    
+    private final PasswordEncoder passwordEncoder;
+    @Autowired
+    private UserRankRepository userRankRepo;
+    @Autowired  
+    private UserRepository  userRepository;
+
+
+     
+
 
     // Lấy danh sách user (phân trang, lọc)
     @GetMapping
@@ -65,6 +91,17 @@ public class UserController {
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
     }
+
+@GetMapping("/userIdByEmail")
+public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam String email) {
+    return userRepository.findByEmail(email)
+            .map(u -> ResponseEntity.ok(new ApiResponse<>(200, "Lấy ID thành công", u.getId())))
+            .orElseGet(() -> ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, "Không tìm thấy người dùng", null)));
+}
+
+
 
     // Tạo mới user
     @PostMapping
@@ -135,6 +172,36 @@ public class UserController {
     public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
         return ResponseEntity.ok(userService.addRetail(user));
     }
+
+@GetMapping("/userRank")
+public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestParam Integer userID) {
+    List<UserRank> userRank = userRankRepo.getByUserId(userID);
+    return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin hạng người dùng thành công", userRank));
+}
+
+
+@PutMapping("/userPass")
+public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
+                              @RequestParam String passCu,
+                              @RequestParam String passMoi) {
+    User user = userRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với id: " + id));
+
+    if (!passwordEncoder.matches(passCu, user.getPassword())) {
+        return ResponseEntity.ok(false);
+    }
+
+    if (passwordEncoder.matches(passMoi, user.getPassword())) {
+         return ResponseEntity.ok(false);
+    }
+
+    System.out.println("passMoi = " + passMoi);
+
+    user.setPassword(passwordEncoder.encode(passMoi));
+    userRepository.save(user);
+
+     return ResponseEntity.ok(true);
+}
 
     /**
      * ✅ THÊM MỚI: API tìm kiếm khách hàng cho admin tạo đơn

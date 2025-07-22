@@ -1,12 +1,17 @@
 package org.datn.bookstation.controller;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.datn.bookstation.dto.request.UserVoucherRequest;
 import org.datn.bookstation.dto.request.VoucherRepuest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.UserForVoucher;
 import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.dto.response.voucherUserResponse;
 import org.datn.bookstation.entity.User;
@@ -27,6 +32,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/vouchers")
 public class VoucherController {
+
     @Autowired
     private VoucherService voucherService;
     
@@ -49,18 +55,31 @@ public class VoucherController {
         return voucherService.getAllWithPagination(page, size, code, name, voucherType, status);
     }
 
-
-    @GetMapping("/userVoucher/{userId}")
-    public List<org.datn.bookstation.dto.response.voucherUserResponse> getVoucherById(@PathVariable Integer userId) {
-        List<org.datn.bookstation.dto.response.voucherUserResponse> vouchers = userVoucherRepository.findVouchersByUserId(userId);
-        if (vouchers == null || vouchers.isEmpty()) {
-            throw new RuntimeException("Không tìm thấy voucher cho người dùng với ID: " + userId);
-        }
-        return vouchers;
+@GetMapping("/userVoucher/{userId}")
+public List<org.datn.bookstation.dto.response.voucherUserResponse> getVoucherById(@PathVariable Integer userId) {
+    LocalDateTime now = LocalDateTime.now();
+    List<org.datn.bookstation.dto.response.voucherUserResponse> vouchers = userVoucherRepository.findVouchersByUserId(userId);
+    if (vouchers == null || vouchers.isEmpty()) {
+        throw new RuntimeException("Không tìm thấy voucher cho người dùng với ID: " + userId);
     }
+    // Lọc bỏ voucher hết hạn (so sánh đến phút)
+    List<org.datn.bookstation.dto.response.voucherUserResponse> validVouchers = vouchers.stream()
+        .filter(v -> {
+            if (v.getEndTime() == null) return true;
+            LocalDateTime endTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(v.getEndTime()), ZoneId.systemDefault());
+            return endTime.isAfter(now);
+        })
+        .collect(Collectors.toList());
+    if (validVouchers.isEmpty()) {
+        throw new RuntimeException("Không có voucher nào còn hạn cho người dùng với ID: " + userId);
+    }
+    return validVouchers;
+}
+
+
     @GetMapping("/new")
     public voucherUserResponse getVoucherByuserId() {
-        String code = "WELCOMETOSHOP";
+        String code = "WELCOME";
         List<voucherUserResponse> vouchers = userVoucherRepository.findVouchersByVoucherId(code);
         if (vouchers == null || vouchers.isEmpty()) {
             throw new RuntimeException("Không tìm thấy voucher với mã: " + code);
@@ -69,13 +88,32 @@ public class VoucherController {
     }
     @GetMapping("/new/{userId}")
     public List<voucherUserResponse> getVoucherByUserIdNew(@PathVariable Integer userId) {
-        String code = "WELCOMETOSHOP";
+        String code = "WELCOME";
         List<voucherUserResponse> vouchers = userVoucherRepository.findVouchersByVoucherUserId(code , userId);
         if (vouchers == null || vouchers.isEmpty()) {
             throw new RuntimeException("Không tìm thấy voucher với mã: " + code);
         }
         return vouchers;
     }
+
+@GetMapping("/newVoucher/{voucherId}")
+public List<UserForVoucher> getUserByVuocherID(@PathVariable Integer voucherId) {
+    List<UserVoucher> userVouchers = userVoucherRepository.findByVoucherId(voucherId);
+    if (userVouchers == null || userVouchers.isEmpty()) {
+        throw new RuntimeException("Không tìm thấy user nào với voucherId: " + voucherId);
+    }
+    return userVouchers.stream().map(uv -> {
+        UserForVoucher dto = new UserForVoucher();
+        dto.setId(uv.getId());
+        dto.setUserId(uv.getUser().getId());
+        dto.setFullName(uv.getUser().getFullName());
+        dto.setVoucherId(uv.getVoucher().getId());
+        dto.setVoucherCode(uv.getVoucher().getCode());
+        dto.setUsedCount(uv.getUsedCount());
+        dto.setCreatedAt(uv.getCreatedAt());
+        return dto;
+    }).collect(Collectors.toList());
+}
 
     @PostMapping("/NewVoucher")
     public void addVoucherForUser(@RequestBody UserVoucherRequest request) {
