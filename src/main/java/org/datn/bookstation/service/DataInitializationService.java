@@ -278,8 +278,168 @@ public class DataInitializationService implements CommandLineRunner {
             createUser("customer5@gmail.com", "customer123", "Vũ Văn G", customerRole)
         );
         userRepository.saveAll(users);
+        // Thêm hàng loạt voucher test cho Lê Văn C
+        addTestVouchersForLeVanC();
     }
 
+    /**
+     * Tạo và gán nhiều loại voucher cho user Lê Văn C để test đủ trường hợp
+     */
+    private void addTestVouchersForLeVanC() {
+        User leVanC = userRepository.findByEmail("customer1@gmail.com").orElse(null);
+        if (leVanC == null) return;
+
+        long now = System.currentTimeMillis();
+        long oneMonth = 30L * 24 * 60 * 60 * 1000;
+        List<Voucher> vouchersToAdd = new java.util.ArrayList<>();
+
+        // 5 voucher miễn phí vận chuyển (FREESHIP)
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "FREESHIP" + i,
+                "Miễn phí vận chuyển",
+                "Voucher miễn phí vận chuyển cho đơn bất kỳ",
+                VoucherCategory.SHIPPING,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("30000"), // Giảm tối đa 30k tiền ship
+                now,
+                now + oneMonth,
+                BigDecimal.ZERO,
+                new BigDecimal("30000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher giảm 20k tiền ship cho đơn từ 50k
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SHIP20K" + i,
+                "Giảm 20K tiền ship",
+                "Giảm 20.000đ phí vận chuyển cho đơn từ 50.000đ",
+                VoucherCategory.SHIPPING,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("20000"),
+                now,
+                now + oneMonth,
+                new BigDecimal("50000"),
+                new BigDecimal("20000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher thường giảm 40k cho đơn từ 100k
+        for (int i = 1; i <= 5; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SALE40K" + i,
+                "Giảm 40K cho đơn từ 100K",
+                "Giảm 40.000đ cho đơn hàng từ 100.000đ",
+                VoucherCategory.NORMAL,
+                DiscountType.FIXED_AMOUNT,
+                null,
+                new BigDecimal("40000"),
+                now,
+                now + oneMonth,
+                new BigDecimal("100000"),
+                new BigDecimal("40000"),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // 5 voucher giảm theo % đơn hàng (10%, 15%, 20%, 25%, 30%)
+        int[] percents = {10, 15, 20, 25, 30};
+        for (int i = 0; i < percents.length; i++) {
+            vouchersToAdd.add(createVoucher(
+                "SALE" + percents[i] + "PCT",
+                "Giảm " + percents[i] + "%",
+                "Giảm " + percents[i] + "% tối đa " + (percents[i] * 1000) + "đ cho đơn từ " + (percents[i] * 10000) + "đ",
+                VoucherCategory.NORMAL,
+                DiscountType.PERCENTAGE,
+                new BigDecimal(percents[i]),
+                null,
+                now,
+                now + oneMonth,
+                new BigDecimal(percents[i] * 10000),
+                new BigDecimal(percents[i] * 1000),
+                1,
+                1,
+                "admin"
+            ));
+        }
+
+        // Shopee style: các voucher đặc biệt
+        vouchersToAdd.add(createVoucher(
+            "FLASHSALE50K",
+            "Flash Sale Giảm 50K",
+            "Giảm 50.000đ cho đơn từ 300.000đ, chỉ áp dụng trong khung giờ vàng",
+            VoucherCategory.NORMAL,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("50000"),
+            now,
+            now + (3L * 24 * 60 * 60 * 1000), // 3 ngày
+            new BigDecimal("300000"),
+            new BigDecimal("50000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        vouchersToAdd.add(createVoucher(
+            "NEWUSER100K",
+            "Giảm 100K cho khách mới",
+            "Giảm 100.000đ cho đơn từ 500.000đ, chỉ cho khách mới",
+            VoucherCategory.NORMAL,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("100000"),
+            now,
+            now + oneMonth,
+            new BigDecimal("500000"),
+            new BigDecimal("100000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        vouchersToAdd.add(createVoucher(
+            "SHIPMAX",
+            "Miễn phí ship tối đa 50K",
+            "Miễn phí vận chuyển tối đa 50.000đ cho đơn từ 200.000đ",
+            VoucherCategory.SHIPPING,
+            DiscountType.FIXED_AMOUNT,
+            null,
+            new BigDecimal("50000"),
+            now,
+            now + oneMonth,
+            new BigDecimal("200000"),
+            new BigDecimal("50000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        // Lưu voucher vào DB
+        voucherRepository.saveAll(vouchersToAdd);
+
+        // Gán cho user Lê Văn C
+        for (Voucher v : vouchersToAdd) {
+            for (int i = 0; i < v.getUsageLimitPerUser(); i++) {
+                UserVoucher uv = new UserVoucher();
+                uv.setUser(leVanC);
+                uv.setVoucher(v);
+                uv.setUsedCount(0);
+                userVoucherRepository.save(uv);
+            }
+        }
+    }
     private User createUser(String email, String password, String fullName, Role role) {
         User user = new User();
         user.setEmail(email);
@@ -515,6 +675,8 @@ public class DataInitializationService implements CommandLineRunner {
         book.setCreatedBy(createdBy);
         book.setBookCode("BOOK" + System.currentTimeMillis());
         book.setStatus((byte) 1);
+        // Thêm dữ liệu mẫu cho images (nhiều ảnh, cách nhau bằng dấu phẩy)
+        book.setImages("https://yourdomain.com/uploads/products/sample1.jpg,https://yourdomain.com/uploads/products/sample2.jpg");
         return book;
     }
 
@@ -584,25 +746,25 @@ public class DataInitializationService implements CommandLineRunner {
         
         List<Voucher> vouchers = Arrays.asList(
             createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
-                VoucherType.PERCENTAGE, new BigDecimal("10"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("10"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
             createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 500K", 
-                VoucherType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
+                VoucherCategory.NORMAL, DiscountType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
                 currentTime, currentTime + oneMonth, new BigDecimal("500000"), null, 50, 1, "admin"),
             createVoucher("FREESHIP", "Miễn phí vận chuyển", "Miễn phí ship cho đơn từ 200K", 
-                VoucherType.FREE_SHIPPING, null, null, 
+                VoucherCategory.SHIPPING, DiscountType.FIXED_AMOUNT, null, null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("200000"), null, 200, 1, "admin"),
             createVoucher("SUMMER20", "Voucher hè", "Giảm 20% tối đa 100K", 
-                VoucherType.PERCENTAGE, new BigDecimal("20"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("20"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("300000"), new BigDecimal("100000"), 75, 1, "admin"),
             createVoucher("NEWBIE15", "Voucher thành viên mới", "Giảm 15% cho khách hàng mới", 
-                VoucherType.PERCENTAGE, new BigDecimal("15"), null, 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("15"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("150000"), new BigDecimal("75000"), 150, 1, "admin")
         );
         voucherRepository.saveAll(vouchers);
     }
 
-    private Voucher createVoucher(String code, String name, String description, VoucherType type,
+    private Voucher createVoucher(String code, String name, String description, VoucherCategory category, DiscountType discountType,
                                 BigDecimal discountPercentage, BigDecimal discountAmount,
                                 Long startTime, Long endTime, BigDecimal minOrderValue, 
                                 BigDecimal maxDiscountValue, Integer usageLimit, 
@@ -611,7 +773,8 @@ public class DataInitializationService implements CommandLineRunner {
         voucher.setCode(code);
         voucher.setName(name);
         voucher.setDescription(description);
-        voucher.setVoucherType(type);
+        voucher.setVoucherCategory(category);
+        voucher.setDiscountType(discountType);
         voucher.setDiscountPercentage(discountPercentage);
         voucher.setDiscountAmount(discountAmount);
         voucher.setStartTime(startTime);
@@ -828,6 +991,7 @@ public class DataInitializationService implements CommandLineRunner {
                 item.setQuantity(i + 1);
                 item.setCreatedBy(customer.getId());
                 item.setStatus((byte) 1);
+                item.setSelected(true);
                 cartItemRepository.save(item);
             }
         }
@@ -840,6 +1004,7 @@ public class DataInitializationService implements CommandLineRunner {
         List<Book> books = bookRepository.findAll();
         List<Address> addresses = addressRepository.findAll();
         
+        // Tạo đơn hàng DELIVERED cho 3 khách hàng đầu
         for (int i = 0; i < Math.min(3, customers.size()); i++) {
             User customer = customers.get(i);
             Address address = addresses.stream()
@@ -867,6 +1032,62 @@ public class DataInitializationService implements CommandLineRunner {
             order.setSubtotal(subtotal);
             order.setTotalAmount(subtotal.add(order.getShippingFee()));
             orderRepository.save(order);
+        }
+        
+        // ✅ THÊM MỚI: Tạo đơn hàng với các trạng thái hoàn hàng để test
+        if (customers.size() >= 2 && books.size() >= 2) {
+            User testCustomer = customers.get(0); // Lê Văn C (customer1@gmail.com)
+            Address testAddress = addresses.stream()
+                    .filter(addr -> addr.getUser().equals(testCustomer))
+                    .findFirst()
+                    .orElse(addresses.get(0));
+            
+            // 1. Đơn hàng đang chờ admin xem xét yêu cầu hoàn trả
+            Order refundRequestedOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUND_REQUESTED, "ONLINE");
+            refundRequestedOrder.setCancelReason("Khách hàng yêu cầu hoàn trả vì sản phẩm không đúng mô tả");
+            orderRepository.save(refundRequestedOrder);
+            
+            // Thêm order details cho đơn REFUND_REQUESTED
+            Book book1 = books.get(0);
+            OrderDetail detail1 = createOrderDetail(refundRequestedOrder, book1, 2, book1.getPrice());
+            orderDetailRepository.save(detail1);
+            
+            BigDecimal subtotal1 = book1.getPrice().multiply(BigDecimal.valueOf(2));
+            refundRequestedOrder.setSubtotal(subtotal1);
+            refundRequestedOrder.setTotalAmount(subtotal1.add(refundRequestedOrder.getShippingFee()));
+            orderRepository.save(refundRequestedOrder);
+            
+            // 2. Đơn hàng đang trong quá trình hoàn tiền
+            Order refundingOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUNDING, "ONLINE");
+            refundingOrder.setCancelReason("Admin đã chấp nhận yêu cầu hoàn trả, đang xử lý hoàn tiền");
+            orderRepository.save(refundingOrder);
+            
+            // Thêm order details cho đơn REFUNDING
+            Book book2 = books.get(1);
+            OrderDetail detail2 = createOrderDetail(refundingOrder, book2, 1, book2.getPrice());
+            orderDetailRepository.save(detail2);
+            
+            BigDecimal subtotal2 = book2.getPrice();
+            refundingOrder.setSubtotal(subtotal2);
+            refundingOrder.setTotalAmount(subtotal2.add(refundingOrder.getShippingFee()));
+            orderRepository.save(refundingOrder);
+            
+            // 3. Đơn hàng đã hoàn tiền hoàn tất
+            Order refundedOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUNDED, "ONLINE");
+            refundedOrder.setCancelReason("Đã hoàn trả thành công cho khách hàng");
+            orderRepository.save(refundedOrder);
+            
+            // Thêm order details cho đơn REFUNDED
+            Book book3 = books.size() > 2 ? books.get(2) : books.get(0);
+            OrderDetail detail3 = createOrderDetail(refundedOrder, book3, 1, book3.getPrice());
+            orderDetailRepository.save(detail3);
+            
+            BigDecimal subtotal3 = book3.getPrice();
+            refundedOrder.setSubtotal(subtotal3);
+            refundedOrder.setTotalAmount(subtotal3.add(refundedOrder.getShippingFee()));
+            orderRepository.save(refundedOrder);
+            
+            log.info("Created test orders with refund statuses: REFUND_REQUESTED, REFUNDING, REFUNDED");
         }
     }
 

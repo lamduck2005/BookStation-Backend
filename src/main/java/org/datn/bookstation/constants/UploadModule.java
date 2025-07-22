@@ -13,7 +13,8 @@ public enum UploadModule {
     PRODUCTS("products"),
     CATEGORIES("categories"),
     ORDERS("orders"),
-    REVIEWS("reviews");
+    REVIEWS("reviews"),
+    REFUND_EVIDENCE("refund-evidence");
 
     private final String value;
 

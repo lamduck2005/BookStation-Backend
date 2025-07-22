@@ -153,4 +153,14 @@ public class CartItemController {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, e.getMessage(), null));
         }
     }
+
+    /**
+     * Cập nhật trạng thái chọn/bỏ CartItem (toggle)
+     */
+    @PutMapping("/{cartItemId}/select")
+    public ResponseEntity<ApiResponse<CartItemResponse>> toggleCartItemSelected(
+            @PathVariable Integer cartItemId) {
+        ApiResponse<CartItemResponse> response = cartItemService.toggleCartItemSelected(cartItemId);
+        return ResponseEntity.status(HttpStatus.valueOf(response.getStatus())).body(response);
+    }
 }

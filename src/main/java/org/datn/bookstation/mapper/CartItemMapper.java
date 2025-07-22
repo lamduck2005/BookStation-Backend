@@ -7,7 +7,7 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface CartItemMapper {
-    
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "cart", ignore = true)
     @Mapping(target = "book", ignore = true)
@@ -16,6 +16,7 @@ public interface CartItemMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
-    @Mapping(target = "status", constant = "1")
+    @Mapping(target = "status", expression = "java((byte) 1)")
+    @Mapping(target = "selected", expression = "java(true)")
     CartItem toEntity(CartItemRequest request);
 }

@@ -56,10 +56,12 @@ public class TrendingBookMapper {
         Boolean isInFlashSale = (Boolean) data[17]; // isInFlashSale
         BigDecimal flashSalePrice = (BigDecimal) data[18]; // flashSalePrice
         Integer flashSaleStockQuantity = (Integer) data[19]; // flashSaleStockQuantity
+        Integer flashSaleSoldCount = (Integer) data[20]; // flashSaleSoldCount
         
         response.setIsInFlashSale(isInFlashSale != null ? isInFlashSale : false);
         response.setFlashSalePrice(flashSalePrice);
         response.setFlashSaleStockQuantity(flashSaleStockQuantity);
+        response.setFlashSaleSoldCount(flashSaleSoldCount != null ? flashSaleSoldCount : 0);
         
         // Calculate discount percentage if in flash sale
         if (response.getIsInFlashSale() && flashSalePrice != null && response.getPrice() != null) {
@@ -69,8 +71,10 @@ public class TrendingBookMapper {
             response.setDiscountPercentage(discountPercentage.intValue());
             // Giá gốc vẫn giữ nguyên, price sẽ là giá sau discount
             response.setPrice(flashSalePrice);
+            response.setDiscountActive(true);
         } else {
             response.setDiscountPercentage(0);
+            response.setDiscountActive(false);
         }
         
         // Trending info
@@ -84,6 +88,18 @@ public class TrendingBookMapper {
                 .map(this::mapToAuthorResponse)
                 .collect(Collectors.toList());
             response.setAuthors(authors);
+        }
+        
+        // Set images (nhiều ảnh)
+        String imagesStr = (String) data[21]; // images (đã chuyển từ data[20] thành data[21])
+        if (imagesStr != null && !imagesStr.isEmpty()) {
+            List<String> images = java.util.Arrays.stream(imagesStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+            response.setImages(images);
+        } else {
+            response.setImages(java.util.Collections.emptyList());
         }
         
         return response;
@@ -165,6 +181,7 @@ public class TrendingBookMapper {
         response.setIsInFlashSale(false);
         response.setFlashSalePrice(null);
         response.setFlashSaleStockQuantity(null);
+        response.setFlashSaleSoldCount(0); // ✅ Fallback flash sale sold count
         response.setDiscountPercentage(0);
         
         // 🔥 FALLBACK TRENDING SCORE: Dựa trên độ mới và các yếu tố khác
@@ -178,6 +195,18 @@ public class TrendingBookMapper {
                 .map(this::mapToAuthorResponse)
                 .collect(Collectors.toList());
             response.setAuthors(authors);
+        }
+        
+        // Set images (nhiều ảnh)
+        String imagesStr = (String) data[21]; // images (đã chuyển từ data[20] thành data[21])
+        if (imagesStr != null && !imagesStr.isEmpty()) {
+            List<String> images = java.util.Arrays.stream(imagesStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+            response.setImages(images);
+        } else {
+            response.setImages(java.util.Collections.emptyList());
         }
         
         return response;

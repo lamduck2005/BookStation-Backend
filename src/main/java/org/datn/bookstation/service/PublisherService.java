@@ -18,4 +18,7 @@ public interface PublisherService {
     void upStatus(Integer id, byte status, String updatedBy);
     
     List<Publisher> getActivePublishers(); // For dropdown
+
+    List<Publisher> getAllPublisher();
+
 }

@@ -1,18 +1,28 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
+import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
+import org.datn.bookstation.dto.request.QuantityValidationRequest;
+import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
+import org.datn.bookstation.dto.response.QuantityValidationResponse;
+import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.BookDetailResponseMapper;
 import org.datn.bookstation.service.BookService;
+import org.datn.bookstation.service.TrendingCacheService;
+import org.datn.bookstation.service.FlashSaleItemService;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +44,9 @@ public class BookController {
     private final BookService bookService;
     private final BookResponseMapper bookResponseMapper;
     private final BookDetailResponseMapper bookDetailResponseMapper;
-
+    private final TrendingCacheService trendingCacheService;
+    private final FlashSaleItemService flashSaleItemService;
+    private final FlashSaleItemRepository flashSaleItemRepository;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -54,7 +66,23 @@ public class BookController {
             new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/client")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAllClient(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String bookName,
+            @RequestParam(required = false) Integer parentCategoryId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer publisherId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
+        PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
+                page, size, bookName,parentCategoryId, categoryId, publisherId, minPrice, maxPrice);
+        ApiResponse<PaginationResponse<BookResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
+        return ResponseEntity.ok(response);
+    }
     /**
      * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
@@ -63,14 +91,18 @@ public class BookController {
     @PostMapping("/trending")
     public ResponseEntity<ApiResponse<PaginationResponse<TrendingBookResponse>>> getTrendingBooks(
             @Valid @RequestBody TrendingRequest request) {
-        
-        PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(request);
-        
-        String message = request.isDailyTrending() ? 
-            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" : 
+        // Bỏ toàn bộ filter, chỉ giữ lại type, page, size
+        TrendingRequest cleanRequest = new TrendingRequest();
+        cleanRequest.setType(request.getType());
+        cleanRequest.setPage(request.getPage());
+        cleanRequest.setSize(request.getSize());
+        // Các trường filter khác sẽ bị bỏ qua
+
+        PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(cleanRequest);
+        String message = cleanRequest.isDailyTrending() ?
+            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" :
             "Lấy danh sách sách hot giảm sốc thành công";
-            
-        ApiResponse<PaginationResponse<TrendingBookResponse>> response = 
+        ApiResponse<PaginationResponse<TrendingBookResponse>> response =
             new ApiResponse<>(HttpStatus.OK.value(), message, trendingBooks);
         return ResponseEntity.ok(response);
     }
@@ -142,11 +174,82 @@ public class BookController {
     @GetMapping("/dropdown")
     public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks() {
         List<DropdownOptionResponse> dropdown = bookService.getActiveBooks().stream()
-            .map(book -> new DropdownOptionResponse(book.getId(), book.getBookName()))
+            .map(this::mapToDropdownResponse)
             .collect(Collectors.toList());
+        
         ApiResponse<List<DropdownOptionResponse>> response = 
             new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách sách thành công", dropdown);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * API validate số lượng sản phẩm khi đặt hàng
+     * POST /api/books/validate-quantity
+     */
+    @PostMapping("/validate-quantity")
+    public ResponseEntity<ApiResponse<QuantityValidationResponse>> validateQuantity(
+            @Valid @RequestBody QuantityValidationRequest request) {
+        
+        Book book = bookService.getById(request.getBookId());
+        if (book == null) {
+            QuantityValidationResponse response = QuantityValidationResponse
+                .failure("Không tìm thấy sách", 0);
+            return ResponseEntity.ok(new ApiResponse<>(200, "Validate thất bại", response));
+        }
+        
+        int availableQuantity = book.getStockQuantity();
+        boolean isValid = request.getQuantity() > 0 && request.getQuantity() <= availableQuantity;
+        
+        QuantityValidationResponse response = isValid 
+            ? QuantityValidationResponse.success(availableQuantity)
+            : QuantityValidationResponse.failure(
+                "Số lượng không hợp lệ, tồn kho hiện tại: " + availableQuantity, 
+                availableQuantity);
+        
+        return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
+    }
+
+    /**
+     * Helper method để map Book entity sang DropdownOptionResponse
+     */
+    private DropdownOptionResponse mapToDropdownResponse(Book book) {
+        // Tính giá bình thường (ưu tiên discount nếu có)
+        BigDecimal normalPrice = calculateNormalPrice(book);
+        
+        // Kiểm tra flash sale
+        FlashSaleItem flashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+        BigDecimal flashSalePrice = null;
+        boolean isFlashSale = false;
+        
+        if (flashSale != null) {
+            flashSalePrice = flashSale.getDiscountPrice();
+            isFlashSale = true;
+        }
+        
+        return new DropdownOptionResponse(
+            book.getId(),
+            book.getBookName(),
+            normalPrice,
+            flashSalePrice,
+            isFlashSale
+        );
+    }
+
+    /**
+     * Helper method để tính giá bình thường (đã bao gồm discount nếu có)
+     */
+    private BigDecimal calculateNormalPrice(Book book) {
+        if (book.getDiscountActive() != null && book.getDiscountActive()) {
+            if (book.getDiscountValue() != null) {
+                return book.getPrice().subtract(book.getDiscountValue());
+            } else if (book.getDiscountPercent() != null) {
+                BigDecimal discountAmount = book.getPrice()
+                    .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
+                    .divide(BigDecimal.valueOf(100));
+                return book.getPrice().subtract(discountAmount);
+            }
+        }
+        return book.getPrice();
     }
 
     @GetMapping("/category/{categoryId}")
@@ -213,17 +316,49 @@ public class BookController {
      */
     @GetMapping("/admin/cache/trending/stats")
     public ResponseEntity<ApiResponse<String>> getTrendingCacheStats() {
-        // Note: Inject TrendingCacheService if needed
+        String stats = trendingCacheService.getCacheStatistics();
         ApiResponse<String> response = 
-            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", "Feature available when TrendingCacheService is injected");
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", stats);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/admin/cache/trending/invalidate")
     public ResponseEntity<ApiResponse<String>> invalidateTrendingCache() {
-        // Note: Inject TrendingCacheService if needed
+        trendingCacheService.invalidateAllTrendingCache();
         ApiResponse<String> response = 
-            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated", "Feature available when TrendingCacheService is injected");
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated successfully", "All trending cache has been cleared");
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/bycategoryid/{id}")
+    public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
+            @PathVariable("id") Integer id,
+            @RequestParam(name = "text", required = false) String text) {
+        if (id==null){
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
+    }
+    @GetMapping("/flashsalebook")
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
+        return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
+    }
+
+    /**
+     * 🔥 API tính giá sách cho Frontend
+     * POST /api/books/calculate-price
+     */
+    @PostMapping("/calculate-price")
+    public ResponseEntity<ApiResponse<BookPriceCalculationResponse>> calculateBookPrice(
+            @Valid @RequestBody BookPriceCalculationRequest request) {
+        
+        Book book = bookService.getById(request.getBookId());
+        if (book == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
+        }
+        
+        BookPriceCalculationResponse response = bookService.calculateBookPrice(book, request);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Tính giá thành công", response));
+    }
 }
+

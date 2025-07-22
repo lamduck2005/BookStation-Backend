@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Author;
-import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.service.AuthorService;
 import org.datn.bookstation.specification.AuthorSpecification;
@@ -23,88 +22,128 @@ public class AuthorServiceImpl implements AuthorService {
 
     @Override
     public ApiResponse<List<Author>> getAll() {
-        return new ApiResponse<>(200,"GetAll thành công",authorRepository.findAll());
+        try {
+            List<Author> authors = authorRepository.findAll();
+            return new ApiResponse<>(200, "Lấy danh sách tác giả thành công", authors);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy danh sách tác giả: " + e.getMessage(), null);
+        }
     }
 
-    @Override
-    public ApiResponse<List<Author>> search() {
-        return null;
-    }
+
 
     @Override
     public ApiResponse<Author> getById(Integer id) {
-        Author authorById = authorRepository.findById(id).orElse(null);
-        if (authorById== null){
-            return new ApiResponse<>(404,"Không tìm thấy ", null);
+        try {
+            Author author = authorRepository.findById(id).orElse(null);
+            if (author == null) {
+                return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
+            }
+            return new ApiResponse<>(200, "Lấy thông tin tác giả thành công", author);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy thông tin tác giả: " + e.getMessage(), null);
         }
-        return new ApiResponse<Author>(200,"Đã tim thấy đối tượng id này",authorRepository.findById(id).get());
     }
 
     @Override
     public ApiResponse<Author> add(Author author) {
         try {
-            // author.setCreatedAt(Instant.now());
-            author.setCreatedBy(1);
-            return new ApiResponse<>(200,"thêm thành công",authorRepository.save(author));
+            author.setCreatedBy(1); // Hoặc lấy từ user hiện tại
+            Author savedAuthor = authorRepository.save(author);
+            return new ApiResponse<>(201, "Thêm tác giả thành công", savedAuthor);
         } catch (Exception e) {
-            e.printStackTrace();
-            return new ApiResponse<>(404,"thêm thất bại"+e.getMessage(),null);
+            return new ApiResponse<>(400, "Thêm tác giả thất bại: " + e.getMessage(), null);
         }
     }
 
     @Override
     public ApiResponse<Author> update(Author author, Integer id) {
         try {
-            Author authorToUpdate = authorRepository.findById(id)
-                    .orElse(null);
-            if (authorToUpdate==null){
-                return new ApiResponse<>(404,"Không tồn tại id này",null);
+            Author authorToUpdate = authorRepository.findById(id).orElse(null);
+            if (authorToUpdate == null) {
+                return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
             }
+
+            // Giữ lại thông tin gốc
+            author.setId(id);
             author.setCreatedAt(authorToUpdate.getCreatedAt());
             author.setCreatedBy(authorToUpdate.getCreatedBy());
-            // author.setUpdatedAt(Instant.now());
-            author.setUpdatedBy(1);
-            author.setId(id);
-            return new ApiResponse<>(200,"Thêm thành công",authorRepository.save(author));
+            author.setUpdatedBy(1); // Hoặc lấy từ user hiện tại
+
+            Author updatedAuthor = authorRepository.save(author);
+            return new ApiResponse<>(200, "Cập nhật tác giả thành công", updatedAuthor);
         } catch (Exception e) {
-            e.printStackTrace();
-            return new ApiResponse<>(404,"update thất bai"+e.getMessage(),null);
+            return new ApiResponse<>(400, "Cập nhật tác giả thất bại: " + e.getMessage(), null);
         }
     }
 
     @Override
     public ApiResponse<Author> delete(Integer id) {
-        Author authorById = authorRepository.findById(id).orElse(null);
-        if (authorById== null){
-            return new ApiResponse<>(404,"Đối tượng này không tồn tại",null);
+        try {
+            Author author = authorRepository.findById(id).orElse(null);
+            if (author == null) {
+                return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
+            }
+            authorRepository.deleteById(id);
+            return new ApiResponse<>(200, "Xóa tác giả thành công", author);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Xóa tác giả thất bại: " + e.getMessage(), null);
         }
-        authorRepository.deleteById(id);
-        return new ApiResponse<>(200,"Xóa thành công",authorById);
     }
 
     @Override
     public ApiResponse<Author> toggleStatus(Integer id) {
+        try {
+            Author author = authorRepository.findById(id).orElse(null);
+            if (author == null) {
+                return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
+            }
 
-        return null;
+            if (author.getStatus() == null) {
+                author.setStatus((byte) 1);
+            } else {
+                author.setStatus((byte) (author.getStatus() == 1 ? 0 : 1));
+            }
+            author.setUpdatedBy(1); // Hoặc lấy từ user hiện tại
+
+            Author updatedAuthor = authorRepository.save(author);
+            return new ApiResponse<>(200, "Cập nhật trạng thái tác giả thành công", updatedAuthor);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Cập nhật trạng thái thất bại: " + e.getMessage(), null);
+        }
     }
 
     @Override
-    public PaginationResponse<Author> getAllAuthorPagination(Integer page, Integer size, String name, Byte status) {
-        Pageable pageable = PageRequest.of(page, size);
-        Specification<Author> spec = AuthorSpecification.filterBy(name,status);
-        Page<Author> authorPage = authorRepository.findAll(spec,pageable);
-        List<Author> authors = authorPage.stream().toList();
-        return new PaginationResponse<>(
-                authors,
-                authorPage.getNumber(),
-                authorPage.getSize(),
-                authorPage.getTotalElements(),
-                authorPage.getTotalPages()
-        );
+    public ApiResponse<PaginationResponse<Author>> getAllAuthorPagination(Integer page, Integer size, String name,
+            Byte status) {
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Specification<Author> spec = AuthorSpecification.filterBy(name, status);
+            Page<Author> authorPage = authorRepository.findAll(spec, pageable);
+
+            List<Author> authors = authorPage.getContent();
+
+            PaginationResponse<Author> paginationResponse = PaginationResponse.<Author>builder()
+                    .content(authors)
+                    .pageNumber(authorPage.getNumber())
+                    .pageSize(authorPage.getSize())
+                    .totalElements(authorPage.getTotalElements())
+                    .totalPages(authorPage.getTotalPages())
+                    .build();
+
+            return new ApiResponse<>(200, "Lấy danh sách tác giả phân trang thành công", paginationResponse);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy danh sách phân trang: " + e.getMessage(), null);
+        }
     }
 
     @Override
-    public List<Author> getActiveAuthors() {
-        return authorRepository.findByStatus((byte) 1);
+    public ApiResponse<List<Author>> getActiveAuthors() {
+        try {
+            List<Author> activeAuthors = authorRepository.findByStatus((byte) 1);
+            return new ApiResponse<>(200, "Lấy danh sách tác giả đang hoạt động thành công", activeAuthors);
+        } catch (Exception e) {
+            return new ApiResponse<>(500, "Lỗi khi lấy danh sách tác giả hoạt động: " + e.getMessage(), null);
+        }
     }
 }
