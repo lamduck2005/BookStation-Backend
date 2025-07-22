@@ -12,4 +12,5 @@ public interface AddressService {
     ApiResponse<AddressResponse> create(AddressRequest request);
     ApiResponse<AddressResponse> update(AddressRequest request, Integer id);
     ApiResponse<Void> delete(Integer id);
+    ApiResponse<Void> disable(Integer id);
 } 

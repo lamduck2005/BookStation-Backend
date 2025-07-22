@@ -11,6 +11,8 @@ import org.datn.bookstation.mapper.AddressMapper;
 import org.datn.bookstation.repository.AddressRepository;
 import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.service.AddressService;
+import org.datn.bookstation.specification.AddressSpecification;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +31,9 @@ public class AddressServiceImpl implements AddressService {
     @Override
     public ApiResponse<List<AddressResponse>> getAddressesByUser(Integer userId) {
         try {
-            List<Address> addresses = addressRepository.findByUserIdOrderByIsDefaultDesc(userId);
+            // Lấy theo Specification, chỉ lấy status=1
+            var spec = AddressSpecification.filterBy(userId, (byte) 1);
+            List<Address> addresses = addressRepository.findAll(spec, Sort.by(Sort.Order.desc("isDefault"), Sort.Order.desc("createdAt")));
             List<AddressResponse> responses = addresses.stream()
                     .map(addressMapper::toResponse)
                     .collect(Collectors.toList());
@@ -143,12 +147,12 @@ public class AddressServiceImpl implements AddressService {
             }
 
             Integer userId = address.getUser().getId();
-            boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
+            boolean isDefault = Boolean.TRUE.equals(address.getIsDefault());
 
             addressRepository.deleteById(id);
 
             // Nếu vừa xoá địa chỉ mặc định, tự động gán 1 địa chỉ khác làm mặc định
-            if (wasDefault) {
+            if (isDefault) {
                 List<Address> addresses = addressRepository.findByUserIdOrderByIsDefaultDesc(userId);
                 if (!addresses.isEmpty()) {
                     Address first = addresses.get(0);
@@ -162,6 +166,43 @@ public class AddressServiceImpl implements AddressService {
             return new ApiResponse<>(200, "Xóa địa chỉ thành công", null);
         } catch (Exception e) {
             log.error("Error deleteAddress", e);
+            return new ApiResponse<>(500, "Lỗi khi xoá địa chỉ: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<Void> disable(Integer id) {
+        try {
+            Address address = addressRepository.findById(id).orElse(null);
+            if (address == null) {
+                return new ApiResponse<>(404, "Không tìm thấy địa chỉ", null);
+            }
+            if (address.getStatus() != null && address.getStatus() == 0) {
+                return new ApiResponse<>(400, "Địa chỉ đã bị xoá trước đó", null);
+            }
+            address.setStatus((byte) 0);
+            addressRepository.save(address);
+
+            Integer userId = address.getUser().getId();
+            boolean isDefault = Boolean.TRUE.equals(address.getIsDefault());
+
+
+            // Nếu vừa xoá địa chỉ mặc định, tự động gán 1 địa chỉ khác làm mặc định
+            if (isDefault) {
+                List<Address> addresses = addressRepository.findByUserIdOrderByIsDefaultDesc(userId);
+                if (!addresses.isEmpty()) {
+                    Address first = addresses.get(0);
+                    if (!Boolean.TRUE.equals(first.getIsDefault())) {
+                        first.setIsDefault(true);
+                        addressRepository.save(first);
+                    }
+                }
+            }
+
+            
+            return new ApiResponse<>(200, "Đã xoá địa chỉ thành công", null);
+        } catch (Exception e) {
             return new ApiResponse<>(500, "Lỗi khi xoá địa chỉ: " + e.getMessage(), null);
         }
     }
