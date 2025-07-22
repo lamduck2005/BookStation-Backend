@@ -638,32 +638,9 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal detailRefundAmount = unitRefundAmount.multiply(BigDecimal.valueOf(refundDetail.getRefundQuantity()));
             totalRefundAmount = totalRefundAmount.add(detailRefundAmount);
             
-            // ✅ Restore stock và CHỈ trừ sold count nếu đơn hàng đã DELIVERED
-            boolean wasDelivered = order.getOrderStatus() == OrderStatus.DELIVERED || 
-                                   order.getOrderStatus() == OrderStatus.REFUNDING ||
-                                   order.getOrderStatus() == OrderStatus.REFUNDED ||
-                                   order.getOrderStatus() == OrderStatus.PARTIALLY_REFUNDED;
-            
-            if (orderDetail.getFlashSaleItem() != null) {
-                FlashSaleItem flashSaleItem = orderDetail.getFlashSaleItem();
-                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + refundDetail.getRefundQuantity());
-                
-                // CHỈ trừ sold count nếu đơn hàng đã được giao (đã cộng sold count)
-                if (wasDelivered) {
-                    flashSaleItem.setSoldCount((flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0) - refundDetail.getRefundQuantity());
-                }
-                flashSaleItemRepository.save(flashSaleItem);
-            } else {
-                // ✅ Restore book stock  
-                Book book = orderDetail.getBook();
-                book.setStockQuantity(book.getStockQuantity() + refundDetail.getRefundQuantity());
-                
-                // CHỈ trừ sold count nếu đơn hàng đã được giao (đã cộng sold count)
-                if (wasDelivered) {
-                    book.setSoldCount((book.getSoldCount() != null ? book.getSoldCount() : 0) - refundDetail.getRefundQuantity());
-                }
-                bookRepository.save(book);
-            }
+            // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về GOODS_RETURNED_TO_WAREHOUSE
+            log.info("Partial refund calculated for book {}: quantity={}, amount={}", 
+                     refundDetail.getBookId(), refundDetail.getRefundQuantity(), detailRefundAmount);
             
             // Update order detail quantity
             orderDetail.setQuantity(orderDetail.getQuantity() - refundDetail.getRefundQuantity());
@@ -674,34 +651,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void handleFullRefundBusinessLogic(Order order, String reason) {
-        // ✅ Restore stock và CHỈ trừ sold count nếu đơn hàng đã DELIVERED
-        boolean wasDelivered = order.getOrderStatus() == OrderStatus.DELIVERED || 
-                               order.getOrderStatus() == OrderStatus.REFUNDING ||
-                               order.getOrderStatus() == OrderStatus.REFUNDED;
-        
+        // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về GOODS_RETURNED_TO_WAREHOUSE
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
-        for (OrderDetail detail : orderDetails) {
-            if (detail.getFlashSaleItem() != null) {
-                FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
-                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + detail.getQuantity());
-                
-                // CHỈ trừ sold count nếu đơn hàng đã được giao (đã cộng sold count)
-                if (wasDelivered) {
-                    flashSaleItem.setSoldCount((flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0) - detail.getQuantity());
-                }
-                flashSaleItemRepository.save(flashSaleItem);
-            } else {
-                // ✅ Restore book stock
-                Book book = detail.getBook();
-                book.setStockQuantity(book.getStockQuantity() + detail.getQuantity());
-                
-                // CHỈ trừ sold count nếu đơn hàng đã được giao (đã cộng sold count)
-                if (wasDelivered) {
-                    book.setSoldCount((book.getSoldCount() != null ? book.getSoldCount() : 0) - detail.getQuantity());
-                }
-                bookRepository.save(book);
-            }
-        }
+        
+        // Tính toán tổng số lượng để log
+        int totalQuantity = orderDetails.stream().mapToInt(OrderDetail::getQuantity).sum();
+        log.info("Full refund processed for order {}: {} items. Stock will be restored when admin changes status to GOODS_RETURNED_TO_WAREHOUSE", 
+                 order.getCode(), totalQuantity);
 
         // Restore voucher usage if applicable
         if (order.getRegularVoucherCount() > 0 || order.getShippingVoucherCount() > 0) {
@@ -709,7 +665,7 @@ public class OrderServiceImpl implements OrderService {
             log.info("Order {} fully refunded, voucher usage should be restored", order.getCode());
         }
 
-        log.info("Order {} fully refunded, all stock restored", order.getCode());
+        log.info("Order {} fully refunded, stock will be restored separately", order.getCode());
     }
     
     /**

@@ -172,6 +172,35 @@ public class RefundController {
     }
     
     /**
+     * ✅ API: Admin từ chối yêu cầu hoàn trả
+     * POST /api/refunds/{id}/reject?adminId={adminId}
+     */
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<RefundRequestResponse>> rejectRefundRequest(
+            @PathVariable Integer id,
+            @RequestParam Integer adminId,
+            @Valid @RequestBody RefundApprovalRequest rejection) {
+        try {
+            RefundRequestResponse refundRequest = refundService.rejectRefundRequest(id, rejection, adminId);
+            
+            ApiResponse<RefundRequestResponse> response = new ApiResponse<>(
+                HttpStatus.OK.value(),
+                "Từ chối yêu cầu hoàn trả thành công",
+                refundRequest
+            );
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<RefundRequestResponse> response = new ApiResponse<>(
+                HttpStatus.BAD_REQUEST.value(),
+                "Lỗi khi từ chối yêu cầu hoàn trả: " + e.getMessage(),
+                null
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+    
+    /**
      * ✅ API: Admin xử lý hoàn trả sau khi phê duyệt
      * POST /api/refunds/{id}/process?adminId={adminId}
      */

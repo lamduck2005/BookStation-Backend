@@ -30,6 +30,12 @@ public class RefundRequestResponse {
     private Long approvedAt;
     private Long completedAt;
     
+    // ✅ THÊM MỚI: Thông tin từ chối
+    private String rejectReason;
+    private String rejectReasonDisplay;
+    private String suggestedAction;
+    private Long rejectedAt;
+    
     // Chi tiết sản phẩm hoàn trả
     private List<RefundItemResponse> refundItems;
     

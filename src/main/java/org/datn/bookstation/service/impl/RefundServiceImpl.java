@@ -10,14 +10,17 @@ import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.RefundItem;
 import org.datn.bookstation.entity.OrderDetail;
+import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.repository.RefundRequestRepository;
 import org.datn.bookstation.repository.OrderRepository;
 import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.repository.RefundItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
+import org.datn.bookstation.repository.BookRepository;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.service.RefundService;
-import org.datn.bookstation.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,7 +62,10 @@ public class RefundServiceImpl implements RefundService {
     private OrderDetailRepository orderDetailRepository;
     
     @Autowired
-    private OrderService orderService;
+    private BookRepository bookRepository;
+    
+    @Autowired
+    private FlashSaleItemRepository flashSaleItemRepository;
 
     @Override
     public RefundRequestResponse createRefundRequest(RefundRequestCreate request, Integer userId) {
@@ -199,6 +205,44 @@ public class RefundServiceImpl implements RefundService {
     }
 
     @Override
+    public RefundRequestResponse rejectRefundRequest(Integer refundRequestId, RefundApprovalRequest rejection, Integer adminId) {
+        RefundRequest request = refundRequestRepository.findById(refundRequestId)
+                .orElseThrow(() -> new RuntimeException("Yêu cầu hoàn trả không tồn tại"));
+
+        if (request.getStatus() != RefundStatus.PENDING) {
+            throw new RuntimeException("Chỉ có thể từ chối yêu cầu đang chờ xử lý");
+        }
+
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin không tồn tại"));
+
+        // ✅ Update RefundRequest status thành REJECTED
+        request.setStatus(RefundStatus.REJECTED);
+        request.setApprovedBy(admin);
+        request.setAdminNote(rejection.getAdminNote());
+        
+        // ✅ Lưu thông tin từ chối chi tiết
+        request.setRejectReason(rejection.getRejectReason());
+        request.setRejectReasonDisplay(rejection.getRejectReasonDisplay());
+        request.setSuggestedAction(rejection.getSuggestedAction());
+        request.setRejectedAt(System.currentTimeMillis());
+        request.setUpdatedAt(System.currentTimeMillis());
+
+        // ✅ Đổi trạng thái đơn hàng về DELIVERED (khách có thể tạo yêu cầu hoàn trả mới sau)
+        Order order = request.getOrder();
+        order.setOrderStatus(OrderStatus.DELIVERED);
+        order.setUpdatedBy(adminId);
+        orderRepository.save(order);
+
+        RefundRequest savedRequest = refundRequestRepository.save(request);
+
+        log.info("❌ REFUND REQUEST REJECTED: id={}, adminId={}, reason={}, order back to DELIVERED", 
+                 refundRequestId, adminId, rejection.getRejectReason());
+
+        return convertToResponse(savedRequest);
+    }
+
+    @Override
     public RefundRequestResponse processRefund(Integer refundRequestId, Integer adminId) {
         RefundRequest request = refundRequestRepository.findById(refundRequestId)
                 .orElseThrow(() -> new RuntimeException("Yêu cầu hoàn trả không tồn tại"));
@@ -207,24 +251,30 @@ public class RefundServiceImpl implements RefundService {
             throw new RuntimeException("Chỉ có thể xử lý yêu cầu đã được phê duyệt");
         }
 
-        // Gọi OrderService để thực hiện hoàn tiền
+        // ✅ SỬA LOGIC: CHỈ hoàn voucher, KHÔNG cộng stock
+        // NHƯNG phải trừ sold count ngay lập tức
+        Order order = request.getOrder();
+        
+        // ✅ TRỪ SOLD COUNT NGAY LẬP TỨC (không đợi về kho)
         if (request.getRefundType() == RefundType.FULL) {
-            orderService.fullRefund(request.getOrder().getId(), request.getUser().getId(), request.getReason());
+            // Full refund - trừ sold count cho toàn bộ đơn hàng
+            deductSoldCountForFullRefund(order);
         } else {
-            // Convert refund items to OrderDetailRefundRequest format
-            List<org.datn.bookstation.dto.request.OrderDetailRefundRequest> refundDetails = 
-                request.getRefundItems().stream().map(item -> {
-                    org.datn.bookstation.dto.request.OrderDetailRefundRequest detail = 
-                        new org.datn.bookstation.dto.request.OrderDetailRefundRequest();
-                    detail.setBookId(item.getBook().getId());
-                    detail.setRefundQuantity(item.getRefundQuantity());
-                    detail.setReason(item.getReason());
-                    return detail;
-                }).collect(Collectors.toList());
-
-            orderService.partialRefund(request.getOrder().getId(), request.getUser().getId(), 
-                                     request.getReason(), refundDetails);
+            // Partial refund - trừ sold count cho từng item
+            deductSoldCountForPartialRefund(order, request.getRefundItems());
         }
+        
+        // Hoàn voucher nếu có
+        if (order.getRegularVoucherCount() > 0 || order.getShippingVoucherCount() > 0) {
+            // Call voucher service to restore voucher usage
+            log.info("Order {} - Restoring voucher usage: regular={}, shipping={}", 
+                     order.getCode(), order.getRegularVoucherCount(), order.getShippingVoucherCount());
+        }
+
+        // Đổi trạng thái đơn hàng thành REFUNDING (đang hoàn tiền)
+        order.setOrderStatus(OrderStatus.REFUNDING);
+        order.setUpdatedAt(System.currentTimeMillis());
+        orderRepository.save(order);
 
         // Update refund request status
         request.setStatus(RefundStatus.COMPLETED);
@@ -233,8 +283,9 @@ public class RefundServiceImpl implements RefundService {
 
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("✅ REFUND PROCESSED: id={}, orderId={}, adminId={}", 
+        log.info("✅ REFUND PROCESSED (voucher restored only): id={}, orderId={}, adminId={}", 
                  refundRequestId, request.getOrder().getId(), adminId);
+        log.info("⚠️  STOCK NOT RESTORED YET - Admin must change order status to GOODS_RETURNED_TO_WAREHOUSE to restore stock");
 
         return convertToResponse(savedRequest);
     }
@@ -299,10 +350,72 @@ public class RefundServiceImpl implements RefundService {
         response.setApprovedAt(request.getApprovedAt());
         response.setCompletedAt(request.getCompletedAt());
         
+        // ✅ THÊM MỚI: Thông tin từ chối
+        response.setRejectReason(request.getRejectReason());
+        response.setRejectReasonDisplay(request.getRejectReasonDisplay());
+        response.setSuggestedAction(request.getSuggestedAction());
+        response.setRejectedAt(request.getRejectedAt());
+        
         if (request.getApprovedBy() != null) {
             response.setApprovedByName(request.getApprovedBy().getFullName());
         }
         
         return response;
+    }
+    
+    /**
+     * ✅ Trừ sold count cho hoàn trả toàn bộ (KHÔNG cộng stock)
+     */
+    private void deductSoldCountForFullRefund(Order order) {
+        List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
+        for (OrderDetail detail : orderDetails) {
+            deductSoldCountForOrderDetail(detail, detail.getQuantity());
+        }
+        log.info("✅ Deducted sold count for full refund: order={}", order.getCode());
+    }
+    
+    /**
+     * ✅ Trừ sold count cho hoàn trả một phần (KHÔNG cộng stock)
+     */
+    private void deductSoldCountForPartialRefund(Order order, List<RefundItem> refundItems) {
+        for (RefundItem refundItem : refundItems) {
+            OrderDetail orderDetail = orderDetailRepository.findByOrderIdAndBookId(
+                order.getId(), refundItem.getBook().getId());
+            if (orderDetail != null) {
+                deductSoldCountForOrderDetail(orderDetail, refundItem.getRefundQuantity());
+            }
+        }
+        log.info("✅ Deducted sold count for partial refund: order={}, items={}", 
+                 order.getCode(), refundItems.size());
+    }
+    
+    /**
+     * ✅ Trừ sold count cho một OrderDetail cụ thể
+     */
+    private void deductSoldCountForOrderDetail(OrderDetail detail, Integer quantity) {
+        if (detail.getFlashSaleItem() != null) {
+            // Flash sale item
+            FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
+            int currentSoldCount = flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
+            flashSaleItem.setSoldCount(Math.max(0, currentSoldCount - quantity));
+            flashSaleItemRepository.save(flashSaleItem);
+            
+            // Cũng trừ sold count cho book gốc
+            Book book = detail.getBook();
+            int currentBookSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
+            book.setSoldCount(Math.max(0, currentBookSoldCount - quantity));
+            bookRepository.save(book);
+            
+            log.info("Deducted sold count: FlashSale item {} and Book {} by {}", 
+                     flashSaleItem.getId(), book.getId(), quantity);
+        } else {
+            // Book thông thường
+            Book book = detail.getBook();
+            int currentSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
+            book.setSoldCount(Math.max(0, currentSoldCount - quantity));
+            bookRepository.save(book);
+            
+            log.info("Deducted sold count: Book {} by {}", book.getId(), quantity);
+        }
     }
 }

@@ -126,6 +126,8 @@ public class OrderController {
         return ResponseEntity.status(status).body(response);
     }
 
+
+
     /**
      * ✅ THÊM MỚI: API đánh dấu giao hàng thất bại
      * PATCH /api/orders/{id}/delivery-failed
@@ -299,7 +301,7 @@ public class OrderController {
             case REFUND_REQUESTED: return "Yêu cầu hoàn trả";
             case REFUNDING: return "Đang hoàn tiền";
             case REFUNDED: return "Đã hoàn tiền hoàn tất";
-            case RETURNED: return "Đã trả hàng về kho";
+            case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng đã trả về kho";
             case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";
             default: return orderStatus.name();
         }

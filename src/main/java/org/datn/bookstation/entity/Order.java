@@ -68,7 +68,7 @@ public class Order {
     private Byte status;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_status", length = 20)
+    @Column(name = "order_status", length = 30)  // ✅ Tăng từ 20 lên 30 để chứa GOODS_RETURNED_TO_WAREHOUSE
     private OrderStatus orderStatus;
     
     @Size(max = 20)

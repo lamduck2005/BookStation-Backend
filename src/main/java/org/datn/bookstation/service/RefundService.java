@@ -20,6 +20,11 @@ public interface RefundService {
     RefundRequestResponse approveRefundRequest(Integer refundRequestId, RefundApprovalRequest approval, Integer adminId);
     
     /**
+     * ✅ Admin từ chối yêu cầu hoàn trả
+     */
+    RefundRequestResponse rejectRefundRequest(Integer refundRequestId, RefundApprovalRequest rejection, Integer adminId);
+    
+    /**
      * ✅ Xử lý hoàn trả sau khi được phê duyệt
      */
     RefundRequestResponse processRefund(Integer refundRequestId, Integer adminId);

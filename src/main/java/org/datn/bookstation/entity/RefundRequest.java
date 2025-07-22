@@ -46,6 +46,19 @@ public class RefundRequest {
     @Column(name = "admin_note", columnDefinition = "NVARCHAR(1000)")
     private String adminNote; // Ghi chú từ admin
     
+    // ✅ THÊM MỚI: Thông tin từ chối chi tiết
+    @Column(name = "reject_reason", columnDefinition = "NVARCHAR(100)")
+    private String rejectReason; // Lý do từ chối (enum code)
+    
+    @Column(name = "reject_reason_display", columnDefinition = "NVARCHAR(200)")
+    private String rejectReasonDisplay; // Hiển thị lý do từ chối
+    
+    @Column(name = "suggested_action", columnDefinition = "NVARCHAR(500)")
+    private String suggestedAction; // Gợi ý hành động cho khách hàng
+    
+    @Column(name = "rejected_at")
+    private Long rejectedAt; // Thời gian từ chối
+    
     // ✅ IMAGES/VIDEOS evidence
     @ElementCollection
     @CollectionTable(name = "refund_evidence_images", joinColumns = @JoinColumn(name = "refund_request_id"))

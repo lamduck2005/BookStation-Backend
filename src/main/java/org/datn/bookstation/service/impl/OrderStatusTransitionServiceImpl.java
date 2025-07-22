@@ -30,6 +30,8 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
     private final OrderDetailRepository orderDetailRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final BookRepository bookRepository;
+    private final RefundItemRepository refundItemRepository;
+    private final RefundRequestRepository refundRequestRepository;
     private final PointManagementService pointManagementService;
     private final VoucherManagementService voucherManagementService;
     
@@ -38,12 +40,12 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELED),
         OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELED),
         OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELED),
-        OrderStatus.DELIVERED, Set.of(OrderStatus.RETURNED, OrderStatus.PARTIALLY_REFUNDED),
+        OrderStatus.DELIVERED, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.PARTIALLY_REFUNDED),
         OrderStatus.CANCELED, Set.of(OrderStatus.REFUNDING),
-        OrderStatus.RETURNED, Set.of(OrderStatus.REFUNDING),
-        OrderStatus.REFUNDING, Set.of(OrderStatus.REFUNDED),
-        OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.RETURNED, OrderStatus.REFUNDING),
-        OrderStatus.REFUNDED, Collections.emptySet() // Trạng thái cuối
+        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, Set.of(OrderStatus.REFUNDING),
+        OrderStatus.REFUNDING, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.REFUNDED),
+        OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.REFUNDING),
+        OrderStatus.REFUNDED, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE) // ✅ CHO PHÉP TỪ REFUNDED VỀ WAREHOUSE
     );
     
     @Override
@@ -54,16 +56,23 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
             Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng với ID: " + request.getOrderId()));
             
-            if (!order.getOrderStatus().equals(request.getCurrentStatus())) {
-                return new ApiResponse<>(400, 
-                    "Trạng thái hiện tại không khớp. Hiện tại: " + order.getOrderStatus() + 
-                    ", Yêu cầu: " + request.getCurrentStatus(), null);
+            // ✅ SỬA: Tự động sử dụng trạng thái hiện tại của order thay vì dựa vào request
+            OrderStatus actualCurrentStatus = order.getOrderStatus();
+            
+            // Optional: Log để debug
+            log.info("🔍 DEBUG: Order {} - Current status: {}, Request wants to change to: {}", 
+                     order.getId(), actualCurrentStatus, request.getNewStatus());
+            
+            // Nếu có currentStatus trong request, kiểm tra có khớp không (optional validation)
+            if (request.getCurrentStatus() != null && !actualCurrentStatus.equals(request.getCurrentStatus())) {
+                log.warn("⚠️  WARNING: Request currentStatus ({}) khác với actual status ({})", 
+                         request.getCurrentStatus(), actualCurrentStatus);
             }
             
-            // 2. VALIDATION LUỒNG CHUYỂN ĐỔI
-            if (!isValidTransition(request.getCurrentStatus(), request.getNewStatus())) {
+            // 2. VALIDATION LUỒNG CHUYỂN ĐỔI (dùng actual status)
+            if (!isValidTransition(actualCurrentStatus, request.getNewStatus())) {
                 return new ApiResponse<>(400, 
-                    "Không thể chuyển từ " + request.getCurrentStatus() + " sang " + request.getNewStatus(), null);
+                    "Không thể chuyển từ " + actualCurrentStatus + " sang " + request.getNewStatus(), null);
             }
             
             // 3. VALIDATION NGHIỆP VỤ ĐẶC BIỆT
@@ -86,15 +95,15 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
             OrderStatusTransitionResponse response = OrderStatusTransitionResponse.builder()
                 .orderId(order.getId())
                 .orderCode(order.getCode())
-                .previousStatus(request.getCurrentStatus())
+                .previousStatus(actualCurrentStatus)  // ✅ Dùng actual status
                 .newStatus(request.getNewStatus())
-                .transitionMessage(getTransitionDescription(request.getCurrentStatus(), request.getNewStatus()))
+                .transitionMessage(getTransitionDescription(actualCurrentStatus, request.getNewStatus()))
                 .transitionTime(System.currentTimeMillis())
                 .businessImpact(businessImpact)
                 .build();
             
             log.info("✅ Chuyển đổi trạng thái đơn hàng {} từ {} sang {} thành công", 
-                    order.getCode(), request.getCurrentStatus(), request.getNewStatus());
+                    order.getCode(), actualCurrentStatus, request.getNewStatus());
             
             return new ApiResponse<>(200, "Chuyển đổi trạng thái thành công", response);
             
@@ -127,12 +136,14 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         descriptions.put("CONFIRMED_TO_CANCELED", "Hủy đơn hàng - Đơn hàng bị hủy sau khi đã xác nhận");
         descriptions.put("SHIPPED_TO_DELIVERED", "Giao thành công - Khách hàng đã nhận được hàng");
         descriptions.put("SHIPPED_TO_CANCELED", "Hủy đơn hàng - Đơn hàng bị hủy trong quá trình giao");
-        descriptions.put("DELIVERED_TO_RETURNED", "Trả hàng - Khách hàng yêu cầu trả lại sản phẩm");
+        descriptions.put("DELIVERED_TO_GOODS_RETURNED_TO_WAREHOUSE", "Trả hàng về kho - Hàng hóa đã được khách trả lại và nhập kho");
         descriptions.put("DELIVERED_TO_PARTIALLY_REFUNDED", "Hoàn tiền một phần - Hoàn tiền cho một số sản phẩm trong đơn hàng");
         descriptions.put("CANCELED_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã hủy");
-        descriptions.put("RETURNED_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã trả");
+        descriptions.put("GOODS_RETURNED_TO_WAREHOUSE_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã nhập kho");
         descriptions.put("REFUNDING_TO_REFUNDED", "Hoàn tiền thành công - Đã hoàn tiền cho khách hàng");
-        descriptions.put("PARTIALLY_REFUNDED_TO_RETURNED", "Trả hàng toàn bộ - Khách hàng yêu cầu trả thêm sản phẩm còn lại");
+        descriptions.put("REFUNDING_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho - Hàng hoàn trả đã được nhập kho");
+        descriptions.put("REFUNDED_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho sau hoàn tiền - Hàng được trả lại sau khi đã hoàn tiền");
+        descriptions.put("PARTIALLY_REFUNDED_TO_GOODS_RETURNED_TO_WAREHOUSE", "Trả hàng toàn bộ về kho - Nhập kho phần hàng còn lại");
         descriptions.put("PARTIALLY_REFUNDED_TO_REFUNDING", "Hoàn tiền toàn bộ - Tiến hành hoàn tiền cho toàn bộ đơn hàng");
         
         return descriptions.getOrDefault(key, "Chuyển đổi trạng thái từ " + currentStatus + " sang " + newStatus);
@@ -217,7 +228,7 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
                     break;
                     
                 case CANCELED:
-                case RETURNED:
+                case GOODS_RETURNED_TO_WAREHOUSE:
                     // Trừ điểm khi hủy/trả hàng (nếu đã tích điểm trước đó)
                     pointManagementService.deductPointsFromCancelledOrder(order, user);
                     int earnedPointsBefore = pointManagementService.calculateEarnedPoints(order.getTotalAmount(), user);
@@ -290,33 +301,67 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
                         break;
                         
                     case CANCELED:
-                    case RETURNED:
-                        // ✅ LOGIC HOÀN TRẢ: CHỈ trừ sold count nếu trước đó đã DELIVERED
-                        if (detail.getFlashSaleItem() != null) {
-                            FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
-                            // Chỉ trừ sold count nếu đơn đã delivered trước đó
-                            if (order.getOrderStatus() == OrderStatus.DELIVERED) {
-                                flashSaleItem.setSoldCount(Math.max(0, flashSaleItem.getSoldCount() - quantity));
+                        // ❌ KHÔNG cộng stock khi hủy đơn - chỉ khi đã shipped
+                        if (order.getOrderStatus() == OrderStatus.SHIPPED || order.getOrderStatus() == OrderStatus.CONFIRMED) {
+                            // Khôi phục stock vì hàng chưa giao
+                            if (detail.getFlashSaleItem() != null) {
+                                FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
+                                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + quantity);
                                 flashSaleItemRepository.save(flashSaleItem);
+                            } else {
+                                book.setStockQuantity(book.getStockQuantity() + quantity);
+                                bookRepository.save(book);
                             }
-                            // Khôi phục stock
-                            flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + quantity);
-                            flashSaleItemRepository.save(flashSaleItem);
-                        } else {
-                            // ✅ SỬA LỖI: Trừ sold count cho book thông thường (chỉ khi đã delivered)
-                            if (order.getOrderStatus() == OrderStatus.DELIVERED) {
-                                book.setSoldCount(Math.max(0, book.getSoldCount() - quantity));
-                            }
-                            // Khôi phục stock
-                            book.setStockQuantity(book.getStockQuantity() + quantity);
-                            bookRepository.save(book);
+                            adjustments.add(OrderStatusTransitionResponse.BusinessImpactSummary.StockImpact.StockAdjustment.builder()
+                                .bookId(book.getId())
+                                .bookTitle(book.getBookName())
+                                .quantityAdjusted(quantity)
+                                .adjustmentType("STOCK_RESTORED")
+                                .build());
                         }
-                        adjustments.add(OrderStatusTransitionResponse.BusinessImpactSummary.StockImpact.StockAdjustment.builder()
-                            .bookId(book.getId())
-                            .bookTitle(book.getBookName())
-                            .quantityAdjusted(quantity)
-                            .adjustmentType("RELEASED")
-                            .build());
+                        break;
+                        
+                    case GOODS_RETURNED_TO_WAREHOUSE:
+                        // ✅ CHỈ KHI NÀY MỚI CỘNG LẠI STOCK (hàng thực sự về kho)
+                        // 🔥 SỬA LỖI: Cộng số lượng thực tế đã hoàn hàng, không phải toàn bộ số lượng trong đơn
+                        Integer actualRefundQuantity = getActualRefundQuantity(order, book.getId());
+                        
+                        if (actualRefundQuantity > 0) {
+                            if (detail.getFlashSaleItem() != null) {
+                                FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
+                                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + actualRefundQuantity);
+                                
+                                // ✅ CHỈ trừ sold count nếu chưa trừ và đơn từ DELIVERED
+                                // Không trừ nếu từ REFUNDING hoặc REFUNDED (đã trừ rồi)
+                                if (order.getOrderStatus() == OrderStatus.DELIVERED) {
+                                    flashSaleItem.setSoldCount(Math.max(0, flashSaleItem.getSoldCount() - actualRefundQuantity));
+                                    // Cũng trừ sold count cho book gốc
+                                    book.setSoldCount(Math.max(0, book.getSoldCount() - actualRefundQuantity));
+                                }
+                                flashSaleItemRepository.save(flashSaleItem);
+                                bookRepository.save(book);
+                            } else {
+                                // Cộng lại stock với số lượng thực tế đã hoàn
+                                book.setStockQuantity(book.getStockQuantity() + actualRefundQuantity);
+                                // ✅ CHỈ trừ sold count nếu chưa trừ và đơn từ DELIVERED
+                                // Không trừ nếu từ REFUNDING hoặc REFUNDED (đã trừ rồi)
+                                if (order.getOrderStatus() == OrderStatus.DELIVERED) {
+                                    book.setSoldCount(Math.max(0, book.getSoldCount() - actualRefundQuantity));
+                                }
+                                bookRepository.save(book);
+                            }
+                            adjustments.add(OrderStatusTransitionResponse.BusinessImpactSummary.StockImpact.StockAdjustment.builder()
+                                .bookId(book.getId())
+                                .bookTitle(book.getBookName())
+                                .quantityAdjusted(actualRefundQuantity)
+                                .adjustmentType("STOCK_RETURNED_TO_WAREHOUSE")
+                                .build());
+                            log.info("✅ Restored stock for book {}: {} units (actual refund quantity)", 
+                                     book.getId(), actualRefundQuantity);
+                        } else {
+                            log.info("⚠️  No refund items found for book {} in order {}, skipping stock restoration", 
+                                     book.getId(), order.getCode());
+                        }
                         break;
                     
                     default:
@@ -353,7 +398,7 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
                            .description("Đơn hàng đã hủy - voucher KHÔNG được hoàn lại");
                     break;
                     
-                case RETURNED:
+                case GOODS_RETURNED_TO_WAREHOUSE:
                 case REFUNDED:
                     // Hoàn voucher khi trả hàng
                     voucherManagementService.refundVouchersFromReturnedOrder(order);
@@ -377,5 +422,40 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         }
         
         return builder.build();
+    }
+    
+    /**
+     * ✅ Lấy số lượng thực tế đã hoàn hàng của một sản phẩm trong đơn hàng
+     * Để cộng đúng tồn kho khi chuyển sang GOODS_RETURNED_TO_WAREHOUSE
+     */
+    private Integer getActualRefundQuantity(Order order, Integer bookId) {
+        try {
+            // Tìm tất cả RefundRequest của đơn hàng với status COMPLETED
+            List<RefundRequest> completedRefunds = refundRequestRepository.findByOrderIdOrderByCreatedAtDesc(order.getId())
+                    .stream()
+                    .filter(refund -> refund.getStatus() == RefundRequest.RefundStatus.COMPLETED)
+                    .toList();
+            
+            int totalRefundedQuantity = 0;
+            
+            // Tính tổng số lượng đã hoàn của sản phẩm này
+            for (RefundRequest refund : completedRefunds) {
+                List<RefundItem> refundItems = refundItemRepository.findByRefundRequestId(refund.getId());
+                for (RefundItem item : refundItems) {
+                    if (item.getBook().getId().equals(bookId)) {
+                        totalRefundedQuantity += item.getRefundQuantity();
+                    }
+                }
+            }
+            
+            log.info("🔍 Order {}, Book {}: Total refunded quantity = {}", 
+                     order.getCode(), bookId, totalRefundedQuantity);
+            
+            return totalRefundedQuantity;
+        } catch (Exception e) {
+            log.error("❌ Error getting actual refund quantity for order {} book {}: {}", 
+                      order.getCode(), bookId, e.getMessage(), e);
+            return 0;
+        }
     }
 }
