@@ -46,9 +46,5 @@ public class AddressController {
         return addressService.delete(id);
     }
 
-    // Tắt trạng thái địa chỉ (disable, không bật lại được)
-    @PatchMapping("/{id}/disable")
-    public ApiResponse<Void> disable(@PathVariable Integer id) {
-        return addressService.disable(id);
-    }
-} 
+   
+}

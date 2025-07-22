@@ -23,6 +23,8 @@ public class TrendingBookResponse {
     private String bookCode;
     private Long publicationDate;
     
+    // Trạng thái giảm giá có đang kích hoạt không
+    private Boolean discountActive;
     // Category info
     private Integer categoryId;
     private String categoryName;
@@ -50,8 +52,12 @@ public class TrendingBookResponse {
     private Boolean isInFlashSale; // Có đang trong flash sale không
     private BigDecimal flashSalePrice; // Giá flash sale
     private Integer flashSaleStockQuantity; // Số lượng còn lại trong flash sale
+    private Integer flashSaleSoldCount; // ✅ Số lượng đã bán riêng trong flash sale
     
     // Timestamps
     private Long createdAt;
     private Long updatedAt;
+    
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh)
+    private List<String> images;
 }

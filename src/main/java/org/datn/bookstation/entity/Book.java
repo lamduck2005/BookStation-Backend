@@ -1,5 +1,6 @@
 package org.datn.bookstation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -7,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Nationalized;
+import org.datn.bookstation.entity.enums.BookFormat;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
@@ -29,7 +31,6 @@ public class Book {
     private String bookName;
 
     @Nationalized
-    @Lob
     @Column(name = "description")
     private String description;
 
@@ -73,7 +74,6 @@ public class Book {
     @Nationalized
     @Column(name = "cover_image_url", length = 2000)
     private String coverImageUrl;
-
     // ✅ THÊM MỚI: Người dịch
     @Size(max = 255)
     @Nationalized
@@ -104,6 +104,16 @@ public class Book {
     @Column(name = "dimensions", length = 50)
     private String dimensions;
 
+    // ✅ THÊM MỚI: Số lượng đã bán
+    @ColumnDefault("0")
+    @Column(name = "sold_count")
+    private Integer soldCount = 0;
+
+    // ✅ THÊM MỚI: Hình thức sách (bìa mềm, bìa cứng, ebook, v.v.)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "book_format", length = 20)
+    private BookFormat bookFormat;
+
     @ColumnDefault("1")
     @Column(name = "status")
     private Byte status;
@@ -125,10 +135,16 @@ public class Book {
     @NotNull
     @Column(name = "book_code", nullable = false)
     private String bookCode;
-    
+
     // ✅ THÊM MỚI: Relationship với AuthorBook
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<AuthorBook> authorBooks = new LinkedHashSet<>();
+
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh, cách nhau bằng dấu phẩy)
+    @Size(max = 2000)
+    @Nationalized
+    @Column(name = "images", length = 2000)
+    private String images; // Lưu: "url1,url2,url3"
 
     @PrePersist
     protected void onCreate() {

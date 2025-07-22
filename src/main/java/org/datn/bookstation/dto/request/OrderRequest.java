@@ -39,4 +39,9 @@ public class OrderRequest {
     private List<Integer> voucherIds; // Optional vouchers applied
     
     private String notes; // Optional order notes
+
+    // ✅ BACKEND TỰ TÍNH TOÁN - Frontend không cần truyền
+    // subtotal và totalAmount sẽ được backend tự tính dựa trên orderDetails và vouchers
+    private BigDecimal subtotal; // Optional - backend sẽ tự tính từ orderDetails
+    private BigDecimal totalAmount; // Optional - backend sẽ tự tính: subtotal + shipping - discounts
 }

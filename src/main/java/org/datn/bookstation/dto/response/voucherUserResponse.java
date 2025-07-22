@@ -1,7 +1,7 @@
 package org.datn.bookstation.dto.response;
 
 import java.math.BigDecimal;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
 import lombok.Data;
 
 @Data
@@ -10,7 +10,7 @@ public class voucherUserResponse {
     private String code;
     private String name;
     private String description;
-    private VoucherType voucherType;
+    private VoucherCategory voucherCategory;
     private BigDecimal discountPercentage;
     private BigDecimal discountAmount;
     private Long startTime;
@@ -23,7 +23,7 @@ public class voucherUserResponse {
     private Byte status;
 
     // Constructor cho JPQL
-    public voucherUserResponse(Integer id, String code, String name, String description, VoucherType voucherType,
+    public voucherUserResponse(Integer id, String code, String name, String description, VoucherCategory voucherCategory,
                                BigDecimal discountPercentage, BigDecimal discountAmount, Long startTime, Long endTime,
                                BigDecimal minOrderValue, BigDecimal maxDiscountValue, Integer usageLimit, Integer usedCount,
                                Integer usageLimitPerUser, Byte status) {
@@ -31,7 +31,7 @@ public class voucherUserResponse {
         this.code = code;
         this.name = name;
         this.description = description;
-        this.voucherType = voucherType;
+        this.voucherCategory = voucherCategory;
         this.discountPercentage = discountPercentage;
         this.discountAmount = discountAmount;
         this.startTime = startTime;

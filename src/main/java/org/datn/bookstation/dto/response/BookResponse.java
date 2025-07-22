@@ -53,4 +53,19 @@ public class BookResponse {
     
     // ✅ THÊM MỚI: Kích thước (dài x rộng x cao) cm
     private String dimensions;
+    
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh)
+    private List<String> images;
+    
+    // ✅ ADMIN CẦN: Thông tin đã bán và Flash Sale
+    private Integer soldCount; // Số lượng đã bán tổng cộng
+    private BigDecimal discountValue; // Giảm giá trực tiếp (VD: 50,000 VND)
+    private Integer discountPercent; // Giảm giá theo % (VD: 20%)
+    private Boolean discountActive; // Trạng thái giảm giá
+    
+    // ✅ Flash Sale info (nếu đang có)
+    private Boolean isInFlashSale; // Có đang trong flash sale không
+    private BigDecimal flashSalePrice; // Giá flash sale 
+    private Integer flashSaleSoldCount; // Đã bán trong flash sale
+    private Long flashSaleEndTime; // Thời gian kết thúc flash sale
 }

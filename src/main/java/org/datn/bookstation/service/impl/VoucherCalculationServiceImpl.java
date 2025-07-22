@@ -4,7 +4,8 @@ import lombok.AllArgsConstructor;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.UserVoucher;
 import org.datn.bookstation.entity.Voucher;
-import org.datn.bookstation.entity.enums.VoucherType;
+import org.datn.bookstation.entity.enums.VoucherCategory;
+import org.datn.bookstation.entity.enums.DiscountType;
 import org.datn.bookstation.repository.UserVoucherRepository;
 import org.datn.bookstation.repository.VoucherRepository;
 import org.datn.bookstation.service.VoucherCalculationService;
@@ -52,16 +53,16 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         int shippingCount = 0;
 
         for (Voucher voucher : vouchers) {
-            if (voucher.getVoucherType() == VoucherType.FREE_SHIPPING) {
+            if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                 shippingCount++;
                 BigDecimal shippingDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
                 result.setTotalShippingDiscount(result.getTotalShippingDiscount().add(shippingDiscount));
-                appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherType(), shippingDiscount));
+                appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), shippingDiscount));
             } else {
                 regularCount++;
                 BigDecimal productDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
                 result.setTotalProductDiscount(result.getTotalProductDiscount().add(productDiscount));
-                appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherType(), productDiscount));
+                appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), productDiscount));
             }
         }
 
@@ -105,8 +106,8 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 throw new RuntimeException("Bạn đã sử dụng hết lượt cho voucher " + voucher.getCode());
             }
 
-            // Count voucher types
-            if (voucher.getVoucherType() == VoucherType.FREE_SHIPPING) {
+            // Count voucher types by category
+            if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                 shippingVoucherCount++;
             } else {
                 regularVoucherCount++;
@@ -120,36 +121,37 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         if (shippingVoucherCount > 1) {
             throw new RuntimeException("Chỉ được sử dụng tối đa 1 voucher freeship trên 1 đơn hàng");
         }
-    }
-
-    @Override
+    }    @Override
     public BigDecimal calculateSingleVoucherDiscount(Voucher voucher, BigDecimal orderSubtotal, BigDecimal shippingFee) {
         BigDecimal discount = BigDecimal.ZERO;
         
-        switch (voucher.getVoucherType()) {
-            case PERCENTAGE:
-                discount = orderSubtotal.multiply(voucher.getDiscountPercentage())
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                break;
-                
-            case FIXED_AMOUNT:
-                discount = voucher.getDiscountAmount();
-                // Don't exceed order subtotal
-                if (discount.compareTo(orderSubtotal) > 0) {
-                    discount = orderSubtotal;
-                }
-                break;
-                
-            case FREE_SHIPPING:
-                discount = shippingFee;
-                if (voucher.getMaxDiscountValue() != null && discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
-                    discount = voucher.getMaxDiscountValue();
-                }
-                break;
+        // ✅ NEW LOGIC: Use VoucherCategory to determine what to discount
+        if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
+            // Shipping voucher always discounts shipping fee
+            discount = shippingFee;
+            if (voucher.getMaxDiscountValue() != null && discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
+                discount = voucher.getMaxDiscountValue();
+            }
+        } else {
+            // Normal voucher discounts product based on discount type
+            switch (voucher.getDiscountType()) {
+                case PERCENTAGE:
+                    discount = orderSubtotal.multiply(voucher.getDiscountPercentage())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    break;
+                    
+                case FIXED_AMOUNT:
+                    discount = voucher.getDiscountAmount();
+                    // Don't exceed order subtotal
+                    if (discount.compareTo(orderSubtotal) > 0) {
+                        discount = orderSubtotal;
+                    }
+                    break;
+            }
         }
-
-        // Apply max discount limit for percentage and fixed amount vouchers
-        if (voucher.getVoucherType() != VoucherType.FREE_SHIPPING && 
+        
+        // Apply max discount limit for normal vouchers
+        if (voucher.getVoucherCategory() != VoucherCategory.SHIPPING && 
             voucher.getMaxDiscountValue() != null && 
             discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
             discount = voucher.getMaxDiscountValue();

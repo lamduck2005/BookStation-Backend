@@ -23,14 +23,14 @@ public class User {
     private Integer id;
 
     @Size(max = 100)
-    @NotNull
     @Nationalized
+    @NotNull
     @Column(name = "email", nullable = false, length = 100)
     private String email;
 
     @Size(max = 255)
-    @NotNull
     @Nationalized
+    @NotNull
     @Column(name = "password", nullable = false)
     private String password;
 
