@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import org.datn.bookstation.dto.request.ReviewRequest;
@@ -60,6 +61,8 @@ public class ReviewServiceImpl implements ReviewService {
         return new ApiResponse<>(200, "Lấy danh sách review thành công", pagination);
     }
 
+    
+
     @Override
     public ApiResponse<ReviewResponse> createReview(ReviewRequest request) {
         Book book = bookRepository.findById(request.getBookId()).orElse(null);
@@ -110,4 +113,6 @@ public class ReviewServiceImpl implements ReviewService {
         reviewRepository.save(review);
         return new ApiResponse<>(200, "Cập nhật trạng thái review thành công", reviewMapper.toResponse(review));
     }
+
+    
 }
