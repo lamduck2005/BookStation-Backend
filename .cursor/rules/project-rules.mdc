@@ -1,7 +1,7 @@
 ---
-alwaysApply true
+alwaysApply: true
 
 - Chỉ nên tận dụng tài nguyên hiện có trước khi đề xuất dùng thư viện mới 
-
+- Code hạn chế comment linh tinh, cấm sử dụng emoji, icon
 
 ---

@@ -24,4 +24,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
            "JOIN od.order o WHERE od.book.id = :bookId AND o.status IN (2, 3, 4)")
     Integer countSoldQuantityByBook(@Param("bookId") Integer bookId);
+
+    @Query("SELECT COUNT(od) > 0 FROM OrderDetail od WHERE od.order.user.id = :userId AND od.book.id = :bookId AND od.order.orderStatus = org.datn.bookstation.entity.enums.OrderStatus.DELIVERED")
+    boolean existsDeliveredByUserAndBook(@Param("userId") Integer userId, @Param("bookId") Integer bookId);
 }

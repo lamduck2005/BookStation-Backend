@@ -3,9 +3,9 @@ package org.datn.bookstation.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.datn.bookstation.dto.response.ApiResponse;
-import org.datn.bookstation.entity.Order;
-import org.datn.bookstation.entity.enums.OrderStatus;
-import org.datn.bookstation.repository.OrderRepository;
+import org.datn.bookstation.entity.CheckoutSession;
+import org.datn.bookstation.repository.CheckoutSessionRepository;
+import org.datn.bookstation.service.CheckoutSessionService;
 import org.datn.bookstation.service.VnPayService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -22,90 +24,107 @@ import java.util.stream.Collectors;
 public class PaymentController {
 
     private final VnPayService vnPayService;
-    private final OrderRepository orderRepository;
+    private final CheckoutSessionRepository checkoutSessionRepository;
+    private final CheckoutSessionService checkoutSessionService;
 
     /**
-     * Tạo URL thanh toán VNPAY cho đơn hàng.
-     * Frontend truyền orderId, backend trả về URL để redirect.
+     * FE gửi sessionId & userId để lấy link thanh toán VNPAY.
+     * Order CHƯA được tạo ở bước này.
      */
-    @PostMapping("/vnpay/create")
-    public ResponseEntity<ApiResponse<String>> createPaymentUrl(@RequestParam Integer orderId, HttpServletRequest request) {
-        Optional<Order> optionalOrder = orderRepository.findById(orderId);
-        if (optionalOrder.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Không tìm thấy đơn hàng", null));
-        }
-        Order order = optionalOrder.get();
-        if (order.getOrderStatus() != OrderStatus.PENDING) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ApiResponse<>(400, "Chỉ tạo thanh toán cho đơn hàng PENDING", null));
-        }
-        String clientIp = request.getRemoteAddr();
-        String payUrl = vnPayService.generatePaymentUrl(order, clientIp);
-        return ResponseEntity.ok(new ApiResponse<>(200, "Tạo URL thành công", payUrl));
-    }
-
-    /**
-     * Tạo URL thanh toán thủ công (không cần Order).
-     * Ví dụ:
-     * POST /api/payment/vnpay/manual?amount=100000&orderCode=TEST123&orderInfo=Test
-     */
-    @PostMapping("/vnpay/manual")
-    public ResponseEntity<ApiResponse<String>> createManualPayment(
-            @RequestParam BigDecimal amount,
-            @RequestParam String orderCode,
-            @RequestParam(required = false) String orderInfo,
+    @PostMapping("/vnpay/create-url")
+    public ResponseEntity<ApiResponse<String>> createPayUrlForSession(
+            @RequestParam Integer sessionId,
+            @RequestParam Integer userId,
             HttpServletRequest request) {
-        String payUrl = vnPayService.generatePaymentUrl(amount, orderCode, orderInfo, request.getRemoteAddr());
-        return ResponseEntity.ok(new ApiResponse<>(200, "Tạo URL thành công", payUrl));
+        Optional<CheckoutSession> sessionOpt = checkoutSessionRepository.findById(sessionId);
+        if (sessionOpt.isEmpty() || !sessionOpt.get().getUser().getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, "Không tìm thấy session", null));
+        }
+        CheckoutSession session = sessionOpt.get();
+
+        if (session.isExpired() || session.getStatus() != 1) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(400, "Session đã hết hạn hoặc không còn hiệu lực", null));
+        }
+
+        // Sinh TxnRef duy nhất: SES{sessionId}-{timestamp}
+        String txnRef = "SES" + sessionId + "-" + System.currentTimeMillis();
+
+        // Tổng tiền
+        BigDecimal amount = session.getTotalAmount();
+
+        String payUrl = vnPayService.generatePaymentUrl(amount, txnRef,
+                "Thanh toan session " + sessionId, request.getRemoteAddr());
+
+        return ResponseEntity.ok(new ApiResponse<>(200, "OK", payUrl));
     }
 
     /**
      * Endpoint VNPAY redirect người dùng về (GET)
      */
     @GetMapping("/vnpay-return")
-    public ResponseEntity<String> vnpayReturn(@RequestParam Map<String, String> allParams) {
+    public void vnpayReturn(@RequestParam Map<String, String> allParams, HttpServletResponse response) throws IOException {
+        String failUrl = "http://localhost:5173/order/fail";
+        String successUrl = "http://localhost:5173/order/success";
+        // 1. Verify checksum
         String receivedHash = allParams.get("vnp_SecureHash");
-        boolean valid = vnPayService.validateChecksum(allParams.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)), receivedHash);
+        boolean valid = vnPayService.validateChecksum(
+                allParams.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+                receivedHash);
+
         if (!valid) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Checksum không hợp lệ");
+            response.sendRedirect(failUrl + "?status=failed&reason=checksum");
+            return;
         }
 
-        return ResponseEntity.ok("Thanh toán thành công, thông tin thanh toán: " + allParams.toString());
+        String responseCode = allParams.get("vnp_ResponseCode");
+        String txnRef       = allParams.get("vnp_TxnRef");
 
-        // // Lấy thông tin cần thiết
-        // String responseCode = allParams.get("vnp_ResponseCode");
-        // String orderCode = allParams.get("vnp_TxnRef");
-        // String amountStr = allParams.get("vnp_Amount");
+        // Expect format SES{sessionId}-{timestamp}
+        if (txnRef == null || !txnRef.startsWith("SES")) {
+            response.sendRedirect(failUrl + "?status=failed&reason=txnref");
+            return;
+        }
 
-        // if (orderCode == null) {
-        //     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Thiếu mã đơn hàng");
-        // }
+        // Parse sessionId
+        String idPart = txnRef.substring(3);
+        if (idPart.contains("-")) idPart = idPart.substring(0, idPart.indexOf('-'));
 
-        // // Tìm đơn hàng
-        // Optional<Integer> orderIdOpt = orderRepository.findIdByCode(orderCode);
-        // if (orderIdOpt.isEmpty()) {
-        //     return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Không tìm thấy đơn hàng");
-        // }
-        // Order order = orderRepository.findById(orderIdOpt.get()).orElse(null);
-        // if (order == null) {
-        //     return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Không tìm thấy đơn hàng");
-        // }
+        Integer sessionId;
+        try {
+            sessionId = Integer.parseInt(idPart);
+        } catch (NumberFormatException e) {
+            response.sendRedirect(failUrl + "?status=failed&reason=badSessionId");
+            return;
+        }
 
-        // // Xác thực số tiền
-        // long paidAmount = Long.parseLong(amountStr) / 100; // chia 100 về VND thực
-        // BigDecimal paidBig = BigDecimal.valueOf(paidAmount);
-        // if (order.getTotalAmount().compareTo(paidBig) != 0) {
-        //     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Số tiền không khớp");
-        // }
+        if (!"00".equals(responseCode)) {
+            // Payment failed
+            response.sendRedirect(failUrl + "?status=failed&txnRef=" + txnRef);
+            return;
+        }
 
-        // if ("00".equals(responseCode)) {
-        //     order.setOrderStatus(OrderStatus.CONFIRMED);
-        //     orderRepository.save(order);
-        //     return ResponseEntity.ok("Thanh toán thành công cho đơn hàng " + order.getCode());
-        // } else {
-        //     return ResponseEntity.ok("Thanh toán thất bại. Mã lỗi: " + responseCode);
-        // }
+        // Payment success – create order
+        Optional<CheckoutSession> sessionOpt = checkoutSessionRepository.findById(sessionId);
+        if (sessionOpt.isEmpty()) {
+            response.sendRedirect(failUrl + "?status=failed&reason=sessionNotFound");
+            return;
+        }
+
+        Integer userId = sessionOpt.get().getUser().getId();
+        ApiResponse<String> orderResp = checkoutSessionService.createOrderFromSession(sessionId, userId);
+
+        if (orderResp == null || orderResp.getStatus() != 201) {
+            response.sendRedirect(failUrl + "?status=failed&reason=order");
+            return;
+        }
+
+        String orderId = orderResp.getData();
+        if (orderId == null) orderId = "";
+
+        String redirectUrl = successUrl + "/" + orderId;
+        response.sendRedirect(redirectUrl);
     }
 
     /**
@@ -120,26 +139,33 @@ public class PaymentController {
         }
 
         String responseCode = allParams.get("vnp_ResponseCode");
-        String orderCode = allParams.get("vnp_TxnRef");
+        String txnRef = allParams.get("vnp_TxnRef");
 
-        Optional<Integer> orderIdOpt = orderRepository.findIdByCode(orderCode);
-        if (orderIdOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Order not found");
+        if (!txnRef.startsWith("SES")) {
+            return ResponseEntity.ok("IGNORED");
         }
-        Order order = orderRepository.findById(orderIdOpt.get()).orElse(null);
-        if (order == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Order not found");
+
+        // Extract sessionId
+        String idPart = txnRef.substring(3);
+        Integer sessionId;
+        if (idPart.contains("-")) {
+            idPart = idPart.substring(0, idPart.indexOf('-'));
+        }
+        try {
+            sessionId = Integer.parseInt(idPart);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body("Invalid txnRef");
+        }
+
+        Optional<CheckoutSession> sessionOpt = checkoutSessionRepository.findById(sessionId);
+        if (sessionOpt.isEmpty()) {
+            return ResponseEntity.ok("SESSION_NOT_FOUND");
         }
 
         if ("00".equals(responseCode)) {
-            order.setOrderStatus(OrderStatus.CONFIRMED);
-        } else if ("24".equals(responseCode)) {
-            order.setOrderStatus(OrderStatus.CANCELED);
-        } else {
-            // Các mã khác đánh dấu thất bại, có thể custom
-            order.setOrderStatus(OrderStatus.CANCELED);
+            // Tạo order từ session
+            checkoutSessionService.createOrderFromSession(sessionId, sessionOpt.get().getUser().getId());
         }
-        orderRepository.save(order);
         return ResponseEntity.ok("OK");
     }
 } 
