@@ -12,6 +12,8 @@ import org.hibernate.annotations.Nationalized;
 
 import java.math.BigDecimal;
 
+import org.datn.bookstation.entity.enums.VoucherCategory;
+
 @Getter
 @Setter
 @Entity

@@ -31,4 +31,5 @@ public class VoucherResponse {
     private Long updatedAt;
     private String createdBy;
     private String updatedBy;
+    
 }

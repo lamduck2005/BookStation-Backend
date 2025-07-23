@@ -2,6 +2,7 @@ package org.datn.bookstation.repository;
 
 import jakarta.validation.constraints.Size;
 import org.datn.bookstation.dto.request.UserRoleRequest;
+import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.enums.RoleName;
 import org.springframework.data.jpa.domain.Specification;

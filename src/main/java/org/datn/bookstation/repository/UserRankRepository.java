@@ -13,4 +13,6 @@ public interface UserRankRepository extends JpaRepository<UserRank, Integer>, Jp
 
     Page<UserRank> findByRankIdAndUserEmailContainingIgnoreCaseAndUserFullNameContainingIgnoreCase(
         Integer rankId, String email, String fullName, Pageable pageable);
-}
+
+         List<UserRank> getByUserId(Integer userId);
+    }
