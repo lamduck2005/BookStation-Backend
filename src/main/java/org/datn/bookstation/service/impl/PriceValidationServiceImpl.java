@@ -2,7 +2,6 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.datn.bookstation.dto.request.OrderDetailRequest;
 import org.datn.bookstation.dto.request.PriceValidationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.entity.Book;
@@ -10,6 +9,7 @@ import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.service.PriceValidationService;
+import org.datn.bookstation.service.FlashSaleService; // ✅ THÊM FlashSaleService
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -23,6 +23,7 @@ public class PriceValidationServiceImpl implements PriceValidationService {
     
     private final BookRepository bookRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
+    private final FlashSaleService flashSaleService; // ✅ THÊM FlashSaleService
     
     @Override
     public ApiResponse<String> validateProductPrices(List<PriceValidationRequest> priceValidationRequests) {
@@ -47,8 +48,52 @@ public class PriceValidationServiceImpl implements PriceValidationService {
         return new ApiResponse<>(200, "Tất cả giá sản phẩm hợp lệ", "valid");
     }
     
+    /**
+     * ✅ ENHANCED: Validate giá và số lượng flash sale
+     */
+    @Override
+    public ApiResponse<String> validateProductPricesAndQuantities(List<PriceValidationRequest> priceValidationRequests, Integer userId) {
+        if (priceValidationRequests == null || priceValidationRequests.isEmpty()) {
+            return new ApiResponse<>(400, "Danh sách sản phẩm không được để trống", null);
+        }
+        
+        if (userId == null) {
+            return new ApiResponse<>(400, "User ID không được để trống", null);
+        }
+        
+        List<String> errors = new ArrayList<>();
+        
+        for (PriceValidationRequest detail : priceValidationRequests) {
+            // ✅ VALIDATE SỐ LƯỢNG TRƯỚC, sau đó mới validate giá
+            String error = validateSingleProductPriceAndQuantity(
+                detail.getBookId(), 
+                detail.getFrontendPrice(), 
+                detail.getQuantity(), 
+                userId
+            );
+            if (error != null) {
+                errors.add(error);
+            }
+        }
+        
+        if (!errors.isEmpty()) {
+            String errorMessage = String.join("\n", errors);
+            return new ApiResponse<>(400, errorMessage, null);
+        }
+        
+        return new ApiResponse<>(200, "Tất cả sản phẩm hợp lệ", "valid");
+    }
+    
     @Override
     public String validateSingleProductPrice(Integer bookId, BigDecimal frontendPrice) {
+        return validateSingleProductPriceAndQuantity(bookId, frontendPrice, null, null);
+    }
+    
+    /**
+     * ✅ ENHANCED: Validate một sản phẩm với số lượng và flash sale limit
+     */
+    @Override
+    public String validateSingleProductPriceAndQuantity(Integer bookId, BigDecimal frontendPrice, Integer quantity, Integer userId) {
         if (bookId == null) {
             return "Book ID không hợp lệ";
         }
@@ -62,17 +107,48 @@ public class PriceValidationServiceImpl implements PriceValidationService {
             return "Giá frontend không được để trống";
         }
         
-        // Lấy giá hiện tại của sách
-        BigDecimal currentBookPrice = getCurrentBookPrice(book);
+        // ✅ BƯỚC 1: VALIDATE SỐ LƯỢNG FLASH SALE TRƯỚC (ưu tiên)
+        if (quantity != null && userId != null) {
+            FlashSaleItem activeFlashSale = getCurrentActiveFlashSale(bookId);
+            if (activeFlashSale != null) {
+                // 1.1. Validate stock flash sale
+                if (activeFlashSale.getStockQuantity() < quantity) {
+                    return String.format("Flash sale sách '%s' chỉ còn %d sản phẩm, không đủ cho yêu cầu %d sản phẩm", 
+                        book.getBookName(), activeFlashSale.getStockQuantity(), quantity);
+                }
+                
+                // 1.2. ✅ ENHANCED: Validate giới hạn mua per user với hai loại thông báo khác nhau
+                if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(), userId, quantity)) {
+                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(activeFlashSale.getId().longValue(), userId);
+                    int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
+                    
+                    // ✅ LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
+                    if (currentPurchased >= maxAllowed) {
+                        return String.format("Bạn đã mua đủ %d sản phẩm flash sale '%s' cho phép. Không thể mua thêm.", 
+                            maxAllowed, book.getBookName());
+                    }
+                    
+                    // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                    int remainingAllowed = maxAllowed - currentPurchased;
+                    if (quantity > remainingAllowed) {
+                        return String.format("Bạn đã mua %d sản phẩm, chỉ được mua thêm tối đa %d sản phẩm flash sale '%s'.", 
+                            currentPurchased, remainingAllowed, book.getBookName());
+                    }
+                    
+                    // ✅ LOẠI 3: Thông báo chung cho trường hợp đặc biệt khác
+                    return String.format("Bạn chỉ được mua tối đa %d sản phẩm flash sale '%s'.", 
+                        maxAllowed, book.getBookName());
+                }
+            }
+        }
         
-        // Kiểm tra flash sale nếu có
+        // ✅ BƯỚC 2: VALIDATE GIÁ (sau khi số lượng hợp lệ)
+        BigDecimal currentBookPrice = getCurrentBookPrice(book);
         BigDecimal currentFlashSalePrice = null;
         FlashSaleItem activeFlashSale = getCurrentActiveFlashSale(bookId);
         
         if (activeFlashSale != null) {
             currentFlashSalePrice = activeFlashSale.getDiscountPrice();            
-        } else {
-            // Không có flash sale, không cần kiểm tra các trường liên quan
         }
         
         BigDecimal expectedPrice = currentFlashSalePrice != null ? currentFlashSalePrice : currentBookPrice;
@@ -80,7 +156,7 @@ public class PriceValidationServiceImpl implements PriceValidationService {
             return String.format("Giá của sách '%s' đã thay đổi từ %s VND thành %s VND", 
                                 book.getBookName(), 
                                 formatPrice(frontendPrice),
-                                 formatPrice(expectedPrice));
+                                formatPrice(expectedPrice));
         }
         
         return null; // Hợp lệ

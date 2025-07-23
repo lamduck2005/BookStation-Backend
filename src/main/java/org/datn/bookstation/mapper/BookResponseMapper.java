@@ -106,13 +106,15 @@ public class BookResponseMapper {
         if (currentFlashSale != null) {
             response.setIsInFlashSale(true);
             response.setFlashSalePrice(currentFlashSale.getDiscountPrice()); // discountPrice là giá sau giảm giá
+            response.setFlashSaleStock(currentFlashSale.getStockQuantity()); // ✅ THÊM: Số lượng flash sale còn lại
             response.setFlashSaleEndTime(currentFlashSale.getFlashSale().getEndTime());
             
-            Integer flashSaleSold = flashSaleItemRepository.countSoldQuantityByFlashSaleItem(currentFlashSale.getId());
-            response.setFlashSaleSoldCount(flashSaleSold != null ? flashSaleSold : 0);
+            // ✅ FIX: Dùng trực tiếp field soldCount thay vì query phức tạp
+            response.setFlashSaleSoldCount(currentFlashSale.getSoldCount() != null ? currentFlashSale.getSoldCount() : 0);
         } else {
             response.setIsInFlashSale(false);
             response.setFlashSalePrice(null);
+            response.setFlashSaleStock(null); // ✅ THÊM
             response.setFlashSaleSoldCount(0);
             response.setFlashSaleEndTime(null);
         }

@@ -185,6 +185,7 @@ public class BookController {
     /**
      * API validate số lượng sản phẩm khi đặt hàng
      * POST /api/books/validate-quantity
+     * Đã cải tiến để hỗ trợ validate flash sale items
      */
     @PostMapping("/validate-quantity")
     public ResponseEntity<ApiResponse<QuantityValidationResponse>> validateQuantity(
@@ -197,16 +198,49 @@ public class BookController {
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate thất bại", response));
         }
         
-        int availableQuantity = book.getStockQuantity();
-        boolean isValid = request.getQuantity() > 0 && request.getQuantity() <= availableQuantity;
+        // Kiểm tra xem sách có đang trong flash sale không
+        FlashSaleItem activeFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
         
-        QuantityValidationResponse response = isValid 
-            ? QuantityValidationResponse.success(availableQuantity)
-            : QuantityValidationResponse.failure(
-                "Số lượng không hợp lệ, tồn kho hiện tại: " + availableQuantity, 
-                availableQuantity);
-        
-        return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
+        if (activeFlashSale != null) {
+            // Nếu là flash sale, validate theo flash sale stock và giới hạn mua
+            int flashSaleStock = activeFlashSale.getStockQuantity();
+            Integer maxPurchasePerUser = activeFlashSale.getMaxPurchasePerUser();
+            
+            // Validate số lượng không vượt quá stock flash sale
+            if (request.getQuantity() > flashSaleStock) {
+                QuantityValidationResponse response = QuantityValidationResponse.flashSaleFailure(
+                    "Flash sale chỉ còn " + flashSaleStock + " sản phẩm", 
+                    book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+                return ResponseEntity.ok(new ApiResponse<>(200, "Validate flash sale thất bại", response));
+            }
+            
+            // Validate giới hạn mua per user (nếu có)
+            if (maxPurchasePerUser != null && request.getQuantity() > maxPurchasePerUser) {
+                QuantityValidationResponse response = QuantityValidationResponse.flashSaleFailure(
+                    "Mỗi khách hàng chỉ được mua tối đa " + maxPurchasePerUser + " sản phẩm flash sale", 
+                    book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+                return ResponseEntity.ok(new ApiResponse<>(200, "Validate giới hạn mua thất bại", response));
+            }
+            
+            // Flash sale thành công
+            QuantityValidationResponse response = QuantityValidationResponse.flashSaleSuccess(
+                book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+            response.setMessage("Có thể mua " + request.getQuantity() + " sản phẩm với giá flash sale");
+            return ResponseEntity.ok(new ApiResponse<>(200, "Validate flash sale thành công", response));
+            
+        } else {
+            // Không phải flash sale, validate theo stock thông thường
+            int availableQuantity = book.getStockQuantity();
+            boolean isValid = request.getQuantity() > 0 && request.getQuantity() <= availableQuantity;
+            
+            QuantityValidationResponse response = isValid 
+                ? QuantityValidationResponse.success(availableQuantity)
+                : QuantityValidationResponse.failure(
+                    "Số lượng không hợp lệ, tồn kho hiện tại: " + availableQuantity, 
+                    availableQuantity);
+            
+            return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
+        }
     }
 
     /**

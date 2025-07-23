@@ -276,15 +276,15 @@ public class OrderController {
     }
 
     /**
-     * ✅ THÊM MỚI: API validate giá sản phẩm
+     * ✅ ENHANCED: API validate giá và số lượng sản phẩm (ưu tiên validate số lượng flash sale)
      */
     @PostMapping("/validate-prices")
-    /**
-     * API validate giá sản phẩm chỉ nhận frontendPrice
-     * orderDetails chỉ cần truyền bookId, quantity, frontendPrice
-     */
-    public ResponseEntity<ApiResponse<String>> validateProductPrices(@Valid @RequestBody List<PriceValidationRequest> priceValidationRequests) {
-        ApiResponse<String> response = priceValidationService.validateProductPrices(priceValidationRequests);
+    public ResponseEntity<ApiResponse<String>> validateProductPricesAndQuantities(
+            @Valid @RequestBody List<PriceValidationRequest> priceValidationRequests,
+            @RequestParam Integer userId) {
+        
+        // ✅ SỬ DỤNG METHOD MỚI ĐỂ VALIDATE CẢ SỐ LƯỢNG VÀ GIÁ
+        ApiResponse<String> response = priceValidationService.validateProductPricesAndQuantities(priceValidationRequests, userId);
         HttpStatus status = response.getStatus() == 200 ? HttpStatus.OK :
                            response.getStatus() == 400 ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(status).body(response);
@@ -300,6 +300,7 @@ public class OrderController {
             case CANCELED: return "Đã hủy";
             case REFUND_REQUESTED: return "Yêu cầu hoàn trả";
             case REFUNDING: return "Đang hoàn tiền";
+            case GOODS_RECEIVED_FROM_CUSTOMER: return "Đã nhận hàng hoàn trả từ khách";
             case REFUNDED: return "Đã hoàn tiền hoàn tất";
             case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng đã trả về kho";
             case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";

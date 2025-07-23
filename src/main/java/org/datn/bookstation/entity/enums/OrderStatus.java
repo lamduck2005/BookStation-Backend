@@ -9,6 +9,7 @@ public enum OrderStatus {
     CANCELED,                       // Đã hủy
     REFUND_REQUESTED,               // Yêu cầu hoàn trả (chờ admin xem xét)
     REFUNDING,                      // Đang hoàn tiền (admin đã chấp nhận, voucher đã hoàn)
+    GOODS_RECEIVED_FROM_CUSTOMER,   // Đã nhận hàng hoàn trả từ khách (sold count bị trừ)
     REFUNDED,                       // Đã hoàn tiền hoàn tất (khách đã nhận tiền)
     GOODS_RETURNED_TO_WAREHOUSE,    // Hàng đã trả về kho (stock được cộng lại)
     PARTIALLY_REFUNDED              // Hoàn tiền một phần

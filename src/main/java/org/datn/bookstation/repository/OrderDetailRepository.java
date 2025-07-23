@@ -24,4 +24,19 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
            "JOIN od.order o WHERE od.book.id = :bookId AND o.status IN (2, 3, 4)")
     Integer countSoldQuantityByBook(@Param("bookId") Integer bookId);
+    
+    /**
+     * ✅ Tính số lượng flash sale item mà user đã mua thực sự
+     * DELIVERED - GOODS_RECEIVED_FROM_CUSTOMER/GOODS_RETURNED_TO_WAREHOUSE
+     */
+    @Query("SELECT COALESCE(" +
+           "(SELECT SUM(delivered.quantity) FROM OrderDetail delivered " +
+           " WHERE delivered.flashSaleItem.id = :flashSaleItemId " +
+           " AND delivered.order.user.id = :userId " +
+           " AND delivered.order.orderStatus = 'DELIVERED') - " +
+           "COALESCE((SELECT SUM(refunded.quantity) FROM OrderDetail refunded " +
+           " WHERE refunded.flashSaleItem.id = :flashSaleItemId " +
+           " AND refunded.order.user.id = :userId " +
+           " AND refunded.order.orderStatus IN ('GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE')), 0), 0)")
+    Integer calculateUserPurchasedQuantityForFlashSaleItem(@Param("flashSaleItemId") Integer flashSaleItemId, @Param("userId") Integer userId);
 }

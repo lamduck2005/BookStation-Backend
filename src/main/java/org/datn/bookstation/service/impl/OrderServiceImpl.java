@@ -19,6 +19,7 @@ import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.PointManagementService;
 import org.datn.bookstation.service.VoucherCalculationService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +52,7 @@ public class OrderServiceImpl implements OrderService {
     private final PointManagementService pointManagementService;
     private final OrderResponseMapper orderResponseMapper;
     private final VoucherCalculationService voucherCalculationService;
+    private final FlashSaleService flashSaleService;
 
     @Override
     public Optional<Integer> findIdByCode(String code) {
@@ -123,7 +125,15 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse getByIdWithDetails(Integer id) {
         Order order = getById(id);
-        return orderResponseMapper.toResponse(order);
+        
+        // Lấy order details với đầy đủ thông tin
+        List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(id);
+        
+        // Lấy order vouchers
+        List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
+        
+        // Sử dụng mapper với details
+        return orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
     }
 
     @Override
@@ -188,7 +198,7 @@ public class OrderServiceImpl implements OrderService {
         order.setSubtotal(calculatedSubtotal); // ✅ Dùng giá trị backend tính
         order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính  
         order.setNotes(request.getNotes());
-        order.setCreatedBy(user.getId());
+        order.setCreatedBy(user.getId());//?
 
         if (request.getStaffId() != null) {
             User staff = userRepository.findById(request.getStaffId())
@@ -204,36 +214,103 @@ public class OrderServiceImpl implements OrderService {
             Book book = bookRepository.findById(detailRequest.getBookId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy sách với ID: " + detailRequest.getBookId()));
 
-            // Check and handle flash sale items
+            // ✅ ENHANCED: Xử lý logic flash sale và mixed purchase
             FlashSaleItem flashSaleItem = null;
+            int quantityToOrder = detailRequest.getQuantity();
+            
             if (detailRequest.getFlashSaleItemId() != null) {
+                // Trường hợp 1: Frontend đã chỉ định flash sale item
                 flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId())
                     .orElseThrow(() -> new BusinessException("Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId()));
                 
+                // ✅ Validate flash sale purchase limit per user
+                if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), request.getUserId(), quantityToOrder)) {
+                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), request.getUserId());
+                    int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
+                    throw new BusinessException("Bạn đã mua " + currentPurchased + "/" + maxAllowed + 
+                        " sản phẩm flash sale này. Không thể mua thêm " + quantityToOrder + " sản phẩm.");
+                }
+                
                 // Validate flash sale stock
-                if (flashSaleItem.getStockQuantity() < detailRequest.getQuantity()) {
-                    throw new BusinessException("Không đủ số lượng flash sale cho sản phẩm: " + book.getBookName());
+                if (flashSaleItem.getStockQuantity() < quantityToOrder) {
+                    throw new BusinessException("Không đủ số lượng flash sale cho sản phẩm: " + book.getBookName() + 
+                        " (Flash sale còn: " + flashSaleItem.getStockQuantity() + ", Yêu cầu: " + quantityToOrder + ")");
                 }
                 
-                // ✅ CHÍNH SÁCH MỚI: CHỈ TRỪ STOCK, CHƯA CỘNG SOLD COUNT
-                // sold count sẽ được cộng khi đơn hàng DELIVERED
-                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() - detailRequest.getQuantity());
-                // REMOVED: flashSaleItem.setSoldCount(...) - Sẽ cộng khi DELIVERED
+                // Trừ flash sale stock
+                flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() - quantityToOrder);
                 flashSaleItemRepository.save(flashSaleItem);
+                
+                // Trừ book stock (vì sách flash sale cũng tính vào tổng stock)
+                book.setStockQuantity(book.getStockQuantity() - quantityToOrder);
+                bookRepository.save(book);
+                
             } else {
-                // ✅ FIX: Validate và trừ tồn kho sách thông thường
-                if (book.getStockQuantity() < detailRequest.getQuantity()) {
-                    throw new BusinessException("Không đủ số lượng tồn kho cho sản phẩm: " + book.getBookName() + 
-                        " (Tồn kho: " + book.getStockQuantity() + ", Yêu cầu: " + detailRequest.getQuantity() + ")");
+                // Trường hợp 2: Không chỉ định flash sale - kiểm tra tự động
+                // Tìm flash sale active cho book này
+                Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleItemRepository
+                    .findActiveFlashSalesByBookId(book.getId().longValue(), System.currentTimeMillis())
+                    .stream()
+                    .findFirst();
+                
+                if (activeFlashSaleOpt.isPresent()) {
+                    FlashSaleItem activeFlashSale = activeFlashSaleOpt.get();
+                    int flashSaleStock = activeFlashSale.getStockQuantity();
+                    
+                    if (flashSaleStock >= quantityToOrder) {
+                        // ✅ ENHANCED: Validate flash sale purchase limit với hai loại thông báo
+                        if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(), request.getUserId(), quantityToOrder)) {
+                            int currentPurchased = flashSaleService.getUserPurchasedQuantity(activeFlashSale.getId().longValue(), request.getUserId());
+                            int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
+                            
+                            // ✅ LOẠI 1: Đã đạt giới hạn tối đa
+                            if (currentPurchased >= maxAllowed) {
+                                throw new BusinessException("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" + 
+                                    book.getBookName() + "' cho phép. Không thể đặt hàng thêm.");
+                            }
+                            
+                            // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép  
+                            int remainingAllowed = maxAllowed - currentPurchased;
+                            if (quantityToOrder > remainingAllowed) {
+                                throw new BusinessException("Bạn đã mua " + currentPurchased + " sản phẩm, chỉ được mua thêm tối đa " + 
+                                    remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
+                            }
+                            
+                            // ✅ LOẠI 3: Thông báo chung
+                            throw new BusinessException("Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
+                                book.getBookName() + "'.");
+                        }
+                        
+                        // Đủ flash sale stock - dùng toàn bộ flash sale
+                        flashSaleItem = activeFlashSale;
+                        flashSaleItem.setStockQuantity(flashSaleStock - quantityToOrder);
+                        flashSaleItemRepository.save(flashSaleItem);
+                        
+                        // Cập nhật unit price về flash sale price
+                        detailRequest.setUnitPrice(activeFlashSale.getDiscountPrice());
+                        
+                        log.info("✅ Auto-applied flash sale for book {}: {} items at price {}", 
+                            book.getId(), quantityToOrder, activeFlashSale.getDiscountPrice());
+                    } else if (flashSaleStock > 0) {
+                        // Không đủ flash sale stock - KHÔNG hỗ trợ mixed purchase trong OrderServiceImpl
+                        // Để tránh phức tạp, báo lỗi để frontend xử lý
+                        throw new BusinessException("Flash sale chỉ còn " + flashSaleStock + " sản phẩm. " +
+                            "Vui lòng đặt " + flashSaleStock + " sản phẩm flash sale trong đơn riêng.");
+                    }
+                    // Nếu flashSaleStock = 0, không áp dụng flash sale
                 }
                 
-                // ✅ CHÍNH SÁCH MỚI: CHỈ TRỪ STOCK, CHƯA CỘNG SOLD COUNT  
-                // sold count sẽ được cộng khi đơn hàng DELIVERED
-                book.setStockQuantity(book.getStockQuantity() - detailRequest.getQuantity());
-                // REMOVED: book.setSoldCount(...) - Sẽ cộng khi DELIVERED
+                // Validate và trừ book stock thông thường
+                if (book.getStockQuantity() < quantityToOrder) {
+                    throw new BusinessException("Không đủ số lượng tồn kho cho sản phẩm: " + book.getBookName() + 
+                        " (Tồn kho: " + book.getStockQuantity() + ", Yêu cầu: " + quantityToOrder + ")");
+                }
+                
+                book.setStockQuantity(book.getStockQuantity() - quantityToOrder);
                 bookRepository.save(book);
             }
 
+            // Tạo OrderDetail
             OrderDetail orderDetail = new OrderDetail();
             OrderDetailId orderDetailId = new OrderDetailId();
             orderDetailId.setOrderId(order.getId());
@@ -241,8 +318,8 @@ public class OrderServiceImpl implements OrderService {
             orderDetail.setId(orderDetailId);
             orderDetail.setOrder(order);
             orderDetail.setBook(book);
-            orderDetail.setFlashSaleItem(flashSaleItem);
-            orderDetail.setQuantity(detailRequest.getQuantity());
+            orderDetail.setFlashSaleItem(flashSaleItem); // null nếu không phải flash sale
+            orderDetail.setQuantity(quantityToOrder);
             orderDetail.setUnitPrice(detailRequest.getUnitPrice());
             orderDetail.setCreatedBy(order.getUser().getId());
 
@@ -770,7 +847,8 @@ public class OrderServiceImpl implements OrderService {
                 throw new BusinessException("Đơn hàng không ở trạng thái chờ xem xét hoàn trả");
             }
             
-            // Admin chấp nhận -> chuyển sang REFUNDING và thực hiện hoàn trả
+            // ✅ FIX: Admin chấp nhận -> CHỈ chuyển sang REFUNDING (không auto REFUNDED)
+            // Admin sẽ manual chuyển sau khi đã xử lý đầy đủ
             order.setOrderStatus(OrderStatus.REFUNDING);
             order.setUpdatedBy(decision.getAdminId().intValue());
             orderRepository.save(order);
@@ -784,16 +862,17 @@ public class OrderServiceImpl implements OrderService {
                 log.info("Should deduct points for user {} amount {}", order.getUser().getId(), order.getTotalAmount());
             }
             
-            // Chuyển sang trạng thái REFUNDED
-            order.setOrderStatus(OrderStatus.REFUNDED);
-            orderRepository.save(order);
+            // ✅ REMOVED: Không tự động chuyển thành REFUNDED nữa
+            // Admin sẽ sử dụng Order Status Transition API để chuyển thành:
+            // REFUNDING → GOODS_RECEIVED_FROM_CUSTOMER → GOODS_RETURNED_TO_WAREHOUSE → REFUNDED
             
-            log.info("Admin {} approved refund for order {}", decision.getAdminId(), order.getCode());
+            log.info("✅ Admin {} approved refund for order {} - Status: REFUNDING (admin must manually transition to complete)", 
+                     decision.getAdminId(), order.getCode());
             
             OrderResponse response = orderResponseMapper.toResponse(order);
             return new ApiResponse<>(
                 HttpStatus.OK.value(),
-                "Yêu cầu hoàn trả đã được chấp nhận và xử lý thành công",
+                "Yêu cầu hoàn trả đã được chấp nhận. Admin cần chuyển trạng thái đơn hàng để hoàn thành quy trình.",
                 response
             );
                 

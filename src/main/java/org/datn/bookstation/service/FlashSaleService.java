@@ -47,6 +47,23 @@ public interface FlashSaleService {
     boolean hasEnoughStock(Long flashSaleItemId, Integer quantity);
     
     /**
+     * ✅ THÊM: Kiểm tra user đã mua bao nhiêu flash sale item này
+     * @param flashSaleItemId ID của flash sale item
+     * @param userId ID của user
+     * @return Số lượng đã mua
+     */
+    int getUserPurchasedQuantity(Long flashSaleItemId, Integer userId);
+    
+    /**
+     * ✅ THÊM: Validate user có thể mua thêm số lượng này không
+     * @param flashSaleItemId ID của flash sale item  
+     * @param userId ID của user
+     * @param requestQuantity Số lượng muốn mua thêm
+     * @return true nếu có thể mua
+     */
+    boolean canUserPurchaseMore(Long flashSaleItemId, Integer userId, Integer requestQuantity);
+    
+    /**
      * Schedule flash sale expiration task khi tạo/update flash sale
      * Integration với FlashSaleExpirationScheduler
      * @param flashSaleId ID của flash sale

@@ -66,6 +66,7 @@ public class BookResponse {
     // ✅ Flash Sale info (nếu đang có)
     private Boolean isInFlashSale; // Có đang trong flash sale không
     private BigDecimal flashSalePrice; // Giá flash sale 
+    private Integer flashSaleStock; // ✅ THÊM: Số lượng flash sale còn lại
     private Integer flashSaleSoldCount; // Đã bán trong flash sale
     private Long flashSaleEndTime; // Thời gian kết thúc flash sale
 }

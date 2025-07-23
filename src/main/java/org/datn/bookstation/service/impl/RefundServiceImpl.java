@@ -10,16 +10,12 @@ import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.RefundItem;
 import org.datn.bookstation.entity.OrderDetail;
-import org.datn.bookstation.entity.Book;
-import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.repository.RefundRequestRepository;
 import org.datn.bookstation.repository.OrderRepository;
 import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.repository.RefundItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
-import org.datn.bookstation.repository.BookRepository;
-import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.service.RefundService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -60,12 +56,6 @@ public class RefundServiceImpl implements RefundService {
     
     @Autowired
     private OrderDetailRepository orderDetailRepository;
-    
-    @Autowired
-    private BookRepository bookRepository;
-    
-    @Autowired
-    private FlashSaleItemRepository flashSaleItemRepository;
 
     @Override
     public RefundRequestResponse createRefundRequest(RefundRequestCreate request, Integer userId) {
@@ -251,18 +241,12 @@ public class RefundServiceImpl implements RefundService {
             throw new RuntimeException("Chỉ có thể xử lý yêu cầu đã được phê duyệt");
         }
 
-        // ✅ SỬA LOGIC: CHỈ hoàn voucher, KHÔNG cộng stock
-        // NHƯNG phải trừ sold count ngay lập tức
+        // ✅ SỬA LOGIC: CHỈ hoàn voucher, KHÔNG trừ soldCount và KHÔNG cộng stock
+        // soldCount sẽ được trừ khi admin chuyển Order status thành GOODS_RECEIVED_FROM_CUSTOMER
         Order order = request.getOrder();
         
-        // ✅ TRỪ SOLD COUNT NGAY LẬP TỨC (không đợi về kho)
-        if (request.getRefundType() == RefundType.FULL) {
-            // Full refund - trừ sold count cho toàn bộ đơn hàng
-            deductSoldCountForFullRefund(order);
-        } else {
-            // Partial refund - trừ sold count cho từng item
-            deductSoldCountForPartialRefund(order, request.getRefundItems());
-        }
+        // ✅ REMOVED: Không trừ sold count ở đây nữa
+        // soldCount chỉ được trừ khi admin transition order status → GOODS_RECEIVED_FROM_CUSTOMER
         
         // Hoàn voucher nếu có
         if (order.getRegularVoucherCount() > 0 || order.getShippingVoucherCount() > 0) {
@@ -363,59 +347,7 @@ public class RefundServiceImpl implements RefundService {
         return response;
     }
     
-    /**
-     * ✅ Trừ sold count cho hoàn trả toàn bộ (KHÔNG cộng stock)
-     */
-    private void deductSoldCountForFullRefund(Order order) {
-        List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
-        for (OrderDetail detail : orderDetails) {
-            deductSoldCountForOrderDetail(detail, detail.getQuantity());
-        }
-        log.info("✅ Deducted sold count for full refund: order={}", order.getCode());
-    }
     
-    /**
-     * ✅ Trừ sold count cho hoàn trả một phần (KHÔNG cộng stock)
-     */
-    private void deductSoldCountForPartialRefund(Order order, List<RefundItem> refundItems) {
-        for (RefundItem refundItem : refundItems) {
-            OrderDetail orderDetail = orderDetailRepository.findByOrderIdAndBookId(
-                order.getId(), refundItem.getBook().getId());
-            if (orderDetail != null) {
-                deductSoldCountForOrderDetail(orderDetail, refundItem.getRefundQuantity());
-            }
-        }
-        log.info("✅ Deducted sold count for partial refund: order={}, items={}", 
-                 order.getCode(), refundItems.size());
-    }
-    
-    /**
-     * ✅ Trừ sold count cho một OrderDetail cụ thể
-     */
-    private void deductSoldCountForOrderDetail(OrderDetail detail, Integer quantity) {
-        if (detail.getFlashSaleItem() != null) {
-            // Flash sale item
-            FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
-            int currentSoldCount = flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
-            flashSaleItem.setSoldCount(Math.max(0, currentSoldCount - quantity));
-            flashSaleItemRepository.save(flashSaleItem);
-            
-            // Cũng trừ sold count cho book gốc
-            Book book = detail.getBook();
-            int currentBookSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
-            book.setSoldCount(Math.max(0, currentBookSoldCount - quantity));
-            bookRepository.save(book);
-            
-            log.info("Deducted sold count: FlashSale item {} and Book {} by {}", 
-                     flashSaleItem.getId(), book.getId(), quantity);
-        } else {
-            // Book thông thường
-            Book book = detail.getBook();
-            int currentSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
-            book.setSoldCount(Math.max(0, currentSoldCount - quantity));
-            bookRepository.save(book);
-            
-            log.info("Deducted sold count: Book {} by {}", book.getId(), quantity);
-        }
-    }
+    // ✅ REMOVED: deductSoldCountForFullRefund, deductSoldCountForPartialRefund, deductSoldCountForOrderDetail methods
+    // soldCount sẽ được trừ thông qua OrderStatusTransitionService khi admin chuyển sang GOODS_RECEIVED_FROM_CUSTOMER
 }

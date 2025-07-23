@@ -85,8 +85,24 @@ public class OrderResponseMapper {
         response.setBookId(detail.getBook() != null ? detail.getBook().getId() : null);
         response.setBookName(detail.getBook() != null ? detail.getBook().getBookName() : null);
         response.setBookCode(detail.getBook() != null ? detail.getBook().getBookCode() : null);
+        
+        // ✅ THÊM: Giá gốc của sách (luôn luôn là book.price)
+        response.setOriginalPrice(detail.getBook() != null ? detail.getBook().getPrice() : null);
+        
+        // Flash sale information
         response.setFlashSaleItemId(detail.getFlashSaleItem() != null ? detail.getFlashSaleItem().getId() : null);
         response.setFlashSalePrice(detail.getFlashSaleItem() != null ? detail.getFlashSaleItem().getDiscountPrice() : null);
+        response.setFlashSaleStock(detail.getFlashSaleItem() != null ? detail.getFlashSaleItem().getStockQuantity() : null);
+        response.setIsFlashSale(detail.getFlashSaleItem() != null);
+        
+        // Stock information
+        response.setAvailableStock(detail.getBook() != null ? detail.getBook().getStockQuantity() : null);
+        
+        // Book image - use cover image
+        if (detail.getBook() != null && detail.getBook().getCoverImageUrl() != null) {
+            response.setBookImageUrl(detail.getBook().getCoverImageUrl());
+        }
+        
         response.setQuantity(detail.getQuantity());
         response.setUnitPrice(detail.getUnitPrice());
         response.setTotalPrice(detail.getUnitPrice().multiply(java.math.BigDecimal.valueOf(detail.getQuantity())));

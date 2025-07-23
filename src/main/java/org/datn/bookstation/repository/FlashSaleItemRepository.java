@@ -1,6 +1,5 @@
 package org.datn.bookstation.repository;
 
-import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -38,13 +37,10 @@ public interface FlashSaleItemRepository
            "ORDER BY fsi.flashSale.startTime DESC")
     List<FlashSaleItem> findCurrentActiveFlashSaleByBookId(@Param("bookId") Integer bookId, @Param("currentTime") Long currentTime);
     
-    /**
-     * Đếm số lượng đã bán trong flash sale của một sách
-     */
-    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
-           "WHERE od.flashSaleItem.id = :flashSaleItemId " +
-           "AND od.order.orderStatus != 'CANCELLED'")
-    Integer countSoldQuantityByFlashSaleItem(@Param("flashSaleItemId") Integer flashSaleItemId);
+    
+    // ✅ REMOVED: Các query phức tạp tính soldCount - dùng trực tiếp field entity
+    // countSoldQuantityByFlashSaleItem() và countUserPurchasedQuantity() đã bị xóa
+    // Lý do: FlashSaleItem.soldCount sẽ được cập nhật trực tiếp khi thay đổi order status
     
     // Bổ sung methods hỗ trợ Cart
     
