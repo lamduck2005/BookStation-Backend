@@ -15,6 +15,8 @@ import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.VoucherCalculationService;
 import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.service.PointManagementService;
+import org.datn.bookstation.service.VoucherManagementService;
 import org.datn.bookstation.specification.OrderSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,6 +48,8 @@ public class OrderServiceImpl implements OrderService {
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherCalculationService voucherCalculationService;
     private final FlashSaleService flashSaleService;
+    private final PointManagementService pointManagementService;
+    private final VoucherManagementService voucherManagementService;
     private final OrderMapper orderMapper;
     private final OrderResponseMapper orderResponseMapper;
 
@@ -189,6 +193,15 @@ public class OrderServiceImpl implements OrderService {
                 try {
                     log.info("🔄 Processing {} vouchers", request.getVoucherIds().size());
                     
+                    // ✅ THÊM MỚI: Validate voucher trước khi sử dụng
+                    List<Voucher> vouchers = voucherRepository.findAllById(request.getVoucherIds());
+                    for (Voucher voucher : vouchers) {
+                        String validationError = voucherManagementService.validateVoucherUsage(voucher, request.getUserId());
+                        if (validationError != null) {
+                            throw new RuntimeException("Voucher " + voucher.getCode() + ": " + validationError);
+                        }
+                    }
+                    
                     // Create temporary order for voucher calculation
                     Order tempOrder = new Order();
                     tempOrder.setSubtotal(calculatedSubtotal);
@@ -221,6 +234,9 @@ public class OrderServiceImpl implements OrderService {
                     
                     // Update voucher usage
                     voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
+                    
+                    // ✅ THÊM MỚI: Sử dụng VoucherManagementService để đánh dấu voucher đã dùng
+                    voucherManagementService.useVouchersForOrder(savedOrder, vouchers);
                     
                 } catch (Exception e) {
                     log.error("❌ Error applying vouchers: {}", e.getMessage(), e);
@@ -304,6 +320,7 @@ public class OrderServiceImpl implements OrderService {
         }
         
         try {
+            OrderStatus oldStatus = order.getOrderStatus();
             order.setOrderStatus(newStatus);
             if (staffId != null) {
                 User staff = userRepository.findById(staffId).orElse(null);
@@ -314,6 +331,10 @@ public class OrderServiceImpl implements OrderService {
             }
             
             Order savedOrder = orderRepository.save(order);
+            
+            // ✅ THÊM MỚI: Xử lý logic tích điểm và voucher theo trạng thái
+            handleOrderStatusChange(savedOrder, oldStatus, newStatus);
+            
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
             return new ApiResponse<>(200, "Cập nhật trạng thái thành công", response);
             
@@ -357,10 +378,15 @@ public class OrderServiceImpl implements OrderService {
         }
         
         try {
+            OrderStatus oldStatus = order.getOrderStatus();
             order.setOrderStatus(OrderStatus.CANCELED);
             order.setUpdatedBy(userId);
             
             Order savedOrder = orderRepository.save(order);
+            
+            // ✅ THÊM MỚI: Xử lý hoàn lại voucher và trừ điểm (nếu có)
+            handleOrderStatusChange(savedOrder, oldStatus, OrderStatus.CANCELED);
+            
             OrderResponse response = orderResponseMapper.toResponse(savedOrder);
             return new ApiResponse<>(200, "Hủy đơn hàng thành công", response);
             
@@ -613,5 +639,49 @@ public class OrderServiceImpl implements OrderService {
      */
     private boolean canCancelOrder(OrderStatus status) {
         return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
+    }
+    
+    /**
+     * ✅ THÊM MỚI: Xử lý logic business khi thay đổi trạng thái đơn hàng
+     * Bao gồm: tích điểm, trừ điểm, hoàn voucher
+     */
+    private void handleOrderStatusChange(Order order, OrderStatus oldStatus, OrderStatus newStatus) {
+        try {
+            if (order.getUser() == null) {
+                log.warn("Order {} has no user, skipping point/voucher handling", order.getId());
+                return;
+            }
+            
+            // Chuyển sang DELIVERED: Tích điểm cho user
+            if (newStatus == OrderStatus.DELIVERED && oldStatus != OrderStatus.DELIVERED) {
+                pointManagementService.earnPointsFromOrder(order, order.getUser());
+                log.info("Earned points for order {} (user: {})", order.getCode(), order.getUser().getEmail());
+            }
+            
+            // Chuyển sang CANCELED: Hoàn voucher và trừ điểm (nếu đã tích)
+            if (newStatus == OrderStatus.CANCELED) {
+                voucherManagementService.refundVouchersFromCancelledOrder(order);
+                
+                // Nếu đơn hàng đã từng được delivered (đã tích điểm) thì trừ điểm
+                if (oldStatus == OrderStatus.DELIVERED) {
+                    pointManagementService.deductPointsFromCancelledOrder(order, order.getUser());
+                }
+                log.info("Handled cancellation for order {} (user: {})", order.getCode(), order.getUser().getEmail());
+            }
+            
+            // Chuyển sang RETURNED: Hoàn voucher và trừ điểm
+            if (newStatus == OrderStatus.RETURNED) {
+                voucherManagementService.refundVouchersFromCancelledOrder(order);
+                pointManagementService.refundPointsFromReturnedOrder(order, order.getUser());
+                log.info("Handled return for order {} (user: {})", order.getCode(), order.getUser().getEmail());
+            }
+            
+            // Cập nhật rank user sau mọi thay đổi
+            pointManagementService.checkAndUpdateUserRank(order.getUser().getId());
+            
+        } catch (Exception e) {
+            log.error("Error handling order status change for order {}: {}", order.getId(), e.getMessage(), e);
+            // Không throw exception để không làm fail transaction chính
+        }
     }
 }
