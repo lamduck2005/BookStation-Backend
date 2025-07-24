@@ -455,6 +455,14 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                     log.warn("⚠️ Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
                 }
 
+                // 8. Đặt hết hạn các session cũ (status != 2) để tránh user back-order
+                try {
+                    int expiredCount = checkoutSessionRepository.expireSessionsExceptCompleted(userId, System.currentTimeMillis());
+                    log.info("✅ Expired {} old sessions for user {} after order creation", expiredCount, userId);
+                } catch (Exception expireEx) {
+                    log.warn("⚠️  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
+                }
+
                 String orderCode = orderResponse.getData().getCode();
                 log.info("✅ Successfully created order: {} from session: {}", orderCode, sessionId);
 
@@ -840,6 +848,8 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
     }
 
     private void calculateSessionPricing(CheckoutSession session, CheckoutSessionRequest request) {
+        final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
+
         // � BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
         log.info("🔄 Backend recalculating session pricing for {} items", 
             request.getItems() != null ? request.getItems().size() : 0);
@@ -894,10 +904,18 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         session.setSubtotal(calculatedSubtotal);
         log.info("🔄 Calculated subtotal: {}", calculatedSubtotal);
         
-        // 4. TỰ TÍNH SHIPPING FEE (không tin frontend)
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        // TODO: Implement shipping calculation logic based on address/weight
-        // For now, use default shipping fee or calculate based on business rules
+        // 4. TÍNH SHIPPING FEE
+        BigDecimal shippingFee;
+        if (request.getShippingFee() != null) {
+            // FE truyền phí ship mới
+            shippingFee = request.getShippingFee();
+        } else if (session.getShippingFee() != null) {
+            // Không truyền => giữ nguyên phí ship hiện tại của session
+            shippingFee = session.getShippingFee();
+        } else {
+            // Nếu chưa có thì dùng mặc định
+            shippingFee = DEFAULT_SHIPPING_FEE;
+        }
         session.setShippingFee(shippingFee);
         
         // 5. VALIDATE VÀ TÍNH VOUCHER DISCOUNT  
