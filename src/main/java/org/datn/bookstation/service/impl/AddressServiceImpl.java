@@ -181,6 +181,7 @@ public class AddressServiceImpl implements AddressService {
             if (address.getStatus() != null && address.getStatus() == 0) {
                 return new ApiResponse<>(400, "Địa chỉ đã bị xoá trước đó", null);
             }
+            address.setIsDefault(false);
             address.setStatus((byte) 0);
             addressRepository.save(address);
 

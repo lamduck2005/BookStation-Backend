@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 // Lombok annotations only for inner classes
 public class CheckoutSessionRequest {
@@ -16,6 +17,7 @@ public class CheckoutSessionRequest {
     
     // Shipping information
     private String shippingMethod;
+    private BigDecimal shippingFee; // Phí vận chuyển
     private Long estimatedDeliveryFrom;
     private Long estimatedDeliveryTo;
     
@@ -51,6 +53,14 @@ public class CheckoutSessionRequest {
 
     public void setShippingMethod(String shippingMethod) {
         this.shippingMethod = shippingMethod;
+    }
+
+    public BigDecimal getShippingFee() {
+        return shippingFee;
+    }
+
+    public void setShippingFee(BigDecimal shippingFee) {
+        this.shippingFee = shippingFee;
     }
     
     public Long getEstimatedDeliveryFrom() {

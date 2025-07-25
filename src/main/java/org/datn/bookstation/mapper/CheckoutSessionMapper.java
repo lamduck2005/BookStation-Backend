@@ -35,6 +35,10 @@ public class CheckoutSessionMapper {
         session.setExpiresAt(System.currentTimeMillis() + (24 * 60 * 60 * 1000L));
         // Set status (default active)
         session.setStatus((byte) 1);
+        // Set shipping fee if provided
+        if (request.getShippingFee() != null) {
+            session.setShippingFee(request.getShippingFee());
+        }
         session.setCreatedBy(userId);
         return session;
     }
@@ -59,6 +63,11 @@ public class CheckoutSessionMapper {
         // Update shipping method
         if (request.getShippingMethod() != null) {
             existingSession.setShippingMethod(request.getShippingMethod());
+        }
+
+        // Update shipping fee
+        if (request.getShippingFee() != null) {
+            existingSession.setShippingFee(request.getShippingFee());
         }
         
         // Update estimated delivery times

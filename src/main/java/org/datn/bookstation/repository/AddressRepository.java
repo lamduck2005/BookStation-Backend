@@ -14,6 +14,6 @@ public interface AddressRepository extends JpaRepository<Address, Integer>, JpaS
     @Query("SELECT a FROM Address a WHERE a.user.id = :userId AND a.status = 1 ORDER BY a.isDefault DESC, a.createdAt DESC")
     List<Address> findByUserIdOrderByIsDefaultDesc(@Param("userId") Integer userId);
     
-    @Query("SELECT a FROM Address a WHERE a.user.id = :userId AND a.isDefault = true")
+    @Query("SELECT a FROM Address a WHERE a.user.id = :userId AND a.isDefault = true AND a.status = 1 ORDER BY a.updatedAt DESC")
     Optional<Address> findDefaultByUserId(@Param("userId") Integer userId);
 }
