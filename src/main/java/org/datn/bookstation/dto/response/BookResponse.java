@@ -59,6 +59,7 @@ public class BookResponse {
     
     // ✅ ADMIN CẦN: Thông tin đã bán và Flash Sale
     private Integer soldCount; // Số lượng đã bán tổng cộng
+    private Integer processingQuantity; // ✅ THÊM MỚI: Số lượng đang xử lý (real-time)
     private BigDecimal discountValue; // Giảm giá trực tiếp (VD: 50,000 VND)
     private Integer discountPercent; // Giảm giá theo % (VD: 20%)
     private Boolean discountActive; // Trạng thái giảm giá

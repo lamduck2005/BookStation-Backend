@@ -15,9 +15,19 @@ public class BookSpecification {
             var predicates = criteriaBuilder.conjunction();
 
             if (bookName != null && !bookName.isEmpty()) {
-                predicates = criteriaBuilder.and(predicates,
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
-                                "%" + bookName.toLowerCase() + "%"));
+                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ khóa nào
+                String[] keywords = bookName.trim().split("\\s+");
+                var bookNamePredicate = criteriaBuilder.disjunction(); // OR thay vì AND
+                
+                for (String keyword : keywords) {
+                    if (!keyword.isEmpty()) {
+                        bookNamePredicate = criteriaBuilder.or(bookNamePredicate,
+                                criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
+                                        "%" + keyword.toLowerCase() + "%"));
+                    }
+                }
+                
+                predicates = criteriaBuilder.and(predicates, bookNamePredicate);
             }
 
             if (categoryId != null) {
@@ -68,9 +78,19 @@ public class BookSpecification {
             var predicates = criteriaBuilder.conjunction();
 
             if (bookName != null && !bookName.isEmpty()) {
-                predicates = criteriaBuilder.and(predicates,
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
-                                "%" + bookName.toLowerCase() + "%"));
+                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ khóa nào
+                String[] keywords = bookName.trim().split("\\s+");
+                var bookNamePredicate = criteriaBuilder.disjunction(); // OR thay vì AND
+                
+                for (String keyword : keywords) {
+                    if (!keyword.isEmpty()) {
+                        bookNamePredicate = criteriaBuilder.or(bookNamePredicate,
+                                criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
+                                        "%" + keyword.toLowerCase() + "%"));
+                    }
+                }
+                
+                predicates = criteriaBuilder.and(predicates, bookNamePredicate);
             }
             if (parentCategoryId != null) {
                 predicates = criteriaBuilder.and(predicates,
@@ -111,9 +131,19 @@ public class BookSpecification {
             }
 
             if (text != null && !text.isEmpty()) {
-                String likeText = "%" + text.toLowerCase() + "%";
-                predicates = criteriaBuilder.and(predicates,
-                        criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")), likeText));
+                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ khóa nào
+                String[] keywords = text.trim().split("\\s+");
+                var textPredicate = criteriaBuilder.disjunction(); // OR thay vì AND
+                
+                for (String keyword : keywords) {
+                    if (!keyword.isEmpty()) {
+                        textPredicate = criteriaBuilder.or(textPredicate,
+                                criteriaBuilder.like(criteriaBuilder.lower(root.get("bookName")),
+                                        "%" + keyword.toLowerCase() + "%"));
+                    }
+                }
+                
+                predicates = criteriaBuilder.and(predicates, textPredicate);
             }
 
             return predicates;

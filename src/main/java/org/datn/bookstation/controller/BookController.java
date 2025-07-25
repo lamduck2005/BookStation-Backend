@@ -171,14 +171,14 @@ public class BookController {
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", bookResponse));
     }
 
+
     @GetMapping("/dropdown")
-    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks() {
-        List<DropdownOptionResponse> dropdown = bookService.getActiveBooks().stream()
-            .map(this::mapToDropdownResponse)
-            .collect(Collectors.toList());
-        
-        ApiResponse<List<DropdownOptionResponse>> response = 
-            new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách sách thành công", dropdown);
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks(
+            @RequestParam(required = false) String search) {
+        // Logic lấy danh sách dropdown đã chuyển sang service với hỗ trợ tìm kiếm
+        List<DropdownOptionResponse> dropdown = bookService.getDropdownOptionsWithDetails(search);
+        ApiResponse<List<DropdownOptionResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách sách thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 
@@ -241,49 +241,6 @@ public class BookController {
             
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
         }
-    }
-
-    /**
-     * Helper method để map Book entity sang DropdownOptionResponse
-     */
-    private DropdownOptionResponse mapToDropdownResponse(Book book) {
-        // Tính giá bình thường (ưu tiên discount nếu có)
-        BigDecimal normalPrice = calculateNormalPrice(book);
-        
-        // Kiểm tra flash sale
-        FlashSaleItem flashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
-        BigDecimal flashSalePrice = null;
-        boolean isFlashSale = false;
-        
-        if (flashSale != null) {
-            flashSalePrice = flashSale.getDiscountPrice();
-            isFlashSale = true;
-        }
-        
-        return new DropdownOptionResponse(
-            book.getId(),
-            book.getBookName(),
-            normalPrice,
-            flashSalePrice,
-            isFlashSale
-        );
-    }
-
-    /**
-     * Helper method để tính giá bình thường (đã bao gồm discount nếu có)
-     */
-    private BigDecimal calculateNormalPrice(Book book) {
-        if (book.getDiscountActive() != null && book.getDiscountActive()) {
-            if (book.getDiscountValue() != null) {
-                return book.getPrice().subtract(book.getDiscountValue());
-            } else if (book.getDiscountPercent() != null) {
-                BigDecimal discountAmount = book.getPrice()
-                    .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
-                    .divide(BigDecimal.valueOf(100));
-                return book.getPrice().subtract(discountAmount);
-            }
-        }
-        return book.getPrice();
     }
 
     @GetMapping("/category/{categoryId}")

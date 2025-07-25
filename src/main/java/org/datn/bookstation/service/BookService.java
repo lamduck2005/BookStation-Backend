@@ -10,7 +10,6 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
 import org.datn.bookstation.entity.Book;
-import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -52,4 +51,14 @@ public interface BookService {
      * Tính giá sách sau khi áp dụng discount và so sánh với flash sale
      */
     BookPriceCalculationResponse calculateBookPrice(Book book, BookPriceCalculationRequest request);
+
+    /**
+     * Trả về danh sách sách cho dropdown với đầy đủ thông tin bổ sung
+     */
+    List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails();
+
+    /**
+     * Trả về danh sách sách cho dropdown với tìm kiếm theo tên hoặc mã
+     */
+    List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails(String search);
 }

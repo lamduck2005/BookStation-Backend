@@ -29,9 +29,10 @@ import org.datn.bookstation.repository.SupplierRepository;
 import org.datn.bookstation.repository.PublisherRepository;
 import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
-import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.specification.BookSpecification;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -52,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.datn.bookstation.validator.ImageUrlValidator;
+import org.datn.bookstation.service.BookProcessingQuantityService;
 
 @Service
 @AllArgsConstructor
@@ -69,7 +71,8 @@ public class BookServiceImpl implements BookService {
     private final ImageUrlValidator imageUrlValidator;
     private final TrendingCacheService trendingCacheService;
     private final BookCategoryMapper bookCategoryMapper;
-    private final FlashSaleService flashSaleService;
+    private final FlashSaleItemRepository flashSaleItemRepository;
+    private final BookProcessingQuantityService bookProcessingQuantityService;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -212,23 +215,91 @@ public class BookServiceImpl implements BookService {
             // ✅ THÊM: Create AuthorBook relationships
             for (Author author : authors) {
                 AuthorBook authorBook = new AuthorBook();
-                AuthorBookId id = new AuthorBookId();
-                id.setBookId(savedBook.getId());
-                id.setAuthorId(author.getId());
-                authorBook.setId(id);
-                authorBook.setBook(savedBook);
+                AuthorBookId authorBookId = new AuthorBookId();
+                authorBookId.setAuthorId(author.getId());
+                authorBookId.setBookId(savedBook.getId());
+                authorBook.setId(authorBookId);
                 authorBook.setAuthor(author);
+                authorBook.setBook(savedBook);
                 authorBookRepository.save(authorBook);
             }
-            
-            // 🔥 INVALIDATE TRENDING CACHE ON NEW BOOK
-            trendingCacheService.invalidateAllTrendingCache();
-            
-            return new ApiResponse<>(201, "Tạo sách thành công", savedBook);
 
+            return new ApiResponse<>(201, "Tạo sách thành công", savedBook);
         } catch (Exception e) {
             return new ApiResponse<>(500, "Lỗi khi tạo sách: " + e.getMessage(), null);
         }
+    }
+
+    @Override
+    public List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails() {
+        return getDropdownOptionsWithDetails(null);
+    }
+
+    @Override
+    public List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails(String search) {
+        List<Book> books;
+        if (search != null && !search.trim().isEmpty()) {
+            // Tìm kiếm theo tên sách hoặc mã sách
+            books = bookRepository.findActiveBooksByNameOrCode(search.trim());
+        } else {
+            books = getActiveBooks();
+        }
+        
+        List<org.datn.bookstation.dto.response.DropdownOptionResponse> result = new ArrayList<>();
+        
+        for (Book book : books) {
+            // Lấy thông tin flash sale nếu có
+            FlashSaleItem flashSaleItem = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+
+            // Giá gốc
+            BigDecimal originalPrice = book.getPrice();
+            // Giá thường (đã trừ discount nếu có)
+            BigDecimal normalPrice = originalPrice;
+            if (book.getDiscountActive() != null && book.getDiscountActive()) {
+                if (book.getDiscountValue() != null) {
+                    normalPrice = originalPrice.subtract(book.getDiscountValue());
+                } else if (book.getDiscountPercent() != null) {
+                    BigDecimal discountAmount = originalPrice.multiply(BigDecimal.valueOf(book.getDiscountPercent())).divide(BigDecimal.valueOf(100));
+                    normalPrice = originalPrice.subtract(discountAmount);
+                }
+            }
+
+            // Giá flash sale nếu có
+            BigDecimal flashSalePrice = flashSaleItem != null ? flashSaleItem.getDiscountPrice() : null;
+            boolean isFlashSale = flashSaleItem != null;
+
+            // Số lượng đã bán của sách
+            int soldQuantity = book.getSoldCount() != null ? book.getSoldCount() : 0;
+            // Số lượng tồn kho
+            int stockQuantity = book.getStockQuantity() != null ? book.getStockQuantity() : 0;
+            // ✅ SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
+            int processingQuantity = bookProcessingQuantityService.getProcessingQuantity(book.getId());
+            
+            // Flash sale related data
+            int flashSaleSold = flashSaleItem != null && flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
+            // ✅ SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
+            int flashSaleProcessing = flashSaleItem != null ? 
+                bookProcessingQuantityService.getFlashSaleProcessingQuantity(flashSaleItem.getId()) : 0;
+            int flashSaleStock = flashSaleItem != null && flashSaleItem.getStockQuantity() != null ? flashSaleItem.getStockQuantity() : 0;
+
+            org.datn.bookstation.dto.response.DropdownOptionResponse option = new org.datn.bookstation.dto.response.DropdownOptionResponse();
+            option.setId(book.getId());
+            option.setName(book.getBookName());
+            option.setNormalPrice(normalPrice);
+            option.setFlashSalePrice(flashSalePrice);
+            option.setIsFlashSale(isFlashSale);
+            // Bổ sung các trường mới
+            option.setBookCode(book.getBookCode());
+            option.setStockQuantity(stockQuantity);
+            option.setSoldQuantity(soldQuantity);
+            option.setProcessingQuantity(processingQuantity);
+            option.setFlashSaleSoldQuantity(flashSaleSold);
+            option.setFlashSaleProcessingQuantity(flashSaleProcessing);
+            option.setFlashSaleStockQuantity(flashSaleStock);
+            option.setOriginalPrice(originalPrice);
+            result.add(option);
+        }
+        return result;
     }
 
     @Override
@@ -241,39 +312,42 @@ public class BookServiceImpl implements BookService {
             }
 
             // Validate book name uniqueness (excluding current book)
-            if (!existing.getBookName().equalsIgnoreCase(request.getBookName()) &&
-                    bookRepository.existsByBookNameIgnoreCase(request.getBookName())) {
+            if (!existing.getBookName().equalsIgnoreCase(request.getBookName()) && 
+                bookRepository.existsByBookNameIgnoreCase(request.getBookName())) {
                 return new ApiResponse<>(400, "Tên sách đã tồn tại", null);
             }
 
             // Validate book code uniqueness (excluding current book)
-            if (request.getBookCode() != null &&
-                    !existing.getBookCode().equals(request.getBookCode()) &&
-                    bookRepository.existsByBookCode(request.getBookCode())) {
+            if (request.getBookCode() != null && 
+                !existing.getBookCode().equals(request.getBookCode()) && 
+                bookRepository.existsByBookCode(request.getBookCode())) {
                 return new ApiResponse<>(400, "Mã sách đã tồn tại", null);
             }
 
-            // ✅ THÊM: Validate authors if provided
-            if (request.getAuthorIds() != null && !request.getAuthorIds().isEmpty()) {
-                List<Author> authors = authorRepository.findAllById(request.getAuthorIds());
-                if (authors.size() != request.getAuthorIds().size()) {
-                    return new ApiResponse<>(404, "Một hoặc nhiều tác giả không tồn tại", null);
-                }
+            // ✅ THÊM: Validate authors - Bắt buộc phải có ít nhất 1 tác giả
+            if (request.getAuthorIds() == null || request.getAuthorIds().isEmpty()) {
+                return new ApiResponse<>(400, "Sách phải có ít nhất một tác giả", null);
+            }
 
-                // Delete existing author relationships
-                authorBookRepository.deleteByBookId(id);
+            // Validate all authors exist
+            List<Author> authors = authorRepository.findAllById(request.getAuthorIds());
+            if (authors.size() != request.getAuthorIds().size()) {
+                return new ApiResponse<>(404, "Một hoặc nhiều tác giả không tồn tại", null);
+            }
 
-                // Create new author relationships
-                for (Author author : authors) {
-                    AuthorBook authorBook = new AuthorBook();
-                    AuthorBookId authorBookId = new AuthorBookId();
-                    authorBookId.setBookId(id);
-                    authorBookId.setAuthorId(author.getId());
-                    authorBook.setId(authorBookId);
-                    authorBook.setBook(existing);
-                    authorBook.setAuthor(author);
-                    authorBookRepository.save(authorBook);
-                }
+            // Delete existing author relationships
+            authorBookRepository.deleteByBookId(id);
+
+            // Create new author relationships
+            for (Author author : authors) {
+                AuthorBook authorBook = new AuthorBook();
+                AuthorBookId authorBookId = new AuthorBookId();
+                authorBookId.setBookId(id);
+                authorBookId.setAuthorId(author.getId());
+                authorBook.setId(authorBookId);
+                authorBook.setBook(existing);
+                authorBook.setAuthor(author);
+                authorBookRepository.save(authorBook);
             }
 
             // Update basic fields
@@ -695,13 +769,12 @@ public class BookServiceImpl implements BookService {
         String flashSaleName = null;
         
         try {
-            var activeFlashSale = flashSaleService.findActiveFlashSaleForBook(book.getId().longValue());
-            if (activeFlashSale.isPresent()) {
-                FlashSaleItem flashSaleItem = activeFlashSale.get();
+            FlashSaleItem activeFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+            if (activeFlashSale != null) {
                 hasFlashSale = true;
-                flashSalePrice = flashSaleItem.getDiscountPrice();
+                flashSalePrice = activeFlashSale.getDiscountPrice();
                 flashSavings = originalPrice.subtract(flashSalePrice);
-                flashSaleName = flashSaleItem.getFlashSale().getName();
+                flashSaleName = activeFlashSale.getFlashSale().getName();
             }
         } catch (Exception e) {
             // Log error nhưng không fail request

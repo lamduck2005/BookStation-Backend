@@ -6,6 +6,7 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Book;
+import org.datn.bookstation.entity.FlashSaleItem;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,4 +21,8 @@ public interface FlashSaleItemService {
     ApiResponse<FlashSaleItemResponse> toggleStatus(Integer id);
 
     ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale();
-} 
+    /**
+     * Tìm flash sale item đang active theo bookId
+     */
+    FlashSaleItem findActiveFlashSaleByBook(Integer bookId);
+}

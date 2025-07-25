@@ -15,6 +15,18 @@ public class DropdownOptionResponse {
     private BigDecimal flashSalePrice;
     private Boolean isFlashSale;
 
+    // Bổ sung các trường mới
+    private String bookCode;
+    private Integer stockQuantity;
+    private Integer soldQuantity;
+    private Integer flashSaleSoldQuantity;
+    private BigDecimal originalPrice;
+    
+    // ✅ THÊM MỚI: Số lượng đang xử lý
+    private Integer processingQuantity;
+    private Integer flashSaleProcessingQuantity;
+    private Integer flashSaleStockQuantity; // Số lượng tồn kho flash sale
+
     // Constructor cũ để backward compatibility
     public DropdownOptionResponse(Integer id, String name) {
         this.id = id;
