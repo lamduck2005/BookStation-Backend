@@ -13,13 +13,13 @@ graph TD
     F --> H[RefundRequest.status = APPROVED<br/>Order.orderStatus = REFUNDING]
     G --> I[RefundRequest.status = REJECTED<br/>Order.orderStatus = DELIVERED]
     H --> J[POST /api/refunds/{id}/process]
-    J --> K[RefundRequest.status = COMPLETED<br/>Order.orderStatus = REFUNDED/PARTIALLY_REFUNDED<br/>✅ Cộng stock, trừ sold count, trừ điểm]
+    J --> K[RefundRequest.status = COMPLETED<br/>Order.orderStatus = REFUNDED/PARTIALLY_REFUNDED<br/>✅ Hoàn voucher, Set trạng thái cuối cùng dựa trên RefundType]
 ```
 
-⚠️ **IMPORTANT FIX:** 
-- **Frontend gọi API cũ:** `POST /api/orders/{orderId}/request-refund` (not /api/refunds)
-- **Request Body:** `orderId` có trong URL path → KHÔNG cần trong request body
-- **Validation fixed:** Process refund now accepts Order.status = REFUNDING (after approve)
+⚠️ **ENHANCED FIX v2.0:** 
+- **API Process tự động:** `POST /api/refunds/{id}/process` giờ tự động set trạng thái cuối `REFUNDED` (toàn phần) hoặc `PARTIALLY_REFUNDED` (một phần)
+- **Không cần status-transition:** Frontend KHÔNG cần gọi thêm API `POST /api/orders/{orderId}/status-transition` nữa
+- **RefundType quyết định:** Dựa trên `RefundType.FULL` hoặc `RefundType.PARTIAL` trong RefundRequest
 
 🔧 **API REQUEST BODY ĐÃ SỬA:**
 - ✅ ĐÚNG: `RefundRequestDto` với `userId`, `reason`, `refundDetails`

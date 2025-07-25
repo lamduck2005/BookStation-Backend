@@ -203,6 +203,11 @@ public class RefundController {
     /**
      * ✅ API: Admin xử lý hoàn trả sau khi phê duyệt
      * POST /api/refunds/{id}/process?adminId={adminId}
+     * 
+     * ⚠️ ENHANCED v2.0: API này giờ tự động set Order status thành:
+     * - REFUNDED (nếu RefundType = FULL) 
+     * - PARTIALLY_REFUNDED (nếu RefundType = PARTIAL)
+     * Frontend KHÔNG cần gọi thêm API status-transition
      */
     @PostMapping("/{id}/process")
     public ResponseEntity<ApiResponse<RefundRequestResponse>> processRefund(

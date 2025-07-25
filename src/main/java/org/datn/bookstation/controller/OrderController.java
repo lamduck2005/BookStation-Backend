@@ -295,15 +295,15 @@ public class OrderController {
             case PENDING: return "Chờ xử lý";
             case CONFIRMED: return "Đã xác nhận";
             case SHIPPED: return "Đang giao hàng";
-            case DELIVERED: return "Đã giao hàng thành công";
+            case DELIVERED: return "Giao hàng thành công";
             case DELIVERY_FAILED: return "Giao hàng thất bại";
             case CANCELED: return "Đã hủy";
             case REFUND_REQUESTED: return "Yêu cầu hoàn trả";
             case REFUNDING: return "Đang hoàn tiền";
             case GOODS_RECEIVED_FROM_CUSTOMER: return "Đã nhận hàng hoàn trả từ khách";
             case REFUNDED: return "Đã hoàn tiền hoàn tất";
-            case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng đã trả về kho";
-            case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";
+            case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng hoàn trả đã về kho";
+            case PARTIALLY_REFUNDED: return "Đã hoàn tiền một phần";
             default: return orderStatus.name();
         }
     }

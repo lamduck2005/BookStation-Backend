@@ -44,9 +44,10 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         OrderStatus.CANCELED, Set.of(OrderStatus.REFUNDING),
         OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.REFUNDING),
         OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, Set.of(OrderStatus.REFUNDING),
-        OrderStatus.REFUNDING, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.REFUNDED, OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER),
+        // ✅ SỬA: Bỏ REFUNDED và PARTIALLY_REFUNDED khỏi REFUNDING vì API process tự động set
+        OrderStatus.REFUNDING, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER),
         OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.REFUNDING),
-        OrderStatus.REFUNDED, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE) // ✅ CHO PHÉP TỪ REFUNDED VỀ WAREHOUSE
+        OrderStatus.REFUNDED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER) // ✅ CHO PHÉP TỪ REFUNDED VỀ WAREHOUSE
     );
     
     
@@ -144,8 +145,9 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         descriptions.put("GOODS_RECEIVED_FROM_CUSTOMER_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền sau khi nhận hàng");
         descriptions.put("CANCELED_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã hủy");
         descriptions.put("GOODS_RETURNED_TO_WAREHOUSE_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã nhập kho");
-        descriptions.put("REFUNDING_TO_REFUNDED", "Hoàn tiền thành công - Đã hoàn tiền cho khách hàng");
+        // ✅ BỎ: REFUNDING_TO_REFUNDED vì API process tự động set trạng thái cuối
         descriptions.put("REFUNDING_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho - Hàng hoàn trả đã được nhập kho");
+        descriptions.put("REFUNDING_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Nhận thêm hàng hoàn trả");
         descriptions.put("REFUNDED_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho sau hoàn tiền - Hàng được trả lại sau khi đã hoàn tiền");
         descriptions.put("PARTIALLY_REFUNDED_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Nhận phần hàng còn lại từ khách");
         descriptions.put("PARTIALLY_REFUNDED_TO_REFUNDING", "Hoàn tiền toàn bộ - Tiến hành hoàn tiền cho toàn bộ đơn hàng");

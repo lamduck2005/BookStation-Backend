@@ -255,8 +255,12 @@ public class RefundServiceImpl implements RefundService {
                      order.getCode(), order.getRegularVoucherCount(), order.getShippingVoucherCount());
         }
 
-        // Đổi trạng thái đơn hàng thành REFUNDING (đang hoàn tiền)
-        order.setOrderStatus(OrderStatus.REFUNDING);
+        // ✅ SỬA: Set trạng thái cuối cùng dựa trên RefundType thay vì REFUNDING
+        OrderStatus finalStatus = (request.getRefundType() == RefundRequest.RefundType.FULL) 
+            ? OrderStatus.REFUNDED 
+            : OrderStatus.PARTIALLY_REFUNDED;
+        
+        order.setOrderStatus(finalStatus);
         order.setUpdatedAt(System.currentTimeMillis());
         orderRepository.save(order);
 
@@ -267,8 +271,9 @@ public class RefundServiceImpl implements RefundService {
 
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("✅ REFUND PROCESSED (voucher restored only): id={}, orderId={}, adminId={}", 
-                 refundRequestId, request.getOrder().getId(), adminId);
+        log.info("✅ REFUND PROCESSED: id={}, orderId={}, adminId={}, refundType={}, finalOrderStatus={}", 
+                 refundRequestId, request.getOrder().getId(), adminId, 
+                 request.getRefundType(), finalStatus);
         log.info("⚠️  STOCK NOT RESTORED YET - Admin must change order status to GOODS_RETURNED_TO_WAREHOUSE to restore stock");
 
         return convertToResponse(savedRequest);
