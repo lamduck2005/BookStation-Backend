@@ -5,10 +5,13 @@ import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.BookSearchRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
+import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
+import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
+import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.entity.Supplier;
@@ -16,10 +19,12 @@ import org.datn.bookstation.entity.Publisher;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
+import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookCategoryMapper;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.mapper.BookResponseMapper;
 import org.datn.bookstation.mapper.TrendingBookMapper;
+import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.repository.SupplierRepository;
@@ -28,6 +33,7 @@ import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
 import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.specification.BookSpecification;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -39,6 +45,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,7 +70,9 @@ public class BookServiceImpl implements BookService {
     private final TrendingBookMapper trendingBookMapper;
     private final ImageUrlValidator imageUrlValidator;
     private final TrendingCacheService trendingCacheService;
-private final BookCategoryMapper bookCategoryMapper;
+    private final BookCategoryMapper bookCategoryMapper;
+    private final FlashSaleService flashSaleService;
+
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
                                                                  Integer categoryId, Integer supplierId, Integer publisherId,
@@ -213,10 +222,10 @@ private final BookCategoryMapper bookCategoryMapper;
                 authorBook.setAuthor(author);
                 authorBookRepository.save(authorBook);
             }
-
+            
             // 🔥 INVALIDATE TRENDING CACHE ON NEW BOOK
             trendingCacheService.invalidateAllTrendingCache();
-
+            
             return new ApiResponse<>(201, "Tạo sách thành công", savedBook);
 
         } catch (Exception e) {
@@ -299,6 +308,16 @@ private final BookCategoryMapper bookCategoryMapper;
                 existing.setDimensions(request.getDimensions());
             }
 
+            // ✅ THÊM MỚI: Update discount fields
+            if (request.getDiscountValue() != null) {
+                existing.setDiscountValue(request.getDiscountValue());
+            }
+            if (request.getDiscountPercent() != null) {
+                existing.setDiscountPercent(request.getDiscountPercent());
+            }
+                // Luôn cập nhật discountActive từ request (kể cả null/false)
+                existing.setDiscountActive(request.getDiscountActive());
+
             if (request.getBookCode() != null) {
                 existing.setBookCode(request.getBookCode());
             }
@@ -333,7 +352,7 @@ private final BookCategoryMapper bookCategoryMapper;
                 }
                 existing.setPublisher(publisher);
             }
-
+            
             // Update images (multi-image support like EventServiceImpl)
             if (request.getImages() != null) {
                 imageUrlValidator.validate(request.getImages());
@@ -347,15 +366,15 @@ private final BookCategoryMapper bookCategoryMapper;
             if (imagesString != null) {
                 existing.setImages(imagesString); // Đảm bảo entity Book có trường images (String)
             }
-
+            
             existing.setUpdatedBy(1); // Default updated by system user
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
-
+            
             // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
             trendingCacheService.invalidateAllTrendingCache();
-
+            
             return new ApiResponse<>(200, "Cập nhật sách thành công", saved);
 
         } catch (Exception e) {
@@ -382,6 +401,10 @@ private final BookCategoryMapper bookCategoryMapper;
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
+            
+            // 🔥 INVALIDATE TRENDING CACHE ON STATUS CHANGE
+            trendingCacheService.invalidateAllTrendingCache();
+            
             return new ApiResponse<>(200, "Cập nhật trạng thái thành công", saved);
 
         } catch (Exception e) {
@@ -398,7 +421,7 @@ private final BookCategoryMapper bookCategoryMapper;
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
      */
     @Override
-    @Cacheable(value = "trending-books",
+    @Cacheable(value = "trending-books", 
         key = "#request.type + '-' + #request.page + '-' + #request.size")
     public PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request) {
         try {
@@ -473,7 +496,7 @@ private final BookCategoryMapper bookCategoryMapper;
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findFallbackTrendingBooks(
                 PageRequest.of(0, needMore * 2));
-
+            
             // Lọc bỏ những sách đã có
             Set<Integer> existingBookIds = allTrendingBooks.stream()
                     .map(TrendingBookResponse::getId)
@@ -500,7 +523,7 @@ private final BookCategoryMapper bookCategoryMapper;
 
         // 3. Tính tổng số phần tử dựa trên database thực tế (DAILY_TRENDING không filter category)
         long totalElements = bookRepository.countActiveBooks(null, null, null);
-
+        
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allTrendingBooks)
                 .pageNumber(request.getPage())
@@ -530,7 +553,7 @@ private final BookCategoryMapper bookCategoryMapper;
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findGoodPriceBooks(
                 PageRequest.of(0, needMore * 2));
-
+            
             Set<Integer> existingBookIds = allDiscountBooks.stream()
                     .map(TrendingBookResponse::getId)
                     .collect(Collectors.toSet());
@@ -557,7 +580,7 @@ private final BookCategoryMapper bookCategoryMapper;
 
         // 3. Tính tổng số phần tử
         long totalElements = bookRepository.countActiveBooks(null, null, null);
-
+        
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allDiscountBooks)
                 .pageNumber(request.getPage())
@@ -642,5 +665,76 @@ private final BookCategoryMapper bookCategoryMapper;
         return new ApiResponse<>(200,"Lấy được books search rồi",bookCategoryMapper.bookSearchMapper(books));
     }
 
+
+    @Override
+    public BookPriceCalculationResponse calculateBookPrice(Book book, BookPriceCalculationRequest request) {
+        BigDecimal originalPrice = book.getPrice();
+        BigDecimal finalPrice = originalPrice;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        Integer actualDiscountPercent = 0;
+        Boolean hasDiscount = false;
+        String discountType = null;
+
+        // Tính discount nếu được kích hoạt
+        if (Boolean.TRUE.equals(request.getDiscountActive())) {
+            if (request.getDiscountValue() != null && request.getDiscountValue().compareTo(BigDecimal.ZERO) > 0) {
+                // Discount theo số tiền
+                discountAmount = request.getDiscountValue();
+                finalPrice = originalPrice.subtract(discountAmount);
+                if (finalPrice.compareTo(BigDecimal.ZERO) < 0) {
+                    finalPrice = BigDecimal.ZERO;
+                    discountAmount = originalPrice;
+                }
+                hasDiscount = true;
+                discountType = "VALUE";
+                actualDiscountPercent = discountAmount.multiply(BigDecimal.valueOf(100))
+                    .divide(originalPrice, 0, RoundingMode.HALF_UP).intValue();
+
+            } else if (request.getDiscountPercent() != null && request.getDiscountPercent() > 0) {
+                // Discount theo phần trăm
+                actualDiscountPercent = request.getDiscountPercent();
+                discountAmount = originalPrice.multiply(BigDecimal.valueOf(actualDiscountPercent))
+                    .divide(BigDecimal.valueOf(100));
+                finalPrice = originalPrice.subtract(discountAmount);
+                hasDiscount = true;
+                discountType = "PERCENT";
+            }
+        }
+
+        // Kiểm tra flash sale hiện tại
+        Boolean hasFlashSale = false;
+        BigDecimal flashSalePrice = null;
+        BigDecimal flashSavings = BigDecimal.ZERO;
+        String flashSaleName = null;
+
+        try {
+            var activeFlashSale = flashSaleService.findActiveFlashSaleForBook(book.getId().longValue());
+            if (activeFlashSale.isPresent()) {
+                FlashSaleItem flashSaleItem = activeFlashSale.get();
+                hasFlashSale = true;
+                flashSalePrice = flashSaleItem.getDiscountPrice();
+                flashSavings = originalPrice.subtract(flashSalePrice);
+                flashSaleName = flashSaleItem.getFlashSale().getName();
+            }
+        } catch (Exception e) {
+            // Log error nhưng không fail request
+            System.err.println("Error checking flash sale: " + e.getMessage());
+        }
+
+        return BookPriceCalculationResponse.builder()
+            .bookId(book.getId())
+            .bookName(book.getBookName())
+            .originalPrice(originalPrice)
+            .finalPrice(finalPrice)
+            .discountAmount(discountAmount)
+            .discountPercent(actualDiscountPercent)
+            .hasDiscount(hasDiscount)
+            .discountType(discountType)
+            .hasFlashSale(hasFlashSale)
+            .flashSalePrice(flashSalePrice)
+            .flashSavings(flashSavings)
+            .flashSaleName(flashSaleName)
+            .build();
+    }
 
 }

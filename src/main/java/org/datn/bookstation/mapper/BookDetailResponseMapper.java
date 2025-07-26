@@ -104,12 +104,12 @@ public class BookDetailResponseMapper {
             
             // Set thông tin flash sale cho frontend
             response.setFlashSalePrice(flashSaleItem.getDiscountPrice());
+            response.setFlashSaleStock(flashSaleItem.getStockQuantity()); // ✅ THÊM: Số lượng flash sale còn lại
             response.setFlashSaleDiscount(flashSaleItem.getDiscountPercentage());
             response.setFlashSaleEndTime(flashSaleItem.getFlashSale().getEndTime());
             
-            // Đếm số lượng đã bán trong flash sale
-            Integer soldCount = flashSaleItemRepository.countSoldQuantityByFlashSaleItem(flashSaleItem.getId());
-            response.setFlashSaleSoldCount(soldCount != null ? soldCount : 0);
+            // ✅ FIX: Dùng trực tiếp field soldCount thay vì query phức tạp
+            response.setFlashSaleSoldCount(flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0);
             
             // Override stock quantity = flash sale stock
             response.setStockQuantity(flashSaleItem.getStockQuantity());
@@ -155,6 +155,7 @@ public class BookDetailResponseMapper {
             
             // Clear flash sale vì không có
             response.setFlashSalePrice(null);
+            response.setFlashSaleStock(null); // ✅ THÊM
             response.setFlashSaleDiscount(null);
             response.setFlashSaleEndTime(null);
             response.setFlashSaleSoldCount(null);
@@ -165,6 +166,7 @@ public class BookDetailResponseMapper {
         // ⭐ CASE 3: Không có flash sale, không có discount → giá gốc
         // Giá và stock giữ nguyên từ book gốc
         response.setFlashSalePrice(null);
+        response.setFlashSaleStock(null); // ✅ THÊM
         response.setFlashSaleDiscount(null);
         response.setFlashSaleEndTime(null);
         response.setFlashSaleSoldCount(null);

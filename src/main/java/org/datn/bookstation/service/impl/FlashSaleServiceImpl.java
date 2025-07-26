@@ -11,6 +11,7 @@ import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.FlashSaleMapper;
 import org.datn.bookstation.repository.FlashSaleRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.dto.request.FlashSaleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleResponse;
@@ -45,6 +46,9 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     
     @Autowired
     private ApplicationContext applicationContext;
+    
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
     
     @Autowired
     @Lazy
@@ -450,6 +454,59 @@ public class FlashSaleServiceImpl implements FlashSaleService {
         } catch (Exception e) {
             log.error("❌ ERROR: autoUpdateFlashSaleItemsStatus({}) failed", flashSaleId, e);
             return 0;
+        }
+    }
+    
+    /**
+     * ✅ FIX: Kiểm tra user đã mua bao nhiêu flash sale item này
+     * Tính từ OrderDetail với order DELIVERED trừ đi GOODS_RECEIVED_FROM_CUSTOMER
+     */
+    @Override
+    public int getUserPurchasedQuantity(Long flashSaleItemId, Integer userId) {
+        try {
+            // Tính từ OrderDetail: DELIVERED - GOODS_RECEIVED_FROM_CUSTOMER
+            return orderDetailRepository.calculateUserPurchasedQuantityForFlashSaleItem(flashSaleItemId.intValue(), userId);
+        } catch (Exception e) {
+            log.error("Error getting user purchased quantity for flashSaleItem {} user {}: {}", 
+                flashSaleItemId, userId, e.getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * ✅ THÊM: Validate user có thể mua thêm số lượng này không
+     */
+    @Override
+    public boolean canUserPurchaseMore(Long flashSaleItemId, Integer userId, Integer requestQuantity) {
+        try {
+            Optional<FlashSaleItem> flashSaleOpt = flashSaleItemRepository.findById(flashSaleItemId);
+            if (flashSaleOpt.isEmpty()) {
+                return false;
+            }
+            
+            FlashSaleItem flashSaleItem = flashSaleOpt.get();
+            
+            // Nếu không có giới hạn per user thì cho phép mua
+            if (flashSaleItem.getMaxPurchasePerUser() == null) {
+                return true;
+            }
+            
+            // Kiểm tra số lượng đã mua + số lượng muốn mua có vượt quá giới hạn không
+            int alreadyPurchased = getUserPurchasedQuantity(flashSaleItemId, userId);
+            int totalAfterPurchase = alreadyPurchased + requestQuantity;
+            
+            boolean canPurchase = totalAfterPurchase <= flashSaleItem.getMaxPurchasePerUser();
+            
+            log.info("Flash sale limit check - Item: {}, User: {}, Already: {}, Request: {}, Limit: {}, CanPurchase: {}", 
+                flashSaleItemId, userId, alreadyPurchased, requestQuantity, 
+                flashSaleItem.getMaxPurchasePerUser(), canPurchase);
+                
+            return canPurchase;
+            
+        } catch (Exception e) {
+            log.error("Error checking user purchase limit for flashSaleItem {} user {}: {}", 
+                flashSaleItemId, userId, e.getMessage());
+            return false;
         }
     }
 }

@@ -6,4 +6,5 @@ import lombok.Data;
 public class PriceValidationRequest {
     private Integer bookId;
     private java.math.BigDecimal frontendPrice;
+    private Integer quantity; // ✅ THÊM field để validate số lượng flash sale
 }

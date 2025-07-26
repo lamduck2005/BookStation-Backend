@@ -108,6 +108,66 @@ public class FileUploadService {
         return saveImage(file, "events");
     }
 
+    // ✅ THÊM MỚI: Video upload methods
+    public List<String> saveVideos(MultipartFile[] files, String module) {
+        if (files == null || files.length == 0) {
+            throw new FileUploadException("No videos provided", "NO_FILES");
+        }
+
+        if (files.length > MAX_FILES) {
+            throw new FileUploadException("Too many videos. Maximum " + MAX_FILES + " videos allowed", "TOO_MANY_FILES");
+        }
+
+        List<String> urls = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                String url = saveVideo(file, module);
+                urls.add(url);
+            }
+        }
+
+        return urls;
+    }
+
+    public String saveVideo(MultipartFile file, String module) {
+        validateVideo(file);
+        validateModule(module);
+
+        try {
+            // Create directory structure: uploads/{module}/2025/06/
+            LocalDateTime now = LocalDateTime.now();
+            String year = now.format(DateTimeFormatter.ofPattern("yyyy"));
+            String month = now.format(DateTimeFormatter.ofPattern("MM"));
+            
+            String relativePath = module + "/" + year + "/" + month + "/";
+            Path uploadDir = Paths.get(uploadProperties.getPath(), relativePath);
+            
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+
+            // Generate unique filename: video{timestamp}_{randomId}.{extension}
+            String originalFilename = file.getOriginalFilename();
+            String extension = getFileExtension(originalFilename);
+            String filename = generateVideoFilename(extension);
+            
+            Path filePath = uploadDir.resolve(filename);
+            
+            // Save file
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            
+            // Return URL
+            String url = uploadProperties.getBaseUrl() + relativePath + filename;
+            log.info("Video uploaded successfully for module {}: {}", module, url);
+            
+            return url;
+            
+        } catch (IOException e) {
+            log.error("Error saving video for module {}: {}", module, e.getMessage());
+            throw new FileUploadException("Failed to save video", "SAVE_ERROR");
+        }
+    }
+
     public boolean deleteImage(String imageUrl) {
         try {
             // Extract relative path from URL
@@ -167,6 +227,27 @@ public class FileUploadService {
         }
     }
 
+    // ✅ THÊM MỚI: Video validation
+    private void validateVideo(MultipartFile file) {
+        // Check if file is empty
+        if (file.isEmpty()) {
+            throw new FileUploadException("Video file is empty", "EMPTY_FILE");
+        }
+
+        // Check file size (50MB limit for video)
+        long MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.getSize() > MAX_VIDEO_SIZE) {
+            throw new FileUploadException("Video file too large. Maximum size is 50MB.", "FILE_TOO_LARGE");
+        }
+
+        // Check content type
+        String contentType = file.getContentType();
+        List<String> allowedVideoTypes = List.of("video/mp4", "video/avi", "video/mov", "video/wmv", "video/mkv");
+        if (contentType == null || !allowedVideoTypes.contains(contentType.toLowerCase())) {
+            throw new FileUploadException("Video type not allowed. Please upload MP4, AVI, MOV, WMV, or MKV videos.", "INVALID_FILE_TYPE");
+        }
+    }
+
     private void validateModule(String module) {
         if (module == null || module.trim().isEmpty()) {
             throw new FileUploadException("Module name is required", "INVALID_MODULE");
@@ -188,6 +269,13 @@ public class FileUploadService {
         long timestamp = System.currentTimeMillis();
         String randomId = generateRandomString(12);
         return "image" + timestamp + "_" + randomId + "." + extension;
+    }
+
+    // ✅ THÊM MỚI: Generate video filename
+    private String generateVideoFilename(String extension) {
+        long timestamp = System.currentTimeMillis();
+        String randomId = generateRandomString(12);
+        return "video" + timestamp + "_" + randomId + "." + extension;
     }
 
     private String generateRandomString(int length) {

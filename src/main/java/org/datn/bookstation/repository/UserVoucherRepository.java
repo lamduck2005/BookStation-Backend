@@ -4,8 +4,11 @@ import org.datn.bookstation.entity.UserVoucher;
 import org.datn.bookstation.dto.response.voucherUserResponse;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+
 import java.util.List;
 import java.util.Optional;
+
+import org.datn.bookstation.dto.response.UserForVoucher;
 
 public interface UserVoucherRepository extends JpaRepository<UserVoucher, Integer> {
     @Query("SELECT new org.datn.bookstation.dto.response.voucherUserResponse(" +
@@ -35,4 +38,8 @@ List<voucherUserResponse> findVouchersByVoucherUserId(String vouchercode, Intege
     // List<UserVoucher> findByUserId(Integer userId);
 
     Optional<UserVoucher> findByUserIdAndVoucherId(Integer userId, Integer voucherId);
+
+
+
+List<UserVoucher> findByVoucherId(Integer voucherId);
 }

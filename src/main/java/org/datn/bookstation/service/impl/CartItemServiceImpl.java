@@ -105,8 +105,8 @@ public class CartItemServiceImpl implements CartItemService {
                 }
             }
             
-            // 4. Validate stock comprehensive
-            ApiResponse<String> stockValidation = validateStock(book, flashSaleItem, request.getQuantity());
+            // 4. ✅ ENHANCED: Validate stock và flash sale limit với userId
+            ApiResponse<String> stockValidation = validateStockWithUser(book, flashSaleItem, request.getQuantity(), request.getUserId());
             if (stockValidation.getStatus() != 200) {
                 return new ApiResponse<>(stockValidation.getStatus(), stockValidation.getMessage(), null);
             }
@@ -124,8 +124,8 @@ public class CartItemServiceImpl implements CartItemService {
                 cartItem = existingItems.get(0); // Get most recent item
                 int newQuantity = cartItem.getQuantity() + request.getQuantity();
                 
-                // Re-validate stock for new total quantity
-                ApiResponse<String> updateStockValidation = validateStock(book, flashSaleItem, newQuantity);
+                // ✅ ENHANCED: Re-validate stock và flash sale limit cho tổng số lượng mới
+                ApiResponse<String> updateStockValidation = validateStockWithUser(book, flashSaleItem, newQuantity, request.getUserId());
                 if (updateStockValidation.getStatus() != 200) {
                     return new ApiResponse<>(updateStockValidation.getStatus(), 
                         "Bạn đã có " + cartItem.getQuantity() + " trong giỏ. " + updateStockValidation.getMessage(), null);
@@ -579,13 +579,48 @@ public class CartItemServiceImpl implements CartItemService {
     // ================== PRIVATE HELPER METHODS ==================
     
     /**
-     * Validate stock cho book hoặc flash sale
+     * ✅ ENHANCED: Validate stock và flash sale limit cho book hoặc flash sale
      */
     private ApiResponse<String> validateStock(Book book, FlashSaleItem flashSaleItem, Integer requestedQuantity) {
+        return validateStockWithUser(book, flashSaleItem, requestedQuantity, null);
+    }
+    
+    /**
+     * ✅ ENHANCED: Validate stock và flash sale limit với user validation
+     */
+    private ApiResponse<String> validateStockWithUser(Book book, FlashSaleItem flashSaleItem, Integer requestedQuantity, Integer userId) {
         if (flashSaleItem != null) {
-            // Using flash sale stock
+            // 1. Validate flash sale stock
             if (requestedQuantity > flashSaleItem.getStockQuantity()) {
                 return new ApiResponse<>(400, "Flash sale không đủ hàng. Còn lại: " + flashSaleItem.getStockQuantity(), null);
+            }
+            
+            // 2. ✅ ENHANCED: Validate flash sale purchase limit per user với hai loại thông báo
+            if (userId != null && flashSaleItem.getMaxPurchasePerUser() != null) {
+                if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, requestedQuantity)) {
+                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
+                    int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
+                    
+                    // ✅ LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
+                    if (currentPurchased >= maxAllowed) {
+                        return new ApiResponse<>(400, String.format(
+                            "Bạn đã mua đủ %d sản phẩm flash sale '%s' cho phép. Không thể thêm vào giỏ hàng.", 
+                            maxAllowed, book.getBookName()), null);
+                    }
+                    
+                    // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                    int remainingAllowed = maxAllowed - currentPurchased;
+                    if (requestedQuantity > remainingAllowed) {
+                        return new ApiResponse<>(400, String.format(
+                            "Bạn đã mua %d sản phẩm, chỉ được mua thêm tối đa %d sản phẩm flash sale '%s'.", 
+                            currentPurchased, remainingAllowed, book.getBookName()), null);
+                    }
+                    
+                    // ✅ LOẠI 3: Thông báo chung
+                    return new ApiResponse<>(400, String.format(
+                        "Bạn chỉ được mua tối đa %d sản phẩm flash sale '%s'.", 
+                        maxAllowed, book.getBookName()), null);
+                }
             }
         } else {
             // Using regular book stock  

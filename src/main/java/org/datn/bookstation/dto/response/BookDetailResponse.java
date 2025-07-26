@@ -40,6 +40,7 @@ public class BookDetailResponse {
     
     // 🔥 Flash Sale info (đơn giản)
     private BigDecimal flashSalePrice;      // Giá flash sale (null nếu không có)
+    private Integer flashSaleStock;         // ✅ THÊM: Số lượng flash sale còn lại  
     private BigDecimal flashSaleDiscount;   // % giảm giá
     private Long flashSaleEndTime;          // Timestamp kết thúc
     private Integer flashSaleSoldCount;     // Đã bán bao nhiêu

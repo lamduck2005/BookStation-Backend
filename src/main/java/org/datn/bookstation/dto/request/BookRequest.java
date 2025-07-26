@@ -60,4 +60,8 @@ public class BookRequest {
     
     // ✅ THÊM MỚI: Kích thước (dài x rộng x cao) cm
     private String dimensions;
+    // ✅ THÊM MỚI: Trường giảm giá cho sách
+    private java.math.BigDecimal discountValue; // Giảm giá theo số tiền
+    private Integer discountPercent; // Giảm giá theo %
+    private Boolean discountActive; // Có áp dụng discount không
 }

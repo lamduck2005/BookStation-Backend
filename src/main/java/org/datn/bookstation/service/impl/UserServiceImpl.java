@@ -206,4 +206,22 @@ public class UserServiceImpl implements UserService {
         return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
     }
 
+    /**
+     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     */
+    @Override
+    public List<UserResponse> searchCustomers(String search) {
+        if (search == null || search.trim().isEmpty()) {
+            return List.of();
+        }
+        
+        String searchTerm = "%" + search.toLowerCase().trim() + "%";
+        List<User> users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(searchTerm, searchTerm);
+        
+        return users.stream()
+                .filter(user -> user.getStatus() != null && user.getStatus() == 1) // Chỉ lấy user active
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
 }

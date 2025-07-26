@@ -32,6 +32,14 @@ public interface PointManagementService {
     void refundPointsFromReturnedOrder(Order order, User user);
     
     /**
+     * ✅ THÊM MỚI: Trừ điểm cho hoàn trả một phần
+     * @param refundAmount Số tiền hoàn trả
+     * @param order Đơn hàng gốc
+     * @param user Người dùng
+     */
+    void deductPointsFromPartialRefund(BigDecimal refundAmount, Order order, User user);
+    
+    /**
      * Tính số điểm được tích dựa trên số tiền đã chi và rank của user
      * @param totalAmount Tổng tiền đã chi
      * @param user Người dùng (để lấy rank)

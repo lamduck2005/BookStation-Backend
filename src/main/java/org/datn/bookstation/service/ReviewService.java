@@ -11,4 +11,5 @@ public interface ReviewService {
     ApiResponse<ReviewResponse> createReview(ReviewRequest request);
     ApiResponse<ReviewResponse> updateReview(ReviewRequest request, Integer id);
     ApiResponse<ReviewResponse> toggleStatus(Integer id);
+
 }

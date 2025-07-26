@@ -2,6 +2,7 @@ package org.datn.bookstation.repository;
 
 import jakarta.validation.constraints.Size;
 import org.datn.bookstation.dto.request.UserRoleRequest;
+import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.enums.RoleName;
 import org.springframework.data.jpa.domain.Specification;
@@ -32,4 +33,15 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
     List<UserRoleRequest> getUserByIdRole(@Param("text") String text);
 
     User getByPhoneNumber(@Size(max = 20) String phoneNumber);
+    
+    /**
+     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     */
+    @Query("SELECT u FROM User u WHERE " +
+           "LOWER(u.fullName) LIKE LOWER(:searchTerm) OR " +
+           "LOWER(u.email) LIKE LOWER(:searchTerm)")
+    List<User> findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+        @Param("searchTerm") String searchTerm, 
+        @Param("searchTerm") String searchTerm2
+    );
 }

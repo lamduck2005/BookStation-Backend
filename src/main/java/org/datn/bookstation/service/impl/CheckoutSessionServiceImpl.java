@@ -21,6 +21,7 @@ import org.datn.bookstation.service.CartItemService;
 import org.datn.bookstation.service.CartService;
 import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.VoucherCalculationService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.specification.CheckoutSessionSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
     private final CartService cartService;
     private final OrderService orderService;
     private final VoucherCalculationService voucherCalculationService;
+    private final FlashSaleService flashSaleService;
     private final BookRepository bookRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final VoucherRepository voucherRepository;
@@ -59,8 +61,8 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
         try {
             log.info("Creating checkout session for user: {}", userId);
 
-            // Validate request
-            validateCheckoutSessionRequest(request);
+            // ✅ ENHANCED: Validate request với flash sale limits
+            validateCheckoutSessionWithUser(request, userId);
 
             // Create entity
             CheckoutSession session = checkoutSessionMapper.toEntity(userId, request);
@@ -87,6 +89,9 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             log.info("Successfully created checkout session with ID: {}", savedSession.getId());
             return new ApiResponse<>(201, "Tạo checkout session thành công", response);
             
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation error creating checkout session for user {}: {}", userId, e.getMessage());
+            return new ApiResponse<>(400, e.getMessage(), null);
         } catch (Exception e) {
             log.error("Error creating checkout session for user: {}", userId, e);
             return new ApiResponse<>(400, "Lỗi khi tạo checkout session: " + e.getMessage(), null);
@@ -450,6 +455,14 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                     log.warn("⚠️ Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
                 }
 
+                // 8. Đặt hết hạn các session cũ (status != 2) để tránh user back-order
+                try {
+                    int expiredCount = checkoutSessionRepository.expireSessionsExceptCompleted(userId, System.currentTimeMillis());
+                    log.info("✅ Expired {} old sessions for user {} after order creation", expiredCount, userId);
+                } catch (Exception expireEx) {
+                    log.warn("⚠️  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
+                }
+
                 String orderCode = orderResponse.getData().getCode();
                 log.info("✅ Successfully created order: {} from session: {}", orderCode, sessionId);
 
@@ -472,10 +485,12 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
         List<String> errors = new ArrayList<>();
         
         try {
-            // 1. Kiểm tra session còn active,fronend cho chuyển về cart để handle again
+            // 1. Kiểm tra session còn active, frontend cho chuyển về cart để handle again
             if (!session.isActive()) {
                 if (session.isExpired()) {
                     errors.add("Phiên checkout đã hết hạn. Vui lòng tạo phiên mới.");
+                } else if (session.getStatus() == 2) {
+                    errors.add("Phiên checkout này đã được sử dụng để tạo đơn hàng. Vui lòng tạo phiên checkout mới.");
                 } else {
                     errors.add("Phiên checkout không hợp lệ.");
                 }
@@ -540,11 +555,65 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     errors.add("Sách '" + book.getBookName() + "' đã ngừng bán");
                     continue;
                 }
-                if (book.getStockQuantity() < item.getQuantity()) {
-                    errors.add("Sách '" + book.getBookName() + "' chỉ còn " + book.getStockQuantity() + " cuốn trong kho");
-                    continue;
+                
+                // ✅ ENHANCED: Validate flash sale và stock phức tạp hơn
+                Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleItemRepository
+                    .findActiveFlashSalesByBookId(item.getBookId().longValue(), System.currentTimeMillis())
+                    .stream()
+                    .findFirst();
+                
+                if (activeFlashSaleOpt.isPresent()) {
+                    // Có flash sale - validate theo flash sale logic
+                    FlashSaleItem flashSaleItem = activeFlashSaleOpt.get();
+                    
+                    // Kiểm tra stock flash sale
+                    if (flashSaleItem.getStockQuantity() < item.getQuantity()) {
+                        // Nếu flash sale không đủ, kiểm tra có thể mua hỗn hợp không
+                        int remainingNeeded = item.getQuantity() - flashSaleItem.getStockQuantity();
+                        int regularStock = book.getStockQuantity() - flashSaleItem.getStockQuantity();
+                        
+                        if (regularStock < remainingNeeded) {
+                            errors.add("Sách '" + book.getBookName() + "' flash sale chỉ còn " + 
+                                flashSaleItem.getStockQuantity() + " cuốn, sách thường còn " + 
+                                regularStock + " cuốn (cần " + item.getQuantity() + " cuốn)");
+                        } else {
+                            // Có thể mua hỗn hợp, nhưng log warning
+                            log.info("⚠️ User {} sẽ mua hỗn hợp: {} flash sale + {} thường cho book {}", 
+                                userId, flashSaleItem.getStockQuantity(), remainingNeeded, book.getId());
+                        }
+                    }
+                    
+                    // ✅ ENHANCED: Kiểm tra giới hạn mua per user với hai loại thông báo
+                    if (flashSaleItem.getMaxPurchasePerUser() != null) {
+                        if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, item.getQuantity())) {
+                            int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
+                            int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
+                            
+                            // ✅ LOẠI 1: Đã đạt giới hạn tối đa
+                            if (currentPurchased >= maxAllowed) {
+                                errors.add("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" + 
+                                    book.getBookName() + "' cho phép. Không thể mua thêm.");
+                            } else {
+                                // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                                int remainingAllowed = maxAllowed - currentPurchased;
+                                if (item.getQuantity() > remainingAllowed) {
+                                    errors.add("Bạn đã mua " + currentPurchased + " sản phẩm, chỉ được mua thêm tối đa " + 
+                                        remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
+                                } else {
+                                    // ✅ LOẠI 3: Thông báo chung
+                                    errors.add("Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
+                                        book.getBookName() + "'.");
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Không có flash sale - validate stock thông thường
+                    if (book.getStockQuantity() < item.getQuantity()) {
+                        errors.add("Sách '" + book.getBookName() + "' chỉ còn " + book.getStockQuantity() + " cuốn trong kho");
+                    }
                 }
-                // Backend sẽ tự kiểm tra flash sale khi tạo đơn
+                
             } catch (Exception e) {
                 log.error("Error validating item {}: ", item.getBookId(), e);
                 errors.add("Lỗi khi kiểm tra sản phẩm ID " + item.getBookId() + ": " + e.getMessage());
@@ -639,74 +708,6 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         }
         
         return "❌ " + originalError;
-    }
-
-    /**
-     * Lấy giá flash sale hiện tại với validation chi tiết
-     */
-    private BigDecimal getCurrentFlashSalePrice(Integer flashSaleItemId) {
-        if (flashSaleItemId == null) {
-            log.warn("getCurrentFlashSalePrice called with null flashSaleItemId");
-            return null;
-        }
-        
-        try {
-            Optional<FlashSaleItem> flashSaleOpt = flashSaleItemRepository.findById(flashSaleItemId);
-            if (flashSaleOpt.isEmpty()) {
-                log.warn("FlashSaleItem not found for ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            FlashSaleItem item = flashSaleOpt.get();
-            FlashSale flashSale = item.getFlashSale();
-            
-            if (flashSale == null) {
-                log.warn("FlashSale is null for FlashSaleItem ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            long currentTime = System.currentTimeMillis();
-            
-            // Kiểm tra flash sale còn active
-            if (flashSale.getStatus() != 1) {
-                log.debug("FlashSale is not active (status={}) for item ID: {}", flashSale.getStatus(), flashSaleItemId);
-                return null;
-            }
-            
-            if (currentTime < flashSale.getStartTime()) {
-                log.debug("FlashSale has not started yet for item ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            if (currentTime > flashSale.getEndTime()) {
-                log.debug("FlashSale has ended for item ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            // Kiểm tra flash sale item status
-            if (item.getStatus() != 1) {
-                log.debug("FlashSaleItem is not active (status={}) for item ID: {}", item.getStatus(), flashSaleItemId);
-                return null;
-            }
-            
-            // Kiểm tra stock
-            if (item.getStockQuantity() <= 0) {
-                log.debug("FlashSaleItem is out of stock for item ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            BigDecimal discountPrice = item.getDiscountPrice();
-            if (discountPrice == null || discountPrice.compareTo(BigDecimal.ZERO) < 0) {
-                log.warn("Invalid discount price for FlashSaleItem ID: {}", flashSaleItemId);
-                return null;
-            }
-            
-            return discountPrice;
-            
-        } catch (Exception e) {
-            log.error("Error getting current flash sale price for item ID {}: {}", flashSaleItemId, e.getMessage(), e);
-            return null;
-        }
     }
 
     @Override
@@ -818,6 +819,9 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
 
     // Private helper methods
 
+    /**
+     * ✅ ENHANCED: Validate checkout session request với flash sale validation
+     */
     private void validateCheckoutSessionRequest(CheckoutSessionRequest request) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("Danh sách sản phẩm không được để trống");
@@ -829,8 +833,23 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
             }
         }
     }
+    
+    /**
+     * ✅ NEW: Validate checkout session với user để check flash sale limits
+     */
+    private void validateCheckoutSessionWithUser(CheckoutSessionRequest request, Integer userId) {
+        validateCheckoutSessionRequest(request); // Basic validation first
+        
+        // ✅ Enhanced validation với flash sale limits
+        List<String> errors = validateSessionItemsForOrder(request.getItems(), userId);
+        if (!errors.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", errors));
+        }
+    }
 
     private void calculateSessionPricing(CheckoutSession session, CheckoutSessionRequest request) {
+        final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
+
         // � BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
         log.info("🔄 Backend recalculating session pricing for {} items", 
             request.getItems() != null ? request.getItems().size() : 0);
@@ -885,10 +904,18 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         session.setSubtotal(calculatedSubtotal);
         log.info("🔄 Calculated subtotal: {}", calculatedSubtotal);
         
-        // 4. TỰ TÍNH SHIPPING FEE (không tin frontend)
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        // TODO: Implement shipping calculation logic based on address/weight
-        // For now, use default shipping fee or calculate based on business rules
+        // 4. TÍNH SHIPPING FEE
+        BigDecimal shippingFee;
+        if (request.getShippingFee() != null) {
+            // FE truyền phí ship mới
+            shippingFee = request.getShippingFee();
+        } else if (session.getShippingFee() != null) {
+            // Không truyền => giữ nguyên phí ship hiện tại của session
+            shippingFee = session.getShippingFee();
+        } else {
+            // Nếu chưa có thì dùng mặc định
+            shippingFee = DEFAULT_SHIPPING_FEE;
+        }
         session.setShippingFee(shippingFee);
         
         // 5. VALIDATE VÀ TÍNH VOUCHER DISCOUNT  

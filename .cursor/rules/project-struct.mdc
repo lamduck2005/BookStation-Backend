@@ -1,0 +1,25 @@
+---
+description:
+globs:
+alwaysApply: true
+
+- Controller Đặt vào `controller/`.
+- Service interface Đặt vào `service/`.
+- Service implementation Đặt vào `service/impl/`.
+- Repository Đặt vào `repository/`.
+- DTO request/response Đặt vào `dto/request/` hoặc `dto/response/`.
+- Entity Đặt vào `entity/`.
+- Mapper Đặt vào `mapper/`.
+- Exception Đặt vào `exception/`.
+- Config, cấu hình Đặt vào `config/` hoặc `configuration/`.
+- Scheduled task Đặt vào `scheduled/`.
+- Specification Đặt vào `specification/`.
+- Enum Đặt vào `entity/enums/`.
+- Validator, util Đặt vào `validator/` hoặc `util/`.
+
+- Không tạo file ngoài các thư mục quy định trên.
+- Nếu chưa có thư mục, tự động tạo mới đúng chuẩn.
+- Không tự ý đổi vị trí file cũ nếu không có yêu cầu.
+- Đảm bảo cấu trúc thư mục luôn rõ ràng, dễ tìm kiếm.
+- Hạn chế hoặc không dùng @query, ưu tiên dùng Specification
+---

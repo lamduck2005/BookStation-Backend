@@ -1004,6 +1004,7 @@ public class DataInitializationService implements CommandLineRunner {
         List<Book> books = bookRepository.findAll();
         List<Address> addresses = addressRepository.findAll();
         
+        // Tạo đơn hàng DELIVERED cho 3 khách hàng đầu
         for (int i = 0; i < Math.min(3, customers.size()); i++) {
             User customer = customers.get(i);
             Address address = addresses.stream()
@@ -1031,6 +1032,62 @@ public class DataInitializationService implements CommandLineRunner {
             order.setSubtotal(subtotal);
             order.setTotalAmount(subtotal.add(order.getShippingFee()));
             orderRepository.save(order);
+        }
+        
+        // ✅ THÊM MỚI: Tạo đơn hàng với các trạng thái hoàn hàng để test
+        if (customers.size() >= 2 && books.size() >= 2) {
+            User testCustomer = customers.get(0); // Lê Văn C (customer1@gmail.com)
+            Address testAddress = addresses.stream()
+                    .filter(addr -> addr.getUser().equals(testCustomer))
+                    .findFirst()
+                    .orElse(addresses.get(0));
+            
+            // 1. Đơn hàng đang chờ admin xem xét yêu cầu hoàn trả
+            Order refundRequestedOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUND_REQUESTED, "ONLINE");
+            refundRequestedOrder.setCancelReason("Khách hàng yêu cầu hoàn trả vì sản phẩm không đúng mô tả");
+            orderRepository.save(refundRequestedOrder);
+            
+            // Thêm order details cho đơn REFUND_REQUESTED
+            Book book1 = books.get(0);
+            OrderDetail detail1 = createOrderDetail(refundRequestedOrder, book1, 2, book1.getPrice());
+            orderDetailRepository.save(detail1);
+            
+            BigDecimal subtotal1 = book1.getPrice().multiply(BigDecimal.valueOf(2));
+            refundRequestedOrder.setSubtotal(subtotal1);
+            refundRequestedOrder.setTotalAmount(subtotal1.add(refundRequestedOrder.getShippingFee()));
+            orderRepository.save(refundRequestedOrder);
+            
+            // 2. Đơn hàng đang trong quá trình hoàn tiền
+            Order refundingOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUNDING, "ONLINE");
+            refundingOrder.setCancelReason("Admin đã chấp nhận yêu cầu hoàn trả, đang xử lý hoàn tiền");
+            orderRepository.save(refundingOrder);
+            
+            // Thêm order details cho đơn REFUNDING
+            Book book2 = books.get(1);
+            OrderDetail detail2 = createOrderDetail(refundingOrder, book2, 1, book2.getPrice());
+            orderDetailRepository.save(detail2);
+            
+            BigDecimal subtotal2 = book2.getPrice();
+            refundingOrder.setSubtotal(subtotal2);
+            refundingOrder.setTotalAmount(subtotal2.add(refundingOrder.getShippingFee()));
+            orderRepository.save(refundingOrder);
+            
+            // 3. Đơn hàng đã hoàn tiền hoàn tất
+            Order refundedOrder = createOrder(testCustomer, testAddress, OrderStatus.REFUNDED, "ONLINE");
+            refundedOrder.setCancelReason("Đã hoàn trả thành công cho khách hàng");
+            orderRepository.save(refundedOrder);
+            
+            // Thêm order details cho đơn REFUNDED
+            Book book3 = books.size() > 2 ? books.get(2) : books.get(0);
+            OrderDetail detail3 = createOrderDetail(refundedOrder, book3, 1, book3.getPrice());
+            orderDetailRepository.save(detail3);
+            
+            BigDecimal subtotal3 = book3.getPrice();
+            refundedOrder.setSubtotal(subtotal3);
+            refundedOrder.setTotalAmount(subtotal3.add(refundedOrder.getShippingFee()));
+            orderRepository.save(refundedOrder);
+            
+            log.info("Created test orders with refund statuses: REFUND_REQUESTED, REFUNDING, REFUNDED");
         }
     }
 
