@@ -25,7 +25,7 @@ public class FlashSaleItemController {
             @PathVariable Integer flashSaleId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) Integer bookId,
+            @RequestParam(required = false) String bookName,
             @RequestParam(required = false) Byte status,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
@@ -33,7 +33,7 @@ public class FlashSaleItemController {
             @RequestParam(required = false) BigDecimal maxPercent,
             @RequestParam(required = false) Integer minQuantity,
             @RequestParam(required = false) Integer maxQuantity) {
-        return flashSaleItemService.getAllWithFilter(page, size, flashSaleId, bookId, status,
+        return flashSaleItemService.getAllWithFilter(page, size, flashSaleId, bookName, status,
                 minPrice, maxPrice, minPercent, maxPercent, minQuantity, maxQuantity);
     }
 

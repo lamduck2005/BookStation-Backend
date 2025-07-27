@@ -1,6 +1,7 @@
 package org.datn.bookstation.repository;
 
 import org.datn.bookstation.dto.request.BookCategoryRequest;
+import org.datn.bookstation.dto.request.BookFlashSalesRequest;
 import org.datn.bookstation.entity.Book;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,283 +15,311 @@ import java.util.List;
 
 public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecificationExecutor<Book> {
     boolean existsByBookName(String bookName);
+
     boolean existsByBookCode(String bookCode);
-    
+
     @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Book b WHERE UPPER(TRIM(b.bookName)) = UPPER(TRIM(:bookName))")
     boolean existsByBookNameIgnoreCase(@Param("bookName") String bookName);
-    
+
     @Query("SELECT b FROM Book b WHERE b.category.id = :categoryId")
     List<Book> findByCategoryId(@Param("categoryId") Integer categoryId);
-    
+
     @Query("SELECT b FROM Book b WHERE b.supplier.id = :supplierId")
     List<Book> findBySupplierId(@Param("supplierId") Integer supplierId);
 
-    
     @Query("SELECT b FROM Book b WHERE b.publisher.id = :publisherId")
     List<Book> findByPublisherId(@Param("publisherId") Integer publisherId);
-    
+
     @Query("SELECT b FROM Book b WHERE b.status = 1 ORDER BY b.createdAt DESC")
     List<Book> findActiveBooks();
-    
+
     /**
      * Lấy dữ liệu cho trending books với thông tin thống kê
-     * Bao gồm: thông tin cơ bản của sách, số lượng đã bán, số đơn hàng, rating trung bình, số review
+     * Bao gồm: thông tin cơ bản của sách, số lượng đã bán, số đơn hàng, rating
+     * trung bình, số review
      */
     @Query("""
-        SELECT b.id as bookId,
-               b.bookName as bookName,
-               b.description as description, 
-               b.price as price,
-               b.stockQuantity as stockQuantity,
-               b.bookCode as bookCode,
-               b.publicationDate as publicationDate,
-               b.createdAt as createdAt,
-               b.updatedAt as updatedAt,
-               b.category.id as categoryId,
-               b.category.categoryName as categoryName,
-               b.supplier.id as supplierId,
-               b.supplier.supplierName as supplierName,
-               COALESCE(salesData.soldCount, 0) as soldCount,
-               COALESCE(salesData.orderCount, 0) as orderCount,
-               COALESCE(reviewData.avgRating, 0.0) as avgRating,
-               COALESCE(reviewData.reviewCount, 0) as reviewCount,
-               CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
-               flashSale.discountPrice as flashSalePrice,
-               flashSale.stockQuantity as flashSaleStockQuantity,
-               0 as flashSaleSoldCount,
-               b.images as images
-        FROM Book b
-        LEFT JOIN (
-            SELECT od.book.id as bookId,
-                   SUM(od.quantity) as soldCount,
-                   COUNT(DISTINCT od.order.id) as orderCount
-            FROM OrderDetail od 
-            WHERE od.order.createdAt >= :thirtyDaysAgo
-                  AND od.order.orderStatus = 'COMPLETED'
-            GROUP BY od.book.id
-        ) salesData ON b.id = salesData.bookId
-        LEFT JOIN (
-            SELECT r.book.id as bookId,
-                   AVG(CAST(r.rating as double)) as avgRating,
-                   COUNT(r.id) as reviewCount
-            FROM Review r 
-            WHERE r.reviewStatus = 'APPROVED'
-                  AND r.createdAt >= :sixtyDaysAgo
-            GROUP BY r.book.id
-        ) reviewData ON b.id = reviewData.bookId
-        LEFT JOIN (
-            SELECT fsi.book.id as bookId,
-                   fsi.id as id,
-                   fsi.discountPrice as discountPrice,
-                   fsi.stockQuantity as stockQuantity
-            FROM FlashSaleItem fsi
-            JOIN FlashSale fs ON fsi.flashSale.id = fs.id
-            WHERE fs.status = 1 
-                  AND fsi.status = 1
-                  AND fs.startTime <= :currentTime 
-                  AND fs.endTime >= :currentTime
-        ) flashSale ON b.id = flashSale.bookId
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-        ORDER BY (
-            (COALESCE(salesData.soldCount, 0) * 0.4) +
-            (COALESCE(reviewData.avgRating, 0) * COALESCE(reviewData.reviewCount, 0) * 0.3) +
-            (CASE WHEN b.createdAt >= :thirtyDaysAgo THEN 10 ELSE 0 END * 0.2) +
-            (CASE WHEN flashSale.id IS NOT NULL THEN 10 ELSE 0 END * 0.1)
-        ) DESC
-        """)
+            SELECT b.id as bookId,
+                   b.bookName as bookName,
+                   b.description as description,
+                   b.price as price,
+                   b.stockQuantity as stockQuantity,
+                   b.bookCode as bookCode,
+                   b.publicationDate as publicationDate,
+                   b.createdAt as createdAt,
+                   b.updatedAt as updatedAt,
+                   b.category.id as categoryId,
+                   b.category.categoryName as categoryName,
+                   b.supplier.id as supplierId,
+                   b.supplier.supplierName as supplierName,
+                   COALESCE(salesData.soldCount, 0) as soldCount,
+                   COALESCE(salesData.orderCount, 0) as orderCount,
+                   COALESCE(reviewData.avgRating, 0.0) as avgRating,
+                   COALESCE(reviewData.reviewCount, 0) as reviewCount,
+                   CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
+                   flashSale.discountPrice as flashSalePrice,
+                   flashSale.stockQuantity as flashSaleStockQuantity,
+                   0 as flashSaleSoldCount,
+                   b.images as images
+            FROM Book b
+            LEFT JOIN (
+                SELECT od.book.id as bookId,
+                       SUM(od.quantity) as soldCount,
+                       COUNT(DISTINCT od.order.id) as orderCount
+                FROM OrderDetail od
+                WHERE od.order.createdAt >= :thirtyDaysAgo
+                      AND od.order.orderStatus = 'COMPLETED'
+                GROUP BY od.book.id
+            ) salesData ON b.id = salesData.bookId
+            LEFT JOIN (
+                SELECT r.book.id as bookId,
+                       AVG(CAST(r.rating as double)) as avgRating,
+                       COUNT(r.id) as reviewCount
+                FROM Review r
+                WHERE r.reviewStatus = 'APPROVED'
+                      AND r.createdAt >= :sixtyDaysAgo
+                GROUP BY r.book.id
+            ) reviewData ON b.id = reviewData.bookId
+            LEFT JOIN (
+                SELECT fsi.book.id as bookId,
+                       fsi.id as id,
+                       fsi.discountPrice as discountPrice,
+                       fsi.stockQuantity as stockQuantity
+                FROM FlashSaleItem fsi
+                JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+                WHERE fs.status = 1
+                      AND fsi.status = 1
+                      AND fs.startTime <= :currentTime
+                      AND fs.endTime >= :currentTime
+            ) flashSale ON b.id = flashSale.bookId
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+            ORDER BY (
+                (COALESCE(salesData.soldCount, 0) * 0.4) +
+                (COALESCE(reviewData.avgRating, 0) * COALESCE(reviewData.reviewCount, 0) * 0.3) +
+                (CASE WHEN b.createdAt >= :thirtyDaysAgo THEN 10 ELSE 0 END * 0.2) +
+                (CASE WHEN flashSale.id IS NOT NULL THEN 10 ELSE 0 END * 0.1)
+            ) DESC
+            """)
     Page<Object[]> findTrendingBooksData(
-        @Param("thirtyDaysAgo") Long thirtyDaysAgo,
-        @Param("sixtyDaysAgo") Long sixtyDaysAgo, 
-        @Param("currentTime") Long currentTime,
-        Pageable pageable
-    );
-    
+            @Param("thirtyDaysAgo") Long thirtyDaysAgo,
+            @Param("sixtyDaysAgo") Long sixtyDaysAgo,
+            @Param("currentTime") Long currentTime,
+            Pageable pageable);
+
     /**
      * Đếm tổng số sách đủ điều kiện trending
      */
     @Query("""
-        SELECT COUNT(DISTINCT b.id)
-        FROM Book b
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
-        """)
+            SELECT COUNT(DISTINCT b.id)
+            FROM Book b
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+                  AND (:categoryId IS NULL OR b.category.id = :categoryId)
+                  AND (:minPrice IS NULL OR b.price >= :minPrice)
+                  AND (:maxPrice IS NULL OR b.price <= :maxPrice)
+            """)
     Long countTrendingBooks(
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice
-    );
+            @Param("categoryId") Integer categoryId,
+            @Param("minPrice") BigDecimal minPrice,
+            @Param("maxPrice") BigDecimal maxPrice);
 
     /**
-     *  FALLBACK: Lấy sách theo thuật toán dự phòng khi chưa có đủ dữ liệu trending
+     * FALLBACK: Lấy sách theo thuật toán dự phòng khi chưa có đủ dữ liệu trending
      * Ưu tiên: Sách mới → Giá tốt → Stock nhiều → Ngẫu nhiên
      */
     @Query("""
-        SELECT b.id as bookId,
-               b.bookName as bookName,
-               b.description as description,
-               b.price as price,
-               b.stockQuantity as stockQuantity,
-               b.bookCode as bookCode,
-               b.publicationDate as publicationDate,
-               b.createdAt as createdAt,
-               b.updatedAt as updatedAt,
-               b.category.id as categoryId,
-               b.category.categoryName as categoryName,
-               b.supplier.id as supplierId,
-               b.supplier.supplierName as supplierName,
-               0 as soldCount,
-               0 as orderCount,
-               0.0 as avgRating,
-               0 as reviewCount,
-               false as isInFlashSale,
-               NULL as flashSalePrice,
-               NULL as flashSaleStockQuantity,
-               b.images as images
-        FROM Book b
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
-        ORDER BY 
-            b.createdAt DESC,
-            b.price ASC,
-            b.stockQuantity DESC,
-            b.id DESC
-        """)
+            SELECT b.id as bookId,
+                   b.bookName as bookName,
+                   b.description as description,
+                   b.price as price,
+                   b.stockQuantity as stockQuantity,
+                   b.bookCode as bookCode,
+                   b.publicationDate as publicationDate,
+                   b.createdAt as createdAt,
+                   b.updatedAt as updatedAt,
+                   b.category.id as categoryId,
+                   b.category.categoryName as categoryName,
+                   b.supplier.id as supplierId,
+                   b.supplier.supplierName as supplierName,
+                   0 as soldCount,
+                   0 as orderCount,
+                   0.0 as avgRating,
+                   0 as reviewCount,
+                   false as isInFlashSale,
+                   NULL as flashSalePrice,
+                   NULL as flashSaleStockQuantity,
+                   b.images as images
+            FROM Book b
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+                  AND (:categoryId IS NULL OR b.category.id = :categoryId)
+                  AND (:minPrice IS NULL OR b.price >= :minPrice)
+                  AND (:maxPrice IS NULL OR b.price <= :maxPrice)
+            ORDER BY
+                b.createdAt DESC,
+                b.price ASC,
+                b.stockQuantity DESC,
+                b.id DESC
+            """)
     List<Object[]> findFallbackTrendingBooks(
-        Pageable pageable
-    );
+            Pageable pageable);
 
     /**
      * Đếm tổng số sách active
      */
     @Query("""
-        SELECT COUNT(b.id)
-        FROM Book b
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
-        """)
+            SELECT COUNT(b.id)
+            FROM Book b
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+                  AND (:categoryId IS NULL OR b.category.id = :categoryId)
+                  AND (:minPrice IS NULL OR b.price >= :minPrice)
+                  AND (:maxPrice IS NULL OR b.price <= :maxPrice)
+            """)
     Long countActiveBooks(
-        @Param("categoryId") Integer categoryId,
-        @Param("minPrice") BigDecimal minPrice,
-        @Param("maxPrice") BigDecimal maxPrice
-    );
+            @Param("categoryId") Integer categoryId,
+            @Param("minPrice") BigDecimal minPrice,
+            @Param("maxPrice") BigDecimal maxPrice);
 
     /**
-     *  HOT DISCOUNT: Lấy sách hot giảm sốc (flash sale + discount cao)
+     * HOT DISCOUNT: Lấy sách hot giảm sốc (flash sale + discount cao)
      */
     @Query("""
-        SELECT b.id as bookId,
-               b.bookName as bookName,
-               b.description as description,
-               b.price as price,
-               b.stockQuantity as stockQuantity,
-               b.bookCode as bookCode,
-               b.publicationDate as publicationDate,
-               b.createdAt as createdAt,
-               b.updatedAt as updatedAt,
-               b.category.id as categoryId,
-               b.category.categoryName as categoryName,
-               b.supplier.id as supplierId,
-               b.supplier.supplierName as supplierName,
-               COALESCE(salesData.soldCount, 0) as soldCount,
-               COALESCE(salesData.orderCount, 0) as orderCount,
-               COALESCE(reviewData.avgRating, 0.0) as avgRating,
-               COALESCE(reviewData.reviewCount, 0) as reviewCount,
-               CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
-               flashSale.discountPrice as flashSalePrice,
-               flashSale.stockQuantity as flashSaleStockQuantity,
-               0 as flashSaleSoldCount,
-               b.images as images
-        FROM Book b
-        LEFT JOIN (
-            SELECT od.book.id as bookId,
-                   SUM(od.quantity) as soldCount,
-                   COUNT(DISTINCT od.order.id) as orderCount
-            FROM OrderDetail od 
-            WHERE od.order.orderStatus = 'COMPLETED'
-            GROUP BY od.book.id
-        ) salesData ON b.id = salesData.bookId
-        LEFT JOIN (
-            SELECT r.book.id as bookId,
-                   AVG(CAST(r.rating as double)) as avgRating,
-                   COUNT(r.id) as reviewCount
-            FROM Review r 
-            WHERE r.reviewStatus = 'APPROVED'
-            GROUP BY r.book.id
-        ) reviewData ON b.id = reviewData.bookId
-        LEFT JOIN (
-            SELECT fsi.book.id as bookId,
-                   fsi.id as id,
-                   fsi.discountPrice as discountPrice,
-                   fsi.stockQuantity as stockQuantity
-            FROM FlashSaleItem fsi
-            JOIN FlashSale fs ON fsi.flashSale.id = fs.id
-            WHERE fs.status = 1 
-                  AND fsi.status = 1
-                  AND fs.startTime <= :currentTime 
-                  AND fs.endTime >= :currentTime
-        ) flashSale ON b.id = flashSale.bookId
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-              AND (flashSale.id IS NOT NULL OR b.discountActive = true)
-        ORDER BY (
-            (CASE WHEN flashSale.id IS NOT NULL THEN 20 ELSE 0 END) +
-            (CASE WHEN b.discountActive = true THEN 15 ELSE 0 END) +
-            COALESCE(reviewData.avgRating, 0)
-        ) DESC
-        """)
+            SELECT b.id as bookId,
+                   b.bookName as bookName,
+                   b.description as description,
+                   b.price as price,
+                   b.stockQuantity as stockQuantity,
+                   b.bookCode as bookCode,
+                   b.publicationDate as publicationDate,
+                   b.createdAt as createdAt,
+                   b.updatedAt as updatedAt,
+                   b.category.id as categoryId,
+                   b.category.categoryName as categoryName,
+                   b.supplier.id as supplierId,
+                   b.supplier.supplierName as supplierName,
+                   COALESCE(salesData.soldCount, 0) as soldCount,
+                   COALESCE(salesData.orderCount, 0) as orderCount,
+                   COALESCE(reviewData.avgRating, 0.0) as avgRating,
+                   COALESCE(reviewData.reviewCount, 0) as reviewCount,
+                   CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
+                   flashSale.discountPrice as flashSalePrice,
+                   flashSale.stockQuantity as flashSaleStockQuantity,
+                   0 as flashSaleSoldCount,
+                   b.images as images
+            FROM Book b
+            LEFT JOIN (
+                SELECT od.book.id as bookId,
+                       SUM(od.quantity) as soldCount,
+                       COUNT(DISTINCT od.order.id) as orderCount
+                FROM OrderDetail od
+                WHERE od.order.orderStatus = 'COMPLETED'
+                GROUP BY od.book.id
+            ) salesData ON b.id = salesData.bookId
+            LEFT JOIN (
+                SELECT r.book.id as bookId,
+                       AVG(CAST(r.rating as double)) as avgRating,
+                       COUNT(r.id) as reviewCount
+                FROM Review r
+                WHERE r.reviewStatus = 'APPROVED'
+                GROUP BY r.book.id
+            ) reviewData ON b.id = reviewData.bookId
+            LEFT JOIN (
+                SELECT fsi.book.id as bookId,
+                       fsi.id as id,
+                       fsi.discountPrice as discountPrice,
+                       fsi.stockQuantity as stockQuantity
+                FROM FlashSaleItem fsi
+                JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+                WHERE fs.status = 1
+                      AND fsi.status = 1
+                      AND fs.startTime <= :currentTime
+                      AND fs.endTime >= :currentTime
+            ) flashSale ON b.id = flashSale.bookId
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+                  AND (flashSale.id IS NOT NULL OR b.discountActive = true)
+            ORDER BY (
+                (CASE WHEN flashSale.id IS NOT NULL THEN 20 ELSE 0 END) +
+                (CASE WHEN b.discountActive = true THEN 15 ELSE 0 END) +
+                COALESCE(reviewData.avgRating, 0)
+            ) DESC
+            """)
     Page<Object[]> findHotDiscountBooks(
-        @Param("currentTime") Long currentTime,
-        Pageable pageable
-    );
+            @Param("currentTime") Long currentTime,
+            Pageable pageable);
 
     /**
-     *  FALLBACK: Lấy sách có giá tốt (cho hot discount fallback)
+     * FALLBACK: Lấy sách có giá tốt (cho hot discount fallback)
      */
     @Query("""
-        SELECT b.id as bookId,
-               b.bookName as bookName,
-               b.description as description,
-               b.price as price,
-               b.stockQuantity as stockQuantity,
-               b.bookCode as bookCode,
-               b.publicationDate as publicationDate,
-               b.createdAt as createdAt,
-               b.updatedAt as updatedAt,
-               b.category.id as categoryId,
-               b.category.categoryName as categoryName,
-               b.supplier.id as supplierId,
-               b.supplier.supplierName as supplierName,
-               0 as soldCount,
-               0 as orderCount,
-               0.0 as avgRating,
-               0 as reviewCount,
-               false as isInFlashSale,
-               NULL as flashSalePrice,
-               NULL as flashSaleStockQuantity,
-               b.images as images
-        FROM Book b
-        WHERE b.status = 1 
-              AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
-        ORDER BY 
-            b.price ASC,
-            b.stockQuantity DESC,
-            b.createdAt DESC
-        """)
+            SELECT b.id as bookId,
+                   b.bookName as bookName,
+                   b.description as description,
+                   b.price as price,
+                   b.stockQuantity as stockQuantity,
+                   b.bookCode as bookCode,
+                   b.publicationDate as publicationDate,
+                   b.createdAt as createdAt,
+                   b.updatedAt as updatedAt,
+                   b.category.id as categoryId,
+                   b.category.categoryName as categoryName,
+                   b.supplier.id as supplierId,
+                   b.supplier.supplierName as supplierName,
+                   0 as soldCount,
+                   0 as orderCount,
+                   0.0 as avgRating,
+                   0 as reviewCount,
+                   false as isInFlashSale,
+                   NULL as flashSalePrice,
+                   NULL as flashSaleStockQuantity,
+                   b.images as images
+            FROM Book b
+            WHERE b.status = 1
+                  AND b.stockQuantity > 0
+                  AND (:categoryId IS NULL OR b.category.id = :categoryId)
+                  AND (:minPrice IS NULL OR b.price >= :minPrice)
+                  AND (:maxPrice IS NULL OR b.price <= :maxPrice)
+            ORDER BY
+                b.price ASC,
+                b.stockQuantity DESC,
+                b.createdAt DESC
+            """)
     List<Object[]> findGoodPriceBooks(
-        Pageable pageable
-    );
+            Pageable pageable);
+
+    @Query("""
+            SELECT new org.datn.bookstation.dto.request.BookFlashSalesRequest(
+                b.id,
+                b.bookName,
+                            b.price,b.stockQuantity
+
+            )
+            FROM Book b
+            LEFT JOIN FlashSaleItem fsi ON b.id = fsi.book.id
+            WHERE fsi.book.id IS NULL
+            and
+             b.status = 1
+              AND b.stockQuantity > 0
+
+            ORDER BY b.bookName ASC
+            """)
+    List<BookFlashSalesRequest> findActiveBooksWithStock();
+
+    @Query("""
+            SELECT new org.datn.bookstation.dto.request.BookFlashSalesRequest(
+                b.id,
+                b.bookName,
+                            b.price,b.stockQuantity
+
+            )
+            FROM Book b
+                        where
+              b.stockQuantity > 0
+
+            ORDER BY b.bookName ASC
+            """)
+    List<BookFlashSalesRequest> findActiveBooksForEdit();
 
 }

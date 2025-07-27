@@ -5,17 +5,20 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 
 public class FlashSaleItemSpecification {
-    public static Specification<FlashSaleItem> filterBy(Integer flashSaleId, Integer bookId, Byte status,
-                                                        BigDecimal minPrice, BigDecimal maxPrice,
-                                                        BigDecimal minPercent, BigDecimal maxPercent,
-                                                        Integer minQuantity, Integer maxQuantity) {
+    public static Specification<FlashSaleItem> filterBy(Integer flashSaleId, String bookName, Byte status,
+            BigDecimal minPrice, BigDecimal maxPrice,
+            BigDecimal minPercent, BigDecimal maxPercent,
+            Integer minQuantity, Integer maxQuantity) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
             if (flashSaleId != null) {
                 predicate = cb.and(predicate, cb.equal(root.get("flashSale").get("id"), flashSaleId));
             }
-            if (bookId != null) {
-                predicate = cb.and(predicate, cb.equal(root.get("book").get("id"), bookId));
+
+            if (bookName != null && !bookName.isEmpty()) {
+                String likeText = "%" + bookName.toLowerCase() + "%";
+                predicate = cb.and(predicate,
+                        cb.like(cb.lower(root.get("book").get("bookName")), likeText));
             }
             if (status != null) {
                 predicate = cb.and(predicate, cb.equal(root.get("status"), status));
@@ -41,4 +44,4 @@ public class FlashSaleItemSpecification {
             return predicate;
         };
     }
-} 
+}

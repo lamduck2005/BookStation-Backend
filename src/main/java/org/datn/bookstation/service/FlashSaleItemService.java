@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public interface FlashSaleItemService {
-    ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size, Integer flashSaleId, Integer bookId, Byte status,
+    ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size, Integer flashSaleId, String bookName, Byte status,
                                                                             BigDecimal minPrice, BigDecimal maxPrice,
                                                                             BigDecimal minPercent, BigDecimal maxPercent,
                                                                             Integer minQuantity, Integer maxQuantity);

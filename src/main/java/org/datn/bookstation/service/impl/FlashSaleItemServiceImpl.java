@@ -44,16 +44,16 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
 
     @Autowired
     private FlashSaleItemMapper flashSaleItemMapper;
-    
+
     @Autowired
     @Lazy
     private CartItemService cartItemService;
 
     @Override
-    public ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size, Integer flashSaleId, Integer bookId, Byte status,
-            BigDecimal minPrice, BigDecimal maxPrice, BigDecimal minPercent, BigDecimal maxPercent, Integer minQuantity, Integer maxQuantity) {
+    public ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size, Integer flashSaleId, String bookName, Byte status,
+                                                                                   BigDecimal minPrice, BigDecimal maxPrice, BigDecimal minPercent, BigDecimal maxPercent, Integer minQuantity, Integer maxQuantity) {
         Pageable pageable = PageRequest.of(page, size);
-        Specification<FlashSaleItem> spec = FlashSaleItemSpecification.filterBy(flashSaleId, bookId, status, minPrice, maxPrice, minPercent, maxPercent, minQuantity, maxQuantity);
+        Specification<FlashSaleItem> spec = FlashSaleItemSpecification.filterBy(flashSaleId, bookName, status, minPrice, maxPrice, minPercent, maxPercent, minQuantity, maxQuantity);
         Page<FlashSaleItem> itemPage = flashSaleItemRepository.findAll(spec, pageable);
 
         List<FlashSaleItemResponse> content = itemPage.getContent().stream()
@@ -89,17 +89,17 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         item.setFlashSale(flashSale);
         item.setBook(book);
         FlashSaleItem savedItem = flashSaleItemRepository.save(item);
-        
+
         // 🔥 AUTO-SYNC: Tự động đồng bộ cart items khi tạo flash sale item mới
         try {
             int syncedCartCount = cartItemService.syncCartItemsWithNewFlashSale(flashSale.getId());
-            log.info("🔄 AUTO-SYNC CART: Created flash sale item {} for book {}, synced {} cart items", 
+            log.info("🔄 AUTO-SYNC CART: Created flash sale item {} for book {}, synced {} cart items",
                     savedItem.getId(), book.getId(), syncedCartCount);
         } catch (Exception e) {
-            log.warn("⚠️ WARNING: Failed to sync cart items after creating flash sale item {}: {}", 
+            log.warn("⚠️ WARNING: Failed to sync cart items after creating flash sale item {}: {}",
                     savedItem.getId(), e.getMessage());
         }
-        
+
         return new ApiResponse<>(201, "Tạo flash sale item thành công", flashSaleItemMapper.toResponse(savedItem));
     }
 
@@ -146,19 +146,19 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         }
         existing.setUpdatedAt(System.currentTimeMillis());
         FlashSaleItem updatedItem = flashSaleItemRepository.save(existing);
-        
+
         // 🔥 AUTO-SYNC: Đồng bộ cart nếu admin thay đổi bookId hoặc flashSaleId
         if (request.getBookId() != null || request.getFlashSaleId() != null) {
             try {
                 int syncedCartCount = cartItemService.syncCartItemsWithNewFlashSale(flashSaleId);
-                log.info("🔄 AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items", 
+                log.info("🔄 AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items",
                         id, flashSaleId, bookId, syncedCartCount);
             } catch (Exception e) {
-                log.warn("⚠️ WARNING: Failed to sync cart items after updating flash sale item {}: {}", 
+                log.warn("⚠️ WARNING: Failed to sync cart items after updating flash sale item {}: {}",
                         id, e.getMessage());
             }
         }
-        
+
         return new ApiResponse<>(200, "Cập nhật flash sale item thành công", flashSaleItemMapper.toResponse(updatedItem));
     }
 

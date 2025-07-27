@@ -1,6 +1,7 @@
 package org.datn.bookstation.service;
 
 import org.datn.bookstation.dto.request.BookCategoryRequest;
+import org.datn.bookstation.dto.request.BookFlashSalesRequest;
 import org.datn.bookstation.dto.request.BookRequest;
 import org.datn.bookstation.dto.request.BookSearchRequest;
 import org.datn.bookstation.dto.request.TrendingRequest;
@@ -55,4 +56,9 @@ public interface BookService {
      * Tính giá sách sau khi áp dụng discount và so sánh với flash sale
      */
     BookPriceCalculationResponse calculateBookPrice(Book book, BookPriceCalculationRequest request);
+
+
+    ApiResponse<List<BookFlashSalesRequest>> findActiveBooksWithStock();
+    ApiResponse<List<BookFlashSalesRequest>> findActiveBooksForEdit();
+
 }
