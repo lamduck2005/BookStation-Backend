@@ -208,7 +208,21 @@ public class OrderServiceImpl implements OrderService {
         order.setSubtotal(calculatedSubtotal); // ✅ Dùng giá trị backend tính
         order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính  
         order.setNotes(request.getNotes());
-        order.setCreatedBy(user != null ? user.getId() : null); // ✅ MODIFIED: Handle null user for counter sales
+        
+        // ✅ THÊM: Set thông tin người nhận cho đơn hàng tại quầy
+        if ("COUNTER".equalsIgnoreCase(request.getOrderType())) {
+            order.setRecipientName(request.getRecipientName());
+            order.setPhoneNumber(request.getPhoneNumber());
+        }
+        
+        // ✅ FIX: Set createdBy properly for counter sales
+        if (user != null) {
+            order.setCreatedBy(user.getId()); // Online order - use customer ID
+        } else if (request.getStaffId() != null) {
+            order.setCreatedBy(request.getStaffId()); // Counter sales - use staff ID
+        } else {
+            throw new BusinessException("Phải có staffId cho đơn hàng counter sales");
+        }
 
         if (request.getStaffId() != null) {
             User staff = userRepository.findById(request.getStaffId())
@@ -331,7 +345,13 @@ public class OrderServiceImpl implements OrderService {
             orderDetail.setFlashSaleItem(flashSaleItem); // null nếu không phải flash sale
             orderDetail.setQuantity(quantityToOrder);
             orderDetail.setUnitPrice(detailRequest.getUnitPrice());
-            orderDetail.setCreatedBy(order.getUser().getId());
+            
+            // ✅ FIX: Set createdBy properly for counter sales
+            if (order.getUser() != null) {
+                orderDetail.setCreatedBy(order.getUser().getId()); // Online order
+            } else {
+                orderDetail.setCreatedBy(order.getCreatedBy()); // Counter sales - use same as order
+            }
 
             orderDetails.add(orderDetail);
         }

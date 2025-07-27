@@ -198,6 +198,10 @@ public class VoucherServiceImpl implements VoucherService {
         spec = spec.and((root, criteriaQuery, criteriaBuilder) -> 
             criteriaBuilder.equal(root.get("status"), (byte) 1));
         
+        // ✅ NEW: Exclude shipping vouchers for counter sales
+        spec = spec.and((root, criteriaQuery, criteriaBuilder) -> 
+            criteriaBuilder.notEqual(root.get("voucherCategory"), org.datn.bookstation.entity.enums.VoucherCategory.SHIPPING));
+        
         // Search by code or name
         if (query != null && !query.trim().isEmpty()) {
             String searchQuery = "%" + query.trim().toLowerCase() + "%";

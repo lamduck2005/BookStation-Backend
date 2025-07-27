@@ -21,6 +21,10 @@ public class OrderRequest {
     // ✅ MODIFIED: addressId có thể null cho counter sales (không cần giao hàng)
     private Integer addressId; // Required for online orders, null for counter sales
     
+    // ✅ THÊM: Thông tin người nhận cho đơn hàng tại quầy (khi addressId null)
+    private String recipientName; // For counter sales when userId/addressId is null
+    private String phoneNumber; // For counter sales when userId/addressId is null
+    
     @NotNull(message = "Phí vận chuyển không được để trống")
     private BigDecimal shippingFee = BigDecimal.ZERO;
     

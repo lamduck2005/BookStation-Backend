@@ -114,6 +114,11 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
             }
         }
 
+        // ✅ NEW: Check if shipping voucher is used for counter sales
+        if (shippingVoucherCount > 0 && "COUNTER".equals(order.getOrderType())) {
+            throw new RuntimeException("Không thể áp dụng voucher giảm phí ship cho đơn hàng tại quầy vì không có phí vận chuyển");
+        }
+
         // Validate voucher type limits
         if (regularVoucherCount > 1) {
             throw new RuntimeException("Chỉ được sử dụng tối đa 1 voucher thường trên 1 đơn hàng");

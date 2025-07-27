@@ -34,6 +34,17 @@ public class Order {
     @JoinColumn(name = "address_id")
     private Address address;
 
+    // ✅ THÊM: Thông tin người nhận cho đơn hàng tại quầy (khi address_id null)
+    @Size(max = 100)
+    @Nationalized
+    @Column(name = "recipient_name", length = 100)
+    private String recipientName;
+
+    @Size(max = 20)
+    @Nationalized
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
     @NotNull
     @Column(name = "order_date", nullable = false)
     private Long orderDate;

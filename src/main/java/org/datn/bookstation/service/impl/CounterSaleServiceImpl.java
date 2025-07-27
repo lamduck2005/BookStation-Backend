@@ -15,9 +15,7 @@ import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.CounterSaleService;
 import org.datn.bookstation.service.OrderService;
-import org.datn.bookstation.service.VoucherCalculationService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -31,7 +29,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class CounterSaleServiceImpl implements CounterSaleService {
     
     private final OrderService orderService;
@@ -39,77 +36,113 @@ public class CounterSaleServiceImpl implements CounterSaleService {
     private final BookRepository bookRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final UserRepository userRepository;
-    private final VoucherCalculationService voucherCalculationService;
     private final OrderResponseMapper orderResponseMapper;
     
     @Override
-    @Transactional
     public ApiResponse<CounterSaleResponse> createCounterSale(CounterSaleRequest request) {
         try {
             log.info("🛒 Creating counter sale for customer: {}, staff: {}", 
                 request.getCustomerName(), request.getStaffId());
             
             // 1. Validate request
+            log.debug("Step 1: Validating counter sale request");
             validateCounterSaleRequest(request);
+            log.debug("Step 1: Request validation passed");
             
             // 2. Validate staff
+            log.debug("Step 2: Validating staff with ID: {}", request.getStaffId());
             User staff = userRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + request.getStaffId()));
+            log.debug("Step 2: Staff validation passed, found: {}", staff.getFullName());
             
             // 3. Validate customer (nếu có userId)
+            log.debug("Step 3: Validating customer. UserId: {}", request.getUserId());
             User customer = null;
             if (request.getUserId() != null) {
                 customer = userRepository.findById(request.getUserId())
                     .orElseThrow(() -> new BusinessException("Không tìm thấy khách hàng với ID: " + request.getUserId()));
+                log.debug("Step 3: Customer validation passed, found: {}", customer.getFullName());
+            } else {
+                log.debug("Step 3: Walk-in customer, no userId validation needed");
             }
             
             // 4. Validate sản phẩm và tính giá
+            log.debug("Step 4: Performing counter sale calculation");
             CounterSaleResponse calculation = performCounterSaleCalculation(request);
             if (calculation == null) {
+                log.error("Step 4: Calculation failed - returned null");
                 return new ApiResponse<>(400, "Lỗi tính toán đơn hàng", null);
             }
+            log.debug("Step 4: Calculation completed successfully");
             
             // 5. Tạo OrderRequest từ CounterSaleRequest
+            log.debug("Step 5: Building OrderRequest from CounterSaleRequest");
             OrderRequest orderRequest = buildOrderRequestFromCounterSale(request, customer);
+            log.debug("Step 5: OrderRequest built successfully");
             
             // 6. Tạo đơn hàng thông qua OrderService
+            log.debug("Step 6: Creating order through OrderService");
+            log.debug("Step 6: OrderRequest details - userId: {}, staffId: {}, orderType: {}, totalAmount: {}", 
+                orderRequest.getUserId(), orderRequest.getStaffId(), orderRequest.getOrderType(), orderRequest.getTotalAmount());
             ApiResponse<OrderResponse> orderResponse = orderService.create(orderRequest);
+            log.debug("Step 6: OrderService.create() returned status: {}", orderResponse.getStatus());
             if (orderResponse.getStatus() != 200 && orderResponse.getStatus() != 201) {
+                log.error("Step 6: Order creation failed with status: {}, message: {}", 
+                    orderResponse.getStatus(), orderResponse.getMessage());
                 return new ApiResponse<>(orderResponse.getStatus(), orderResponse.getMessage(), null);
             }
+            log.debug("Step 6: Order created successfully with ID: {}", orderResponse.getData().getId());
             
             // 7. Cập nhật trạng thái đơn hàng thành DELIVERED (đã thanh toán tại quầy)
+            log.debug("Step 7: Retrieving order for status update");
             Order order = orderRepository.findById(orderResponse.getData().getId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng vừa tạo"));
+            log.debug("Step 7: Found order: {}", order.getCode());
             
-            // Set staff và chuyển trạng thái sang DELIVERED
+            // Set staff cho đơn hàng
+            log.debug("Step 7: Setting staff and saving order");
             order.setStaff(staff);
-            order.setOrderStatus(OrderStatus.DELIVERED);
             order.setUpdatedBy(staff.getId());
             orderRepository.save(order);
+            log.debug("Step 7: Order saved with staff assignment");
             
-            // Trigger business logic cho DELIVERED (cộng sold count, trừ stock)
-            orderService.updateStatus(order.getId(), OrderStatus.DELIVERED, staff.getId());
+            // Chuyển trạng thái từ PENDING sang DELIVERED (sẽ trigger business logic tự động)
+            log.debug("Step 7: Updating order status to DELIVERED");
+            ApiResponse<OrderResponse> statusUpdateResponse = orderService.updateStatus(order.getId(), OrderStatus.DELIVERED, staff.getId());
+            log.debug("Step 7: Status update returned: {}", statusUpdateResponse.getStatus());
+            if (statusUpdateResponse.getStatus() != 200) {
+                log.error("Step 7: Status update failed: {}", statusUpdateResponse.getMessage());
+                throw new BusinessException("Lỗi cập nhật trạng thái đơn hàng: " + statusUpdateResponse.getMessage());
+            }
+            log.debug("Step 7: Status update completed successfully");
             
-            // 8. Tạo response
-            CounterSaleResponse response = buildCounterSaleResponse(order, calculation);
+            // 8. Lấy order đã được cập nhật và tạo response
+            log.debug("Step 8: Building counter sale response");
+            Order updatedOrder = orderRepository.findById(order.getId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng đã cập nhật"));
+            CounterSaleResponse response = buildCounterSaleResponse(updatedOrder, calculation);
+            log.debug("Step 8: Response built successfully");
             
             log.info("✅ Counter sale created successfully: orderCode={}, totalAmount={}", 
-                order.getCode(), order.getTotalAmount());
+                updatedOrder.getCode(), updatedOrder.getTotalAmount());
             
             return new ApiResponse<>(200, "Tạo đơn hàng tại quầy thành công", response);
             
         } catch (BusinessException e) {
             log.error("❌ Business error creating counter sale: {}", e.getMessage());
-            return new ApiResponse<>(400, e.getMessage(), null);
+            return new ApiResponse<>(400, "Lỗi nghiệp vụ: " + e.getMessage(), null);
         } catch (Exception e) {
             log.error("❌ Unexpected error creating counter sale: {}", e.getMessage(), e);
-            return new ApiResponse<>(500, "Lỗi hệ thống khi tạo đơn hàng tại quầy", null);
+            // ✅ ENHANCED: Return detailed error message for debugging
+            String detailMessage = e.getMessage();
+            if (e.getCause() != null) {
+                detailMessage += " | Cause: " + e.getCause().getMessage();
+            }
+            return new ApiResponse<>(500, "Lỗi hệ thống: " + detailMessage, null);
         }
     }
     
     @Override
-    @Transactional(readOnly = true)
     public ApiResponse<CounterSaleResponse> calculateCounterSale(CounterSaleRequest request) {
         try {
             log.info("🧮 Calculating counter sale for {} items", request.getOrderDetails().size());
@@ -135,7 +168,6 @@ public class CounterSaleServiceImpl implements CounterSaleService {
     }
     
     @Override
-    @Transactional(readOnly = true)
     public ApiResponse<OrderResponse> getCounterSaleDetails(Integer orderId) {
         try {
             Order order = orderRepository.findById(orderId)
@@ -159,7 +191,6 @@ public class CounterSaleServiceImpl implements CounterSaleService {
     }
     
     @Override
-    @Transactional
     public ApiResponse<OrderResponse> cancelCounterSale(Integer orderId, Integer staffId, String reason) {
         try {
             Order order = orderRepository.findById(orderId)
@@ -328,6 +359,17 @@ public class CounterSaleServiceImpl implements CounterSaleService {
         // Không cần địa chỉ cho counter sale  
         orderRequest.setAddressId(null);
         
+        // ✅ THÊM: Set thông tin khách hàng cho đơn hàng tại quầy
+        if (customer != null) {
+            // Nếu có tài khoản thì lấy từ user
+            orderRequest.setRecipientName(customer.getFullName());
+            orderRequest.setPhoneNumber(customer.getPhoneNumber());
+        } else {
+            // Nếu là khách vãng lai thì lấy từ request
+            orderRequest.setRecipientName(counterRequest.getCustomerName());
+            orderRequest.setPhoneNumber(counterRequest.getCustomerPhone());
+        }
+        
         // Order details
         List<OrderDetailRequest> orderDetails = counterRequest.getOrderDetails().stream()
             .map(detail -> {
@@ -336,8 +378,8 @@ public class CounterSaleServiceImpl implements CounterSaleService {
                 orderDetail.setQuantity(detail.getQuantity());
                 orderDetail.setUnitPrice(detail.getUnitPrice());
                 orderDetail.setFlashSaleItemId(detail.getFlashSaleItemId());
-                // Set frontend prices for validation
-                orderDetail.setFrontendPrice(detail.getUnitPrice());
+                // Set frontend prices for validation - use unitPrice as fallback
+                orderDetail.setFrontendPrice(detail.getUnitPrice() != null ? detail.getUnitPrice() : BigDecimal.ZERO);
                 orderDetail.setFrontendFlashSalePrice(detail.getUnitPrice());
                 orderDetail.setFrontendFlashSaleId(detail.getFlashSaleItemId());
                 return orderDetail;
@@ -358,6 +400,9 @@ public class CounterSaleServiceImpl implements CounterSaleService {
         orderRequest.setOrderType("COUNTER");
         orderRequest.setNotes(counterRequest.getNotes());
         
+        // ✅ FIX: Set staffId for counter sales  
+        orderRequest.setStaffId(counterRequest.getStaffId());
+        
         return orderRequest;
     }
     
@@ -376,7 +421,9 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             response.setCustomerPhone(order.getUser().getPhoneNumber());
         } else {
             response.setUserId(null);
-            // TODO: Get customer name and phone from order notes or separate field
+            // ✅ FIX: Get customer name and phone from Order fields for walk-in customers
+            response.setCustomerName(order.getRecipientName());
+            response.setCustomerPhone(order.getPhoneNumber());
         }
         
         // Financial info

@@ -1,11 +1,11 @@
 package org.datn.bookstation.controller;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.CounterSaleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.CounterSaleResponse;
 import org.datn.bookstation.dto.response.OrderResponse;
-import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.service.CounterSaleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +34,7 @@ import jakarta.validation.Valid;
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/counter-sales")
+@Slf4j
 public class CounterSaleController {
     
     private final CounterSaleService counterSaleService;
@@ -53,7 +54,11 @@ public class CounterSaleController {
     public ResponseEntity<ApiResponse<CounterSaleResponse>> createCounterSale(
             @Valid @RequestBody CounterSaleRequest request) {
         
+        log.info("🎯 Counter-sales endpoint hit with request: {}", request.getCustomerName());
+        
         ApiResponse<CounterSaleResponse> response = counterSaleService.createCounterSale(request);
+        
+        log.info("🎯 Counter-sales service returned status: {}", response.getStatus());
         
         HttpStatus status = response.getStatus() == 200 ? HttpStatus.CREATED :
                            response.getStatus() == 400 ? HttpStatus.BAD_REQUEST :
