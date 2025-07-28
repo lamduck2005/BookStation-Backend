@@ -348,12 +348,27 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 return new ApiResponse<>(400, "Session validation failed: " + String.join(", ", validationErrors), null);
             }
 
-            // Validate vouchers
+            // Validate vouchers and recalculate pricing with voucher discounts
             List<Integer> voucherIds = checkoutSessionMapper.parseVoucherIds(session.getSelectedVoucherIds());
             if (voucherIds != null && !voucherIds.isEmpty()) {
                 List<String> voucherErrors = validateSessionVouchers(voucherIds, userId);
                 if (!voucherErrors.isEmpty()) {
                     return new ApiResponse<>(400, "Voucher validation failed: " + String.join(", ", voucherErrors), null);
+                }
+                
+                // Recalculate pricing with voucher discounts
+                log.info("🔄 Recalculating session pricing with vouchers for session: {}", sessionId);
+                List<CheckoutSessionRequest.BookQuantity> items = parseCheckoutItems(session.getCheckoutItems());
+                if (items != null && !items.isEmpty()) {
+                    CheckoutSessionRequest request = new CheckoutSessionRequest();
+                    request.setItems(items);
+                    request.setSelectedVoucherIds(voucherIds);
+                    request.setShippingFee(session.getShippingFee());
+                    
+                    calculateSessionPricingWithVouchers(session, request, userId);
+                    session = checkoutSessionRepository.save(session);
+                    log.info("✅ Updated session pricing with voucher discounts: totalDiscount={}, totalAmount={}", 
+                        session.getTotalDiscount(), session.getTotalAmount());
                 }
             }
 
@@ -845,6 +860,114 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", errors));
         }
+    }
+
+    private void calculateSessionPricingWithVouchers(CheckoutSession session, CheckoutSessionRequest request, Integer userId) {
+        final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
+
+        // 🔄 BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
+        log.info("🔄 Backend recalculating session pricing with vouchers for {} items", 
+            request.getItems() != null ? request.getItems().size() : 0);
+        
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            log.warn("No items to calculate pricing for session");
+            return;
+        }
+        
+        BigDecimal calculatedSubtotal = BigDecimal.ZERO;
+        
+        // 🔥 TỰ TÍNH GIÁ CHO TỪNG ITEM - KHÔNG TIN FRONTEND
+        for (CheckoutSessionRequest.BookQuantity item : request.getItems()) {
+            try {
+                // 1. Validate book exists
+                Optional<Book> bookOpt = bookRepository.findById(item.getBookId());
+                if (bookOpt.isEmpty()) {
+                    throw new RuntimeException("Sách ID " + item.getBookId() + " không tồn tại");
+                }
+                Book book = bookOpt.get();
+                
+                // 2. TỰ ĐỘNG TÌM FLASH SALE TỐT NHẤT
+                BigDecimal unitPrice = book.getPrice(); // Default price
+                Optional<FlashSaleItem> bestFlashSaleOpt = flashSaleItemRepository
+                    .findActiveFlashSalesByBookId(item.getBookId().longValue(), System.currentTimeMillis())
+                    .stream()
+                    .filter(fs -> fs.getStockQuantity() >= item.getQuantity())
+                    .findFirst();
+                
+                if (bestFlashSaleOpt.isPresent()) {
+                    FlashSaleItem flashSale = bestFlashSaleOpt.get();
+                    unitPrice = flashSale.getDiscountPrice();
+                    log.info("✅ Applied flash sale for book {}: regular={}, flash={}", 
+                        item.getBookId(), book.getPrice(), unitPrice);
+                } else {
+                    log.info("💰 Using regular price for book {}: {}", item.getBookId(), unitPrice);
+                }
+                
+                // 3. TÍNH TỔNG TIỀN CHO ITEM
+                BigDecimal itemTotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+                calculatedSubtotal = calculatedSubtotal.add(itemTotal);
+                
+                log.debug("Item {}: quantity={}, unitPrice={}, itemTotal={}", 
+                    item.getBookId(), item.getQuantity(), unitPrice, itemTotal);
+                    
+            } catch (Exception e) {
+                log.error("Error calculating price for item {}: {}", item.getBookId(), e.getMessage());
+                throw new RuntimeException("Lỗi tính giá sản phẩm ID " + item.getBookId() + ": " + e.getMessage());
+            }
+        }
+        
+        session.setSubtotal(calculatedSubtotal);
+        log.info("🔄 Calculated subtotal: {}", calculatedSubtotal);
+        
+        // 4. TÍNH SHIPPING FEE
+        BigDecimal shippingFee;
+        if (request.getShippingFee() != null) {
+            // FE truyền phí ship mới
+            shippingFee = request.getShippingFee();
+        } else if (session.getShippingFee() != null) {
+            // Không truyền => giữ nguyên phí ship hiện tại của session
+            shippingFee = session.getShippingFee();
+        } else {
+            // Nếu chưa có thì dùng mặc định
+            shippingFee = DEFAULT_SHIPPING_FEE;
+        }
+        session.setShippingFee(shippingFee);
+        
+        // 5. VALIDATE VÀ TÍNH VOUCHER DISCOUNT
+        BigDecimal totalVoucherDiscount = BigDecimal.ZERO;
+        
+        if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
+            try {
+                // Create a temporary order for voucher calculation
+                Order tempOrder = new Order();
+                tempOrder.setSubtotal(calculatedSubtotal);
+                tempOrder.setShippingFee(shippingFee);
+                
+                VoucherCalculationService.VoucherCalculationResult voucherResult = 
+                    voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getSelectedVoucherIds(), userId);
+                
+                totalVoucherDiscount = voucherResult.getTotalProductDiscount().add(voucherResult.getTotalShippingDiscount());
+                
+                log.info("🎫 Applied voucher discounts: product={}, shipping={}, total={}", 
+                    voucherResult.getTotalProductDiscount(), 
+                    voucherResult.getTotalShippingDiscount(), 
+                    totalVoucherDiscount);
+                    
+            } catch (Exception e) {
+                log.error("Error calculating voucher discount: {}", e.getMessage());
+                // Continue without voucher discount if calculation fails
+                totalVoucherDiscount = BigDecimal.ZERO;
+            }
+        }
+        
+        session.setTotalDiscount(totalVoucherDiscount);
+        
+        // 6. TÍNH TỔNG CUỐI CÙNG
+        BigDecimal totalAmount = calculatedSubtotal.add(shippingFee).subtract(totalVoucherDiscount);
+        session.setTotalAmount(totalAmount.max(BigDecimal.ZERO));
+        
+        log.info("🔄 Final pricing with vouchers: subtotal={}, shipping={}, discount={}, total={}", 
+            calculatedSubtotal, shippingFee, totalVoucherDiscount, session.getTotalAmount());
     }
 
     private void calculateSessionPricing(CheckoutSession session, CheckoutSessionRequest request) {

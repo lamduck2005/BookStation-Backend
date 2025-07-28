@@ -56,8 +56,7 @@ public class CheckoutSessionResponseMapper {
         response.setSelectedVoucherIds(voucherIds);
         response.setSelectedVouchers(buildVoucherSummaries(voucherIds));
 
-        // Checkout items - Force cast to resolve compilation issue
-        @SuppressWarnings("unchecked")
+        // Checkout items
         List<CheckoutSessionRequest.BookQuantity> items = checkoutSessionMapper.parseCheckoutItems(session.getCheckoutItems());
         response.setCheckoutItems(buildCheckoutItemResponses(items));
 
@@ -159,19 +158,99 @@ public class CheckoutSessionResponseMapper {
         if (items == null || items.isEmpty()) {
             return new ArrayList<>();
         }
+        
         List<CheckoutSessionResponse.CheckoutItemResponse> responses = new ArrayList<>();
+        long currentTime = System.currentTimeMillis();
+        
         for (CheckoutSessionRequest.BookQuantity item : items) {
-            CheckoutSessionResponse.CheckoutItemResponse response = new CheckoutSessionResponse.CheckoutItemResponse();
-            response.setBookId(item.getBookId());
-            response.setQuantity(item.getQuantity());
-            Optional<Book> bookOpt = bookRepository.findById(item.getBookId());
-            if (bookOpt.isPresent()) {
+            try {
+                Optional<Book> bookOpt = bookRepository.findById(item.getBookId());
+                if (bookOpt.isEmpty()) {
+                    log.warn("Book not found for ID: {}", item.getBookId());
+                    continue;
+                }
+                
                 Book book = bookOpt.get();
+                CheckoutSessionResponse.CheckoutItemResponse response = new CheckoutSessionResponse.CheckoutItemResponse();
+                
+                // Basic info
+                response.setBookId(item.getBookId());
+                response.setQuantity(item.getQuantity());
                 response.setBookTitle(book.getBookName());
                 response.setBookImage(book.getCoverImageUrl());
+                
+                // Author info - get first author if available
+                if (book.getAuthorBooks() != null && !book.getAuthorBooks().isEmpty()) {
+                    String firstAuthor = book.getAuthorBooks().iterator().next().getAuthor().getAuthorName();
+                    response.setBookAuthor(firstAuthor);
+                }
+                
+                // Price calculation with flash sale detection
+                BigDecimal originalPrice = book.getPrice();
+                BigDecimal unitPrice = originalPrice;
+                boolean isFlashSale = false;
+                Integer flashSaleItemId = null;
+                String flashSaleName = null;
+                BigDecimal savings = BigDecimal.ZERO;
+                
+                // Find best active flash sale
+                Optional<FlashSaleItem> bestFlashSaleOpt = flashSaleItemRepository
+                    .findActiveFlashSalesByBookId(item.getBookId().longValue(), currentTime)
+                    .stream()
+                    .filter(fs -> fs.getStockQuantity() >= item.getQuantity())
+                    .findFirst();
+                
+                if (bestFlashSaleOpt.isPresent()) {
+                    FlashSaleItem flashSaleItem = bestFlashSaleOpt.get();
+                    unitPrice = flashSaleItem.getDiscountPrice();
+                    isFlashSale = true;
+                    flashSaleItemId = flashSaleItem.getId();
+                    if (flashSaleItem.getFlashSale() != null) {
+                        flashSaleName = flashSaleItem.getFlashSale().getName();
+                    }
+                    savings = originalPrice.subtract(unitPrice).multiply(BigDecimal.valueOf(item.getQuantity()));
+                    
+                    log.debug("Applied flash sale for book {}: regular={}, flash={}, savings={}", 
+                        item.getBookId(), originalPrice, unitPrice, savings);
+                }
+                
+                // Set pricing info
+                response.setOriginalPrice(originalPrice);
+                response.setUnitPrice(unitPrice);
+                response.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+                response.setSavings(savings);
+                
+                // Flash sale info
+                response.setIsFlashSale(isFlashSale);
+                response.setFlashSaleItemId(flashSaleItemId);
+                response.setFlashSaleName(flashSaleName);
+                
+                // Stock validation
+                Integer availableStock = isFlashSale ? 
+                    bestFlashSaleOpt.get().getStockQuantity() : 
+                    book.getStockQuantity();
+                    
+                response.setAvailableStock(availableStock);
+                response.setIsOutOfStock(availableStock < item.getQuantity());
+                
+                // Check if flash sale is expired (for cases where flash sale ended between creation and validation)
+                if (isFlashSale && bestFlashSaleOpt.isPresent()) {
+                    FlashSaleItem flashSaleItem = bestFlashSaleOpt.get();
+                    boolean isExpired = flashSaleItem.getFlashSale() != null && 
+                        flashSaleItem.getFlashSale().getEndTime() < currentTime;
+                    response.setIsFlashSaleExpired(isExpired);
+                } else {
+                    response.setIsFlashSaleExpired(false);
+                }
+                
+                responses.add(response);
+                
+            } catch (Exception e) {
+                log.error("Error building checkout item response for book ID: {}", item.getBookId(), e);
+                // Continue with other items instead of failing entirely
             }
-            responses.add(response);
         }
+        
         return responses;
     }
 }

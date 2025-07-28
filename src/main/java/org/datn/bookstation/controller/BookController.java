@@ -23,6 +23,7 @@ import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +48,7 @@ public class BookController {
     private final TrendingCacheService trendingCacheService;
     private final FlashSaleItemService flashSaleItemService;
     private final FlashSaleItemRepository flashSaleItemRepository;
+    private final OrderDetailRepository orderDetailRepository;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -99,6 +101,31 @@ public class BookController {
         // Các trường filter khác sẽ bị bỏ qua
 
         PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(cleanRequest);
+        
+        // 🔥 REAL FIX: Thay vì dùng repository query SAI, dùng Book.soldCount từ database như /api/books
+        System.out.println("🔥 REAL FIX: Using Book.soldCount from database instead of repository query");
+        if (trendingBooks != null && trendingBooks.getContent() != null) {
+            for (TrendingBookResponse book : trendingBooks.getContent()) {
+                // Lấy Book entity trực tiếp từ database để có soldCount đúng
+                try {
+                    Book bookEntity = bookService.getById(book.getId());
+                    if (bookEntity != null && bookEntity.getSoldCount() != null) {
+                        int dbSoldCount = bookEntity.getSoldCount();
+                        int currentSoldCount = book.getSoldCount();
+                        
+                        if (currentSoldCount != dbSoldCount) {
+                            System.out.println("🔥 REAL FIX - Book ID " + book.getId() + 
+                                             ": " + currentSoldCount + " → " + dbSoldCount + " (from Book.soldCount)");
+                            book.setSoldCount(dbSoldCount);
+                            book.setOrderCount(dbSoldCount);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error getting Book entity for ID " + book.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+        
         String message = cleanRequest.isDailyTrending() ?
             "Lấy danh sách sản phẩm xu hướng theo ngày thành công" :
             "Lấy danh sách sách hot giảm sốc thành công";
