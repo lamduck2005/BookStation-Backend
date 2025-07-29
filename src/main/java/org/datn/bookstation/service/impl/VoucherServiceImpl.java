@@ -7,11 +7,13 @@ import org.datn.bookstation.entity.Voucher;
 import org.datn.bookstation.repository.VoucherRepository;
 import org.datn.bookstation.service.VoucherService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -70,7 +72,7 @@ public class VoucherServiceImpl implements VoucherService {
     public PaginationResponse<VoucherResponse> getAllWithPagination(
             int page, int size, String code, String name, String voucherType, Byte status
     ) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Specification<Voucher> spec = Specification.where(null);
 
@@ -142,7 +144,7 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setUsageLimit(request.getUsageLimit()); // Số lần voucher có thể sử dụng tổng cộng
         voucher.setUsedCount(0); // Số lần voucher đã được sử dụng
         voucher.setUsageLimitPerUser(request.getUsageLimitPerUser()); // Số lần tối đa một user có thể sử dụng voucher này
-        voucher.setStatus((byte )0); // Trạng thái voucher (0: không hoạt động, 1: hoạt động, ...)
+        voucher.setStatus((byte)1); // Trạng thái voucher (0: không hoạt động, 1: hoạt động, ...)
         voucher.setCreatedBy(request.getCreatedBy()); // Người tạo voucher
         voucher.setUpdatedBy(request.getUpdatedBy()); // Người cập nhật cuối cùng
         // createdAt và updatedAt sẽ tự động set ở @PrePersist

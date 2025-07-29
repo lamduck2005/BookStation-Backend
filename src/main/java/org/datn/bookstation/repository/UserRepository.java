@@ -44,4 +44,5 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
         @Param("searchTerm") String searchTerm, 
         @Param("searchTerm") String searchTerm2
     );
+
 }

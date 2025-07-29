@@ -23,7 +23,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import org.datn.bookstation.repository.UserRepository;
+import org.datn.bookstation.repository.VoucherRepository;
 
 @RestController
 @RequestMapping("/api/vouchers")
@@ -34,6 +38,12 @@ public class VoucherController {
     
     @Autowired
     private UserVoucherRepository userVoucherRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private VoucherRepository voucherRepository;
 
     @GetMapping
     public PaginationResponse<VoucherResponse> getAllVouchers(
@@ -200,4 +210,34 @@ public List<UserForVoucher> getUserByVuocherID(@PathVariable Integer voucherId) 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
+
+ @PostMapping("/voucher-to-all")
+public ResponseEntity<?> addVoucherToAllUsers(@RequestParam("voucherId") Integer voucherId) {
+    // Lấy voucher từ DB để đảm bảo tồn tại
+    Optional<Voucher> optionalVoucher = voucherRepository.findById(voucherId);
+    if (optionalVoucher.isEmpty()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Voucher không tồn tại với ID: " + voucherId);
+    }
+    Voucher voucher = optionalVoucher.get();
+
+    // Lấy tất cả người dùng
+    List<User> allUsers = userRepository.findAll();
+
+    // Tạo danh sách UserVoucher mới (chỉ thêm nếu chưa có)
+    List<UserVoucher> userVouchers = allUsers.stream()
+        .filter(user -> !userVoucherRepository.existsByUser_IdAndVoucher_Id(user.getId(), voucher.getId()))
+        .map(user -> {
+            UserVoucher uv = new UserVoucher();
+            uv.setUser(user);
+            uv.setVoucher(voucher);
+            uv.setUsedCount(0);
+            return uv;
+        }).collect(Collectors.toList());
+
+    userVoucherRepository.saveAll(userVouchers);
+
+    return ResponseEntity.ok("✅ Đã phát voucher cho toàn bộ người dùng (" + userVouchers.size() + " user mới)");
+}
+
+
 }
