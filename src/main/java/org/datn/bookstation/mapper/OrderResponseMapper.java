@@ -118,6 +118,7 @@ public class OrderResponseMapper {
         
         response.setQuantity(detail.getQuantity());
         response.setUnitPrice(detail.getUnitPrice());
+        response.setVoucherDiscountAmount(detail.getVoucherDiscountAmount()); // ✅ THÊM: Map voucher discount amount
         response.setTotalPrice(detail.getUnitPrice().multiply(java.math.BigDecimal.valueOf(detail.getQuantity())));
         response.setCreatedAt(detail.getCreatedAt());
         response.setUpdatedAt(detail.getUpdatedAt());

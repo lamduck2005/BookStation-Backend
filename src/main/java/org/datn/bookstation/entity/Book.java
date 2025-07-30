@@ -156,4 +156,31 @@ public class Book {
     protected void onUpdate() {
         updatedAt = System.currentTimeMillis();
     }
+    
+    /**
+     * ✅ THÊM MỚI: Tính giá thực tế sau khi áp dụng discount (nếu có)
+     * Đây là giá mà khách hàng phải trả, không phải giá gốc
+     */
+    public BigDecimal getEffectivePrice() {
+        if (!Boolean.TRUE.equals(discountActive)) {
+            return price; // Không có discount active
+        }
+        
+        BigDecimal effectivePrice = price;
+        
+        // Áp dụng discount theo giá trị trước
+        if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
+            effectivePrice = effectivePrice.subtract(discountValue);
+        }
+        
+        // Sau đó áp dụng discount theo phần trăm
+        if (discountPercent != null && discountPercent > 0) {
+            BigDecimal discountAmount = effectivePrice.multiply(BigDecimal.valueOf(discountPercent))
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            effectivePrice = effectivePrice.subtract(discountAmount);
+        }
+        
+        // Đảm bảo giá không âm
+        return effectivePrice.max(BigDecimal.ZERO);
+    }
 }

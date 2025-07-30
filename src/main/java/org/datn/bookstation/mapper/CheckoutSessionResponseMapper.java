@@ -177,7 +177,20 @@ public class CheckoutSessionResponseMapper {
                 response.setBookId(item.getBookId());
                 response.setQuantity(item.getQuantity());
                 response.setBookTitle(book.getBookName());
-                response.setBookImage(book.getCoverImageUrl());
+                
+                // ✅ FIX: Lấy ảnh từ images field (giống TrendingBookResponse) thay vì coverImageUrl
+                String bookImage = null;
+                if (book.getImages() != null && !book.getImages().trim().isEmpty()) {
+                    // Lấy ảnh đầu tiên từ CSV string
+                    String[] imageUrls = book.getImages().split(",");
+                    if (imageUrls.length > 0 && !imageUrls[0].trim().isEmpty()) {
+                        bookImage = imageUrls[0].trim();
+                    }
+                } else if (book.getCoverImageUrl() != null) {
+                    // Fallback về coverImageUrl
+                    bookImage = book.getCoverImageUrl();
+                }
+                response.setBookImage(bookImage);
                 
                 // Author info - get first author if available
                 if (book.getAuthorBooks() != null && !book.getAuthorBooks().isEmpty()) {
@@ -185,9 +198,10 @@ public class CheckoutSessionResponseMapper {
                     response.setBookAuthor(firstAuthor);
                 }
                 
-                // Price calculation with flash sale detection
-                BigDecimal originalPrice = book.getPrice();
-                BigDecimal unitPrice = originalPrice;
+                // Price calculation with flash sale detection - ✅ FIX: Dùng effective price
+                BigDecimal originalPrice = book.getPrice(); // Giá gốc để hiển thị  
+                BigDecimal effectivePrice = book.getEffectivePrice(); // Giá thực tế sau discount
+                BigDecimal unitPrice = effectivePrice; // Default: dùng effective price
                 boolean isFlashSale = false;
                 Integer flashSaleItemId = null;
                 String flashSaleName = null;
@@ -208,10 +222,18 @@ public class CheckoutSessionResponseMapper {
                     if (flashSaleItem.getFlashSale() != null) {
                         flashSaleName = flashSaleItem.getFlashSale().getName();
                     }
+                    // Savings: so với giá gốc, không phải effective price
                     savings = originalPrice.subtract(unitPrice).multiply(BigDecimal.valueOf(item.getQuantity()));
                     
-                    log.debug("Applied flash sale for book {}: regular={}, flash={}, savings={}", 
-                        item.getBookId(), originalPrice, unitPrice, savings);
+                    log.debug("Applied flash sale for book {}: regular={}, effective={}, flash={}, savings={}", 
+                        item.getBookId(), originalPrice, effectivePrice, unitPrice, savings);
+                } else {
+                    // Không có flash sale: savings = regular price - effective price
+                    if (effectivePrice.compareTo(originalPrice) < 0) {
+                        savings = originalPrice.subtract(effectivePrice).multiply(BigDecimal.valueOf(item.getQuantity()));
+                        log.debug("Applied book discount for book {}: regular={}, effective={}, savings={}", 
+                            item.getBookId(), originalPrice, effectivePrice, savings);
+                    }
                 }
                 
                 // Set pricing info
