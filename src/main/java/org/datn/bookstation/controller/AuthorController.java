@@ -25,6 +25,7 @@ public class AuthorController {
         return authorService.getAll();
     }
 
+
     @GetMapping("/page")
     public ApiResponse<PaginationResponse<Author>> getPage(
             @RequestParam(defaultValue = "0") int page,

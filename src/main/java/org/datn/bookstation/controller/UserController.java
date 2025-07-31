@@ -34,23 +34,17 @@ import org.springframework.data.repository.query.Param;
 
 import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
 
-
-
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
-    
+
     private final PasswordEncoder passwordEncoder;
     @Autowired
     private UserRankRepository userRankRepo;
-    @Autowired  
-    private UserRepository  userRepository;
-
-
-     
-
+    @Autowired
+    private UserRepository userRepository;
 
     // Lấy danh sách user (phân trang, lọc)
     @GetMapping
@@ -61,12 +55,11 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String phone_number,
             @RequestParam(required = false) Integer role_id,
-            @RequestParam(required = false) String status
-    ) {
+            @RequestParam(required = false) String status) {
         PaginationResponse<UserResponse> users = userService.getAllWithPagination(
-                page, size, full_name, email, phone_number, role_id, status
-        );
-        ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công", users);
+                page, size, full_name, email, phone_number, role_id, status);
+        ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
+                users);
         return ResponseEntity.ok(response);
     }
 
@@ -76,9 +69,10 @@ public class UserController {
     @GetMapping("/dropdown")
     public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownUsers() {
         List<DropdownOptionResponse> dropdown = userService.getActiveUsers().stream()
-            .map(user -> new DropdownOptionResponse(user.getId(), user.getFullName()))
-            .collect(Collectors.toList());
-        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách user thành công", dropdown);
+                .map(user -> new DropdownOptionResponse(user.getId(), user.getFullName()))
+                .collect(Collectors.toList());
+        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
+                "Lấy danh sách user thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 
@@ -92,16 +86,14 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, "Không tìm thấy", null));
     }
 
-@GetMapping("/userIdByEmail")
-public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam String email) {
-    return userRepository.findByEmail(email)
-            .map(u -> ResponseEntity.ok(new ApiResponse<>(200, "Lấy ID thành công", u.getId())))
-            .orElseGet(() -> ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Không tìm thấy người dùng", null)));
-}
-
-
+    @GetMapping("/userIdByEmail")
+    public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam String email) {
+        return userRepository.findByEmail(email)
+                .map(u -> ResponseEntity.ok(new ApiResponse<>(200, "Lấy ID thành công", u.getId())))
+                .orElseGet(() -> ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(404, "Không tìm thấy người dùng", null)));
+    }
 
     // Tạo mới user
     @PostMapping
@@ -110,12 +102,14 @@ public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam Strin
         if (response.getStatus() == 400) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(201, "Tạo mới thành công", response.getData()));
     }
 
     // Cập nhật user
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Integer id, @RequestBody UserRequest userRequest) {
+    public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Integer id,
+            @RequestBody UserRequest userRequest) {
         ApiResponse<UserResponse> response = userService.update(userRequest, id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
@@ -128,6 +122,7 @@ public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam Strin
 
     @PutMapping("/profile/{id}")
     public ResponseEntity<ApiResponse<User>> update(@PathVariable Integer id, @RequestBody User user) {
+        System.out.println(user.toString());
         ApiResponse<User> response = userService.updateClient(user, id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
@@ -155,11 +150,23 @@ public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam Strin
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", response.getData()));
     }
 
-    @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<User>> setProfile(HttpServletRequest request) {
-        String email = (String) request.getAttribute("userEmail");
-        ApiResponse<User> user = userService.getUserByEmail(email);
-        return ResponseEntity.ok(user);
+    @GetMapping("/profile/{id}")
+    public ResponseEntity<ApiResponse<UserResponse>> setProfile(@PathVariable Integer id) {
+        try {
+            Optional<UserResponse> userOptional = userService.getUserResponseById(id);
+
+            if (userOptional.isPresent()) {
+                UserResponse user = userOptional.get();
+                return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin profile thành công", user));
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(404, "Không tìm thấy user với ID: " + id, null));
+            }
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(500, "Lỗi khi lấy thông tin profile: " + e.getMessage(), null));
+        }
     }
 
     @GetMapping("/userpos")
@@ -173,35 +180,34 @@ public ResponseEntity<ApiResponse<Integer>> getUserIdByEmail(@RequestParam Strin
         return ResponseEntity.ok(userService.addRetail(user));
     }
 
-@GetMapping("/userRank")
-public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestParam Integer userID) {
-    List<UserRank> userRank = userRankRepo.getByUserId(userID);
-    return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin hạng người dùng thành công", userRank));
-}
-
-
-@PutMapping("/userPass")
-public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
-                              @RequestParam String passCu,
-                              @RequestParam String passMoi) {
-    User user = userRepository.findById(id)
-        .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với id: " + id));
-
-    if (!passwordEncoder.matches(passCu, user.getPassword())) {
-        return ResponseEntity.ok(false);
+    @GetMapping("/userRank")
+    public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestParam Integer userID) {
+        List<UserRank> userRank = userRankRepo.getByUserId(userID);
+        return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thông tin hạng người dùng thành công", userRank));
     }
 
-    if (passwordEncoder.matches(passMoi, user.getPassword())) {
-         return ResponseEntity.ok(false);
+    @PutMapping("/userPass")
+    public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
+            @RequestParam String passCu,
+            @RequestParam String passMoi) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng với id: " + id));
+
+        if (!passwordEncoder.matches(passCu, user.getPassword())) {
+            return ResponseEntity.ok(false);
+        }
+
+        if (passwordEncoder.matches(passMoi, user.getPassword())) {
+            return ResponseEntity.ok(false);
+        }
+
+        System.out.println("passMoi = " + passMoi);
+
+        user.setPassword(passwordEncoder.encode(passMoi));
+        userRepository.save(user);
+
+        return ResponseEntity.ok(true);
     }
-
-    System.out.println("passMoi = " + passMoi);
-
-    user.setPassword(passwordEncoder.encode(passMoi));
-    userRepository.save(user);
-
-     return ResponseEntity.ok(true);
-}
 
     /**
      * ✅ THÊM MỚI: API tìm kiếm khách hàng cho admin tạo đơn
@@ -212,10 +218,9 @@ public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
             @RequestParam String search) {
         List<UserResponse> customers = userService.searchCustomers(search);
         ApiResponse<List<UserResponse>> response = new ApiResponse<>(
-            HttpStatus.OK.value(), 
-            "Tìm kiếm khách hàng thành công", 
-            customers
-        );
+                HttpStatus.OK.value(),
+                "Tìm kiếm khách hàng thành công",
+                customers);
         return ResponseEntity.ok(response);
     }
 }

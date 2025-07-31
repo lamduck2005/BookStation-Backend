@@ -322,4 +322,13 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             """)
     List<BookFlashSalesRequest> findActiveBooksForEdit();
 
+    /**
+     * Tìm kiếm sách active theo tên hoặc mã sách
+     */
+    @Query("SELECT b FROM Book b WHERE b.status = 1 AND " +
+           "(UPPER(b.bookName) LIKE UPPER(CONCAT('%', :search, '%')) OR " +
+           "UPPER(b.bookCode) LIKE UPPER(CONCAT('%', :search, '%'))) " +
+           "ORDER BY b.createdAt DESC")
+    List<Book> findActiveBooksByNameOrCode(@Param("search") String search);
+
 }

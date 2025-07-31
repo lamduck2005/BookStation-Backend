@@ -42,4 +42,14 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            " AND refunded.order.user.id = :userId " +
            " AND refunded.order.orderStatus IN ('GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE')), 0), 0)")
     Integer calculateUserPurchasedQuantityForFlashSaleItem(@Param("flashSaleItemId") Integer flashSaleItemId, @Param("userId") Integer userId);
+
+    // ✅ THÊM MỚI: Tính processing quantity real-time từ DB
+    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od JOIN od.order o WHERE od.book.id = :bookId AND o.orderStatus IN :statuses")
+    Integer sumQuantityByBookIdAndOrderStatuses(@Param("bookId") Integer bookId, @Param("statuses") List<org.datn.bookstation.entity.enums.OrderStatus> statuses);
+
+    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od JOIN od.order o WHERE od.flashSaleItem.id = :flashSaleItemId AND o.orderStatus IN :statuses")
+    Integer sumQuantityByFlashSaleItemIdAndOrderStatuses(@Param("flashSaleItemId") Integer flashSaleItemId, @Param("statuses") List<org.datn.bookstation.entity.enums.OrderStatus> statuses);
+
+    @Query("SELECT od.book.id, COALESCE(SUM(od.quantity), 0) FROM OrderDetail od JOIN od.order o WHERE od.book.id IN :bookIds AND o.orderStatus IN :statuses GROUP BY od.book.id")
+    List<Object[]> sumQuantityByBookIdsAndOrderStatuses(@Param("bookIds") List<Integer> bookIds, @Param("statuses") List<org.datn.bookstation.entity.enums.OrderStatus> statuses);
 }

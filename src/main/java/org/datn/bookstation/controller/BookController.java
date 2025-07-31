@@ -32,10 +32,12 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 @RestController
 @AllArgsConstructor
@@ -76,12 +78,22 @@ public class BookController {
             @RequestParam(required = false) String bookName,
             @RequestParam(required = false) Integer parentCategoryId,
             @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String authorIds, // nhận dạng chuỗi "1,2,3"
             @RequestParam(required = false) Integer publisherId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice) {
 
+        List<Integer> authorIdList = new ArrayList<>();
+        if (authorIds != null && !authorIds.isEmpty()) {
+            authorIdList = Arrays.stream(authorIds.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(Integer::parseInt)
+                    .collect(Collectors.toList());
+        }
+
         PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
-                page, size, bookName, parentCategoryId, categoryId, publisherId, minPrice, maxPrice);
+                page, size, bookName, parentCategoryId, categoryId, authorIdList, publisherId, minPrice, maxPrice);
         ApiResponse<PaginationResponse<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
                 books);
         return ResponseEntity.ok(response);
@@ -175,11 +187,10 @@ public class BookController {
     }
 
     @GetMapping("/dropdown")
-    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks() {
-        List<DropdownOptionResponse> dropdown = bookService.getActiveBooks().stream()
-                .map(this::mapToDropdownResponse)
-                .collect(Collectors.toList());
-
+    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks(
+            @RequestParam(required = false) String search) {
+        // Logic lấy danh sách dropdown đã chuyển sang service với hỗ trợ tìm kiếm
+        List<DropdownOptionResponse> dropdown = bookService.getDropdownOptionsWithDetails(search);
         ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
                 "Lấy danh sách sách thành công", dropdown);
         return ResponseEntity.ok(response);
@@ -188,6 +199,7 @@ public class BookController {
     /**
      * API validate số lượng sản phẩm khi đặt hàng
      * POST /api/books/validate-quantity
+     * Đã cải tiến để hỗ trợ validate flash sale items
      */
     @PostMapping("/validate-quantity")
     public ResponseEntity<ApiResponse<QuantityValidationResponse>> validateQuantity(
@@ -243,48 +255,6 @@ public class BookController {
 
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
         }
-    }
-
-    /**
-     * Helper method để map Book entity sang DropdownOptionResponse
-     */
-    private DropdownOptionResponse mapToDropdownResponse(Book book) {
-        // Tính giá bình thường (ưu tiên discount nếu có)
-        BigDecimal normalPrice = calculateNormalPrice(book);
-
-        // Kiểm tra flash sale
-        FlashSaleItem flashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
-        BigDecimal flashSalePrice = null;
-        boolean isFlashSale = false;
-
-        if (flashSale != null) {
-            flashSalePrice = flashSale.getDiscountPrice();
-            isFlashSale = true;
-        }
-
-        return new DropdownOptionResponse(
-                book.getId(),
-                book.getBookName(),
-                normalPrice,
-                flashSalePrice,
-                isFlashSale);
-    }
-
-    /**
-     * Helper method để tính giá bình thường (đã bao gồm discount nếu có)
-     */
-    private BigDecimal calculateNormalPrice(Book book) {
-        if (book.getDiscountActive() != null && book.getDiscountActive()) {
-            if (book.getDiscountValue() != null) {
-                return book.getPrice().subtract(book.getDiscountValue());
-            } else if (book.getDiscountPercent() != null) {
-                BigDecimal discountAmount = book.getPrice()
-                        .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
-                        .divide(BigDecimal.valueOf(100));
-                return book.getPrice().subtract(discountAmount);
-            }
-        }
-        return book.getPrice();
     }
 
     @GetMapping("/category/{categoryId}")

@@ -11,6 +11,7 @@ import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.OrderStatusTransitionService;
 import org.datn.bookstation.service.PointManagementService;
 import org.datn.bookstation.service.VoucherManagementService;
+import org.datn.bookstation.service.BookQuantityService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,7 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
     private final RefundRequestRepository refundRequestRepository;
     private final PointManagementService pointManagementService;
     private final VoucherManagementService voucherManagementService;
+    private final BookQuantityService bookQuantityService;
     
     // Định nghĩa các luồng chuyển đổi trạng thái hợp lệ
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
@@ -194,7 +196,11 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
             OrderStatusTransitionResponse.BusinessImpactSummary.builder();
         
         User user = order.getUser();
+        OrderStatus oldStatus = order.getOrderStatus();
         OrderStatus newStatus = request.getNewStatus();
+        
+        // ✅ XỬ LÝ SỐ LƯỢNG SÁCH (PROCESSING QUANTITY)
+        bookQuantityService.handleOrderStatusChange(order.getId(), oldStatus, newStatus);
         
         // XỬ LÝ ĐIỂM TÍCH LŨY
         OrderStatusTransitionResponse.BusinessImpactSummary.PointImpact pointImpact = 

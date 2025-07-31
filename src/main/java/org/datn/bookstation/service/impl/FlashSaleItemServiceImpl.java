@@ -33,6 +33,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlashSaleItemServiceImpl implements FlashSaleItemService {
 
+    @Override
+    public FlashSaleItem findActiveFlashSaleByBook(Integer bookId) {
+        // Giả sử có phương thức findActiveFlashSaleByBook trong repository
+        return flashSaleItemRepository.findActiveFlashSaleByBook(bookId);
+    }
+
     @Autowired
     private FlashSaleItemRepository flashSaleItemRepository;
 

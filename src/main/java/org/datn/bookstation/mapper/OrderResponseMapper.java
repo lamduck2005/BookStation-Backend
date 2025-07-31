@@ -27,8 +27,21 @@ public class OrderResponseMapper {
         response.setStaffName(order.getStaff() != null ? order.getStaff().getFullName() : null);
         response.setAddressId(order.getAddress() != null ? order.getAddress().getId() : null);
         response.setAddressDetail(order.getAddress() != null ? order.getAddress().getAddressDetail() : null);
-        response.setRecipientName(order.getAddress() != null ? order.getAddress().getRecipientName() : null);
-        response.setPhoneNumber(order.getAddress() != null ? order.getAddress().getPhoneNumber() : null);
+        
+        // ✅ FIX: Ưu tiên lấy thông tin từ Order cho counter sales, fallback về Address cho online orders
+        if (order.getRecipientName() != null) {
+            // Counter sales - lấy từ Order
+            response.setRecipientName(order.getRecipientName());
+            response.setPhoneNumber(order.getPhoneNumber());
+        } else if (order.getAddress() != null) {
+            // Online orders - lấy từ Address
+            response.setRecipientName(order.getAddress().getRecipientName());
+            response.setPhoneNumber(order.getAddress().getPhoneNumber());
+        } else {
+            // Fallback
+            response.setRecipientName(null);
+            response.setPhoneNumber(null);
+        }
         response.setOrderDate(order.getOrderDate());
         
         // Financial fields - FIXED: Add missing financial mappings

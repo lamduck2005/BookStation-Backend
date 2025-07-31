@@ -16,13 +16,14 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
+
 public interface BookService {
     PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
                                                           Integer categoryId, Integer supplierId, Integer publisherId,
                                                           BigDecimal minPrice, BigDecimal maxPrice,
                                                           Byte status, String bookCode);
 
-    PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, Integer parentId, Integer categoryId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice);
+    PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, Integer parentId, Integer categoryId, List<Integer> authorId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice);
 
     List<Book> getAll();
 
@@ -43,7 +44,7 @@ public interface BookService {
     void delete(Integer id);
 
     ApiResponse<Book> toggleStatus(Integer id);
-    
+
     // 🔥 Trending books API chỉ nhận TrendingRequest (type, page, size) ok
     PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request);
 
@@ -59,6 +60,17 @@ public interface BookService {
 
 
     ApiResponse<List<BookFlashSalesRequest>> findActiveBooksWithStock();
+
     ApiResponse<List<BookFlashSalesRequest>> findActiveBooksForEdit();
 
+
+    /**
+     * Trả về danh sách sách cho dropdown với đầy đủ thông tin bổ sung
+     */
+    List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails();
+
+    /**
+     * Trả về danh sách sách cho dropdown với tìm kiếm theo tên hoặc mã
+     */
+    List<org.datn.bookstation.dto.response.DropdownOptionResponse> getDropdownOptionsWithDetails(String search);
 }

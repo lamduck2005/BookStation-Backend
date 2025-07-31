@@ -139,9 +139,14 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> create(OrderRequest request) {
-        // Validate user
-        User user = userRepository.findById(request.getUserId())
-            .orElseThrow(() -> new BusinessException("Không tìm thấy người dùng với ID: " + request.getUserId()));
+        // ✅ MODIFIED: Validate user - allow null for counter sales
+        User user = null;
+        if (request.getUserId() != null) {
+            user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy người dùng với ID: " + request.getUserId()));
+        } else if (!"COUNTER".equalsIgnoreCase(request.getOrderType())) {
+            throw new BusinessException("User ID là bắt buộc cho đơn hàng online");
+        }
 
         // Validate order type - CHỈ CHO PHÉP "ONLINE" và "COUNTER"
         if (!"ONLINE".equalsIgnoreCase(request.getOrderType()) && 
@@ -149,9 +154,14 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("Kiểu đơn hàng chỉ được phép là 'ONLINE' hoặc 'COUNTER'");
         }
 
-        // Validate address
-        Address address = addressRepository.findById(request.getAddressId())
-            .orElseThrow(() -> new BusinessException("Không tìm thấy địa chỉ với ID: " + request.getAddressId()));
+        // ✅ MODIFIED: Validate address - allow null for counter sales
+        Address address = null;
+        if (request.getAddressId() != null) {
+            address = addressRepository.findById(request.getAddressId())
+                .orElseThrow(() -> new BusinessException("Không tìm thấy địa chỉ với ID: " + request.getAddressId()));
+        } else if (!"COUNTER".equalsIgnoreCase(request.getOrderType())) {
+            throw new BusinessException("Address ID là bắt buộc cho đơn hàng online");
+        }
 
         // ✅ BACKEND TỰ TÍNH TOÁN SUBTOTAL từ orderDetails - KHÔNG TIN FRONTEND
         BigDecimal calculatedSubtotal = BigDecimal.ZERO;
@@ -198,7 +208,21 @@ public class OrderServiceImpl implements OrderService {
         order.setSubtotal(calculatedSubtotal); // ✅ Dùng giá trị backend tính
         order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính  
         order.setNotes(request.getNotes());
-        order.setCreatedBy(user.getId());//?
+        
+        // ✅ THÊM: Set thông tin người nhận cho đơn hàng tại quầy
+        if ("COUNTER".equalsIgnoreCase(request.getOrderType())) {
+            order.setRecipientName(request.getRecipientName());
+            order.setPhoneNumber(request.getPhoneNumber());
+        }
+        
+        // ✅ FIX: Set createdBy properly for counter sales
+        if (user != null) {
+            order.setCreatedBy(user.getId()); // Online order - use customer ID
+        } else if (request.getStaffId() != null) {
+            order.setCreatedBy(request.getStaffId()); // Counter sales - use staff ID
+        } else {
+            throw new BusinessException("Phải có staffId cho đơn hàng counter sales");
+        }
 
         if (request.getStaffId() != null) {
             User staff = userRepository.findById(request.getStaffId())
@@ -321,7 +345,13 @@ public class OrderServiceImpl implements OrderService {
             orderDetail.setFlashSaleItem(flashSaleItem); // null nếu không phải flash sale
             orderDetail.setQuantity(quantityToOrder);
             orderDetail.setUnitPrice(detailRequest.getUnitPrice());
-            orderDetail.setCreatedBy(order.getUser().getId());
+            
+            // ✅ FIX: Set createdBy properly for counter sales
+            if (order.getUser() != null) {
+                orderDetail.setCreatedBy(order.getUser().getId()); // Online order
+            } else {
+                orderDetail.setCreatedBy(order.getCreatedBy()); // Counter sales - use same as order
+            }
 
             orderDetails.add(orderDetail);
         }

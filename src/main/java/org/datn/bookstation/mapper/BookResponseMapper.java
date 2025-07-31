@@ -6,6 +6,7 @@ import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
+import org.datn.bookstation.service.BookProcessingQuantityService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,9 @@ public class BookResponseMapper {
     
     @Autowired
     private OrderDetailRepository orderDetailRepository;
+    
+    @Autowired
+    private BookProcessingQuantityService bookProcessingQuantityService;
     
     public BookResponse toResponse(Book book) {
         if (book == null) return null;
@@ -101,6 +105,8 @@ public class BookResponseMapper {
         response.setDiscountActive(book.getDiscountActive());
         // ✅ SỬA: Trả về soldCount từ Book entity
         response.setSoldCount(book.getSoldCount() != null ? book.getSoldCount() : 0);
+        // ✅ THÊM MỚI: Processing quantity real-time
+        response.setProcessingQuantity(bookProcessingQuantityService.getProcessingQuantity(book.getId()));
         // ✅ ADMIN CẦN: Kiểm tra Flash Sale hiện tại
         FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
         if (currentFlashSale != null) {
