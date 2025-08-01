@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.CheckoutSessionRequest;
+import org.datn.bookstation.dto.request.CreateOrderFromSessionRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.CheckoutSessionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
@@ -184,14 +185,15 @@ public class CheckoutSessionController {
     }
 
     /**
-     * Tạo đơn hàng từ checkout session
+     * Tạo đơn hàng từ checkout session với price validation
      */
     @PostMapping("/{sessionId}/create-order")
     public ResponseEntity<ApiResponse<String>> createOrderFromSession(
             @PathVariable Integer sessionId,
-            @RequestParam Integer userId) {
+            @RequestParam Integer userId,
+            @Valid @RequestBody CreateOrderFromSessionRequest request) {
         try {
-            log.info("🛒 Creating order from checkout session: {} for user: {}", sessionId, userId);
+            log.info("🛒 Creating order from checkout session: {} for user: {} with price validation", sessionId, userId);
             
             // Input validation
             if (sessionId == null || sessionId <= 0) {
@@ -205,7 +207,7 @@ public class CheckoutSessionController {
                 );
             }
             
-            ApiResponse<String> response = checkoutSessionService.createOrderFromSession(sessionId, userId);
+            ApiResponse<String> response = checkoutSessionService.createOrderFromSession(sessionId, userId, request);
             
             // Enhanced status mapping
             HttpStatus status;
@@ -218,6 +220,9 @@ public class CheckoutSessionController {
                     break;
                 case 400:
                     status = HttpStatus.BAD_REQUEST;
+                    break;
+                case 409:
+                    status = HttpStatus.CONFLICT; // Price changed
                     break;
                 case 500:
                     status = HttpStatus.INTERNAL_SERVER_ERROR;

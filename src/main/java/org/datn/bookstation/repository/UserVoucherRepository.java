@@ -42,4 +42,6 @@ List<voucherUserResponse> findVouchersByVoucherUserId(String vouchercode, Intege
 
 
 List<UserVoucher> findByVoucherId(Integer voucherId);
+boolean existsByUser_IdAndVoucher_Id(Integer userId, Integer voucherId);
+
 }

@@ -1,6 +1,7 @@
 package org.datn.bookstation.service;
 
 import org.datn.bookstation.dto.request.CheckoutSessionRequest;
+import org.datn.bookstation.dto.request.CreateOrderFromSessionRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.CheckoutSessionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
@@ -62,7 +63,12 @@ public interface CheckoutSessionService {
     ApiResponse<CheckoutSessionResponse> validateSession(Integer sessionId, Integer userId);
 
     /**
-     * Tạo order từ checkout session
+     * Tạo order từ checkout session với price validation  
+     */
+    ApiResponse<String> createOrderFromSession(Integer sessionId, Integer userId, CreateOrderFromSessionRequest request);
+
+    /**
+     * Tạo order từ checkout session (backward compatibility) 
      */
     ApiResponse<String> createOrderFromSession(Integer sessionId, Integer userId);
 

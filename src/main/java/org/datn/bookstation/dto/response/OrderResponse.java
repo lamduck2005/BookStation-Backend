@@ -41,4 +41,17 @@ public class OrderResponse {
     private List<VoucherResponse> vouchers;
     private String notes;
     private String cancelReason;
+    
+    // ✅ THÊM: Thông tin trạng thái có thể chuyển
+    private List<StatusTransitionOption> availableTransitions;
+    
+    @Getter
+    @Setter
+    public static class StatusTransitionOption {
+        private OrderStatus targetStatus;
+        private String displayName;
+        private String actionDescription;
+        private Boolean requiresConfirmation;
+        private String businessImpactNote;
+    }
 }

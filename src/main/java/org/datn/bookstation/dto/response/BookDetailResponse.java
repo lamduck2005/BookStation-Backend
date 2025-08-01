@@ -50,4 +50,7 @@ public class BookDetailResponse {
     private Integer discountPercent;        // Giảm theo phần trăm (null nếu không có)
     
     private Long serverTime;                // 🔥 Thời gian server hiện tại (chống hack client)
+    
+    // ✅ THÊM MỚI: Danh sách ảnh sản phẩm (nhiều ảnh)
+    private List<String> images;
 }

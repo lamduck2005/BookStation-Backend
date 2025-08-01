@@ -40,6 +40,11 @@ public class OrderDetail {
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
+    // ✅ THÊM: Giảm giá voucher cho item này (để tracking chi tiết)
+    @ColumnDefault("0")
+    @Column(name = "voucher_discount_amount", precision = 10, scale = 2)
+    private BigDecimal voucherDiscountAmount = BigDecimal.ZERO;
+
     @Column(name = "created_at", nullable = false)
     private Long createdAt;
 
