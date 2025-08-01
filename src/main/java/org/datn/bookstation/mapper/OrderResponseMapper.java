@@ -6,6 +6,7 @@ import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.OrderDetail;
 import org.datn.bookstation.entity.OrderVoucher;
+import org.datn.bookstation.utils.OrderStatusUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -55,7 +56,7 @@ public class OrderResponseMapper {
         
         response.setStatus(order.getStatus());
         response.setOrderStatus(order.getOrderStatus());
-        response.setOrderStatusDisplay(getOrderStatusDisplayName(order.getOrderStatus()));
+        response.setOrderStatusDisplay(OrderStatusUtil.getStatusDisplayName(order.getOrderStatus()));
         response.setOrderType(order.getOrderType());
         response.setNotes(order.getNotes());
         response.setCancelReason(order.getCancelReason());
@@ -63,6 +64,9 @@ public class OrderResponseMapper {
         response.setUpdatedAt(order.getUpdatedAt());
         response.setCreatedBy(order.getCreatedBy());
         response.setUpdatedBy(order.getUpdatedBy());
+        
+        // ✅ THÊM: Thông tin trạng thái có thể chuyển
+        response.setAvailableTransitions(OrderStatusUtil.getAvailableTransitions(order.getOrderStatus()));
         
         return response;
     }
@@ -147,17 +151,5 @@ public class OrderResponseMapper {
         response.setUpdatedBy(orderVoucher.getVoucher().getUpdatedBy());
         
         return response;
-    }
-    
-    private String getOrderStatusDisplayName(org.datn.bookstation.entity.enums.OrderStatus orderStatus) {
-        if (orderStatus == null) return null;
-        switch (orderStatus) {
-            case PENDING: return "Chờ xử lý";
-            case CONFIRMED: return "Đã xác nhận";
-            case SHIPPED: return "Đang giao hàng";
-            case DELIVERED: return "Đã giao hàng";
-            case CANCELED: return "Đã hủy";
-            default: return orderStatus.name();
-        }
     }
 }
