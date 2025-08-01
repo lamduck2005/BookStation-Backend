@@ -17,6 +17,7 @@ import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.repository.RefundItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.RefundService;
+import org.datn.bookstation.utils.RefundReasonUtil; // ✅ THÊM IMPORT MỚI
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -356,6 +357,7 @@ public class RefundServiceImpl implements RefundService {
         response.setStatus(request.getStatus().name());
         response.setStatusDisplay(request.getStatus().getDisplayName());
         response.setReason(request.getReason());
+        response.setReasonDisplay(RefundReasonUtil.getReasonDisplayName(request.getReason())); // ✅ THÊM MỚI
         response.setCustomerNote(request.getCustomerNote());
         response.setAdminNote(request.getAdminNote());
         response.setTotalRefundAmount(request.getTotalRefundAmount());
