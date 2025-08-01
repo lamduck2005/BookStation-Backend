@@ -376,6 +376,23 @@ public class DataInitializationService implements CommandLineRunner {
 
         // Shopee style: các voucher đặc biệt
         vouchersToAdd.add(createVoucher(
+            "WELCOME",
+            "Voucher chào mừng đặc biệt",
+            "Giảm 15% tối đa 50.000đ cho đơn từ 100.000đ - Voucher chào mừng thành viên mới",
+            VoucherCategory.NORMAL,
+            DiscountType.PERCENTAGE,
+            new BigDecimal("15"),
+            null,
+            now,
+            now + oneMonth,
+            new BigDecimal("100000"),
+            new BigDecimal("50000"),
+            1,
+            1,
+            "admin"
+        ));
+
+        vouchersToAdd.add(createVoucher(
             "FLASHSALE50K",
             "Flash Sale Giảm 50K",
             "Giảm 50.000đ cho đơn từ 300.000đ, chỉ áp dụng trong khung giờ vàng",
@@ -745,6 +762,9 @@ public class DataInitializationService implements CommandLineRunner {
         long oneMonth = 30L * 24 * 60 * 60 * 1000; // 30 ngày
         
         List<Voucher> vouchers = Arrays.asList(
+            createVoucher("WELCOME", "Voucher chào mừng", "Giảm 15% cho đơn hàng đầu tiên, tối đa 50K", 
+                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("15"), null, 
+                currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
             createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
                 VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("10"), null, 
                 currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),

@@ -19,6 +19,7 @@ public class OrderDetailResponse {
     private BigDecimal originalPrice; // ✅ THÊM: Giá gốc của sách
     private Integer quantity;
     private BigDecimal unitPrice;
+    private BigDecimal voucherDiscountAmount; // ✅ THÊM: Giảm giá voucher cho item này
     private BigDecimal totalPrice; // quantity * unitPrice
     private Integer availableStock; // ✅ THÊM: Số lượng sách thông thường còn lại
     private Boolean isFlashSale; // ✅ THÊM: Có phải flash sale không

@@ -1,0 +1,144 @@
+### ===== TEST API ORDER STATUS TRANSITION SYSTEM V2.0 =====
+### Base URL
+@baseUrl = http://localhost:8080
+
+### ===== 1. XEM CÁC TRẠNG THÁI CÓ THỂ CHUYỂN CỦA ĐƠN HÀNG =====
+### Lấy thông tin đơn hàng với các trạng thái có thể chuyển
+GET {{baseUrl}}/api/orders/5
+Authorization: Bearer YOUR_JWT_TOKEN
+
+###
+
+### ===== 2. CHUYỂN TRẠNG THÁI ĐƠN HÀNG =====
+### Chuyển đơn hàng sang trạng thái giao hàng thất bại
+POST {{baseUrl}}/api/orders/5/status-transition
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "newStatus": "DELIVERY_FAILED",
+    "note": "Khách không có ở nhà khi giao hàng"
+}
+
+###
+
+### ===== 3. LUỒNG GIAO LẠI =====
+### Chuyển từ DELIVERY_FAILED sang REDELIVERING
+POST {{baseUrl}}/api/orders/5/status-transition
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "newStatus": "REDELIVERING", 
+    "note": "Giao lại lần 2"
+}
+
+###
+
+### ===== 4. LUỒNG HOÀN TRẢ - TẠO YÊU CẦU HOÀN TRẢ =====
+### Khách hàng tạo yêu cầu hoàn trả (đơn hàng đã DELIVERED hoặc PARTIALLY_REFUNDED)
+POST {{baseUrl}}/api/refunds
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "orderId": 5,
+    "refundType": "PARTIAL",
+    "reason": "Hàng bị lỗi",
+    "customerNote": "Sách bị rách nhiều trang",
+    "evidenceImages": ["http://localhost:8080/uploads/refund-evidence/2025/07/damage1.jpg"],
+    "refundItems": [
+        {
+            "bookId": 1,
+            "refundQuantity": 1,
+            "reason": "Sách bị rách"
+        }
+    ]
+}
+
+###
+
+### ===== 5. ADMIN PHÊ DUYỆT HOÀN TRẢ =====
+### ✅ Admin approve → Order chuyển sang AWAITING_GOODS_RETURN
+POST {{baseUrl}}/api/refunds/1/approve?adminId=1
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "status": "APPROVED",
+    "adminNote": "Đồng ý hoàn trả vì sản phẩm bị lỗi"
+}
+
+###
+
+### ===== 6. ADMIN XÁC NHẬN NHẬN HÀNG TỪ KHÁCH =====
+### ✅ Admin xác nhận đã nhận hàng hoàn trả từ khách
+POST {{baseUrl}}/api/orders/5/status-transition
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "newStatus": "GOODS_RECEIVED_FROM_CUSTOMER",
+    "note": "Đã nhận hàng hoàn trả từ khách hàng"
+}
+
+###
+
+### ===== 7. ADMIN XÁC NHẬN HÀNG VỀ KHO =====
+### ✅ Admin xác nhận hàng đã về kho và kiểm tra
+POST {{baseUrl}}/api/orders/5/status-transition
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "newStatus": "GOODS_RETURNED_TO_WAREHOUSE",
+    "note": "Hàng đã về kho và kiểm tra tình trạng OK"
+}
+
+###
+
+### ===== 8. XỬ LÝ HOÀN TIỀN (CHỈ KHI HÀNG ĐÃ VỀ KHO) =====
+### ✅ Process refund - chỉ được gọi khi hàng đã về kho
+### Tự động chuyển order sang REFUNDED hoặc PARTIALLY_REFUNDED
+POST {{baseUrl}}/api/refunds/1/process?adminId=1
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+###
+
+### ===== 9. HOÀN TRẢ LẦN 2 (CHO PARTIALLY_REFUNDED) =====
+### ✅ Khách có thể tạo yêu cầu hoàn mới cho phần còn lại
+POST {{baseUrl}}/api/refunds
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN
+
+{
+    "orderId": 5,
+    "refundType": "PARTIAL",
+    "reason": "Hoàn trả phần còn lại",
+    "customerNote": "Hoàn trả sản phẩm thứ 2",
+    "evidenceImages": [],
+    "refundItems": [
+        {
+            "bookId": 2,
+            "refundQuantity": 1,
+            "reason": "Không cần nữa"
+        }
+    ]
+}
+
+###
+
+### ===== 10. KIỂM TRA LỊCH SỬ HOÀN TRẢ =====
+### Xem lịch sử refund requests của 1 order
+GET {{baseUrl}}/api/refunds/user/1
+Authorization: Bearer YOUR_JWT_TOKEN
+
+###
+
+### ===== 11. VALIDATE YÊU CẦU HOÀN TRẢ =====
+### Kiểm tra xem order có thể tạo yêu cầu hoàn mới không
+GET {{baseUrl}}/api/refunds/validate/5/1
+Authorization: Bearer YOUR_JWT_TOKEN
+
+###

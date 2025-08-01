@@ -21,6 +21,7 @@ import org.datn.bookstation.dto.request.OrderCalculationRequest;
 import org.datn.bookstation.dto.response.OrderCalculationResponse;
 import org.datn.bookstation.service.OrderCalculationService;
 import org.datn.bookstation.service.PriceValidationService;
+import org.datn.bookstation.utils.OrderStatusUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -291,21 +292,7 @@ public class OrderController {
     }
 
     private String getOrderStatusDisplayName(OrderStatus orderStatus) {
-        switch (orderStatus) {
-            case PENDING: return "Chờ xử lý";
-            case CONFIRMED: return "Đã xác nhận";
-            case SHIPPED: return "Đang giao hàng";
-            case DELIVERED: return "Giao hàng thành công";
-            case DELIVERY_FAILED: return "Giao hàng thất bại";
-            case CANCELED: return "Đã hủy";
-            case REFUND_REQUESTED: return "Yêu cầu hoàn trả";
-            case REFUNDING: return "Đang hoàn tiền";
-            case GOODS_RECEIVED_FROM_CUSTOMER: return "Đã nhận hàng hoàn trả từ khách";
-            case REFUNDED: return "Đã hoàn tiền hoàn tất";
-            case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng hoàn trả đã về kho";
-            case PARTIALLY_REFUNDED: return "Đã hoàn tiền một phần";
-            default: return orderStatus.name();
-        }
+        return OrderStatusUtil.getStatusDisplayName(orderStatus);
     }
     
     /**

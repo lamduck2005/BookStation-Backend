@@ -12,6 +12,7 @@ import org.datn.bookstation.service.OrderStatusTransitionService;
 import org.datn.bookstation.service.PointManagementService;
 import org.datn.bookstation.service.VoucherManagementService;
 import org.datn.bookstation.service.BookQuantityService;
+import org.datn.bookstation.utils.OrderStatusUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,19 +39,35 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
     private final BookQuantityService bookQuantityService;
     
     // Định nghĩa các luồng chuyển đổi trạng thái hợp lệ
-    private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-        OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELED),
-        OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELED),
-        OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELED),
-        OrderStatus.DELIVERED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.PARTIALLY_REFUNDED),
-        OrderStatus.CANCELED, Set.of(OrderStatus.REFUNDING),
-        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.REFUNDING),
-        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, Set.of(OrderStatus.REFUNDING),
-        // ✅ SỬA: Bỏ REFUNDED và PARTIALLY_REFUNDED khỏi REFUNDING vì API process tự động set
-        OrderStatus.REFUNDING, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER),
-        OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.REFUNDING),
-        OrderStatus.REFUNDED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER) // ✅ CHO PHÉP TỪ REFUNDED VỀ WAREHOUSE
-    );
+    private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS;
+    
+    static {
+        Map<OrderStatus, Set<OrderStatus>> transitions = new HashMap<>();
+        
+        // ✅ CẬP NHẬT: Luồng chuyển trạng thái theo yêu cầu thực tế
+        transitions.put(OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELED));
+        transitions.put(OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELED));
+        transitions.put(OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED));
+        transitions.put(OrderStatus.DELIVERED, Set.of(OrderStatus.REFUND_REQUESTED, OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.PARTIALLY_REFUNDED));
+        
+        // ✅ THÊM MỚI: Xử lý luồng giao hàng thất bại
+        transitions.put(OrderStatus.DELIVERY_FAILED, Set.of(OrderStatus.REDELIVERING, OrderStatus.RETURNING_TO_WAREHOUSE));
+        transitions.put(OrderStatus.REDELIVERING, Set.of(OrderStatus.DELIVERED, OrderStatus.RETURNING_TO_WAREHOUSE));
+        transitions.put(OrderStatus.RETURNING_TO_WAREHOUSE, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE));
+        
+        // ✅ LUỒNG HOÀN TRẢ
+        transitions.put(OrderStatus.REFUND_REQUESTED, Set.of(OrderStatus.REFUNDING, OrderStatus.DELIVERED)); // Admin có thể từ chối
+        transitions.put(OrderStatus.REFUNDING, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.GOODS_RETURNED_TO_WAREHOUSE));
+        transitions.put(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE));
+        transitions.put(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, Set.of(OrderStatus.REFUNDED));
+        transitions.put(OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.REFUNDING, OrderStatus.REFUNDED));
+        
+        // ✅ TRẠNG THÁI CUỐI
+        transitions.put(OrderStatus.CANCELED, Set.of(OrderStatus.REFUNDING)); // Có thể cần hoàn tiền nếu đã thanh toán
+        transitions.put(OrderStatus.REFUNDED, Set.of()); // Trạng thái cuối
+        
+        VALID_TRANSITIONS = Collections.unmodifiableMap(transitions);
+    }
     
     
     @Override
@@ -75,9 +92,10 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
             }
             
             // 2. VALIDATION LUỒNG CHUYỂN ĐỔI (dùng actual status)
-            if (!isValidTransition(actualCurrentStatus, request.getNewStatus())) {
+            if (!OrderStatusUtil.isValidTransition(actualCurrentStatus, request.getNewStatus())) {
                 return new ApiResponse<>(400, 
-                    "Không thể chuyển từ " + actualCurrentStatus + " sang " + request.getNewStatus(), null);
+                    "Không thể chuyển từ " + OrderStatusUtil.getStatusDisplayName(actualCurrentStatus) + 
+                    " sang " + OrderStatusUtil.getStatusDisplayName(request.getNewStatus()), null);
             }
             
             // 3. VALIDATION NGHIỆP VỤ ĐẶC BIỆT
@@ -140,19 +158,32 @@ public class OrderStatusTransitionServiceImpl implements OrderStatusTransitionSe
         descriptions.put("CONFIRMED_TO_SHIPPED", "Giao hàng - Đơn hàng đã được đóng gói và bàn giao cho đơn vị vận chuyển");
         descriptions.put("CONFIRMED_TO_CANCELED", "Hủy đơn hàng - Đơn hàng bị hủy sau khi đã xác nhận");
         descriptions.put("SHIPPED_TO_DELIVERED", "Giao thành công - Khách hàng đã nhận được hàng");
-        descriptions.put("SHIPPED_TO_CANCELED", "Hủy đơn hàng - Đơn hàng bị hủy trong quá trình giao");
+        descriptions.put("SHIPPED_TO_DELIVERY_FAILED", "Giao hàng thất bại - Không thể giao hàng cho khách hàng");
+        
+        // ✅ THÊM MỚI: Xử lý luồng giao hàng thất bại
+        descriptions.put("DELIVERY_FAILED_TO_REDELIVERING", "Giao lại - Tiến hành giao hàng lần 2");
+        descriptions.put("DELIVERY_FAILED_TO_RETURNING_TO_WAREHOUSE", "Trả hàng về kho - Khách không nhận hàng, trả về kho");
+        descriptions.put("REDELIVERING_TO_DELIVERED", "Giao lại thành công - Giao hàng lần 2 thành công");
+        descriptions.put("REDELIVERING_TO_RETURNING_TO_WAREHOUSE", "Giao lại thất bại - Trả hàng về kho sau giao lại thất bại");
+        descriptions.put("RETURNING_TO_WAREHOUSE_TO_GOODS_RETURNED_TO_WAREHOUSE", "Hàng đã về kho - Hoàn tất trả hàng về kho");
+        
+        descriptions.put("DELIVERED_TO_REFUND_REQUESTED", "Yêu cầu hoàn trả - Khách hàng yêu cầu hoàn trả hàng");
         descriptions.put("DELIVERED_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Khách đã trả hàng, sold count được trừ");
         descriptions.put("DELIVERED_TO_PARTIALLY_REFUNDED", "Hoàn tiền một phần - Hoàn tiền cho một số sản phẩm trong đơn hàng");
-        descriptions.put("GOODS_RECEIVED_FROM_CUSTOMER_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhập hàng về kho - Hàng đã nhận được nhập vào kho");
-        descriptions.put("GOODS_RECEIVED_FROM_CUSTOMER_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền sau khi nhận hàng");
-        descriptions.put("CANCELED_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã hủy");
-        descriptions.put("GOODS_RETURNED_TO_WAREHOUSE_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã nhập kho");
-        // ✅ BỎ: REFUNDING_TO_REFUNDED vì API process tự động set trạng thái cuối
+        
+        descriptions.put("REFUND_REQUESTED_TO_REFUNDING", "Chấp nhận hoàn trả - Admin chấp nhận yêu cầu hoàn trả");
+        descriptions.put("REFUND_REQUESTED_TO_DELIVERED", "Từ chối hoàn trả - Admin từ chối yêu cầu hoàn trả");
+        
+        descriptions.put("REFUNDING_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Nhận hàng từ khách để hoàn trả");
         descriptions.put("REFUNDING_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho - Hàng hoàn trả đã được nhập kho");
-        descriptions.put("REFUNDING_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Nhận thêm hàng hoàn trả");
-        descriptions.put("REFUNDED_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhận hàng về kho sau hoàn tiền - Hàng được trả lại sau khi đã hoàn tiền");
+        
+        descriptions.put("GOODS_RECEIVED_FROM_CUSTOMER_TO_GOODS_RETURNED_TO_WAREHOUSE", "Nhập hàng về kho - Hàng đã nhận được nhập vào kho");
+        descriptions.put("GOODS_RETURNED_TO_WAREHOUSE_TO_REFUNDED", "Hoàn tiền hoàn tất - Hoàn tiền cho khách hàng thành công");
+        
+        descriptions.put("CANCELED_TO_REFUNDING", "Bắt đầu hoàn tiền - Tiến hành hoàn tiền cho đơn hàng đã hủy");
         descriptions.put("PARTIALLY_REFUNDED_TO_GOODS_RECEIVED_FROM_CUSTOMER", "Nhận hàng hoàn trả từ khách - Nhận phần hàng còn lại từ khách");
         descriptions.put("PARTIALLY_REFUNDED_TO_REFUNDING", "Hoàn tiền toàn bộ - Tiến hành hoàn tiền cho toàn bộ đơn hàng");
+        descriptions.put("PARTIALLY_REFUNDED_TO_REFUNDED", "Hoàn tiền hoàn tất - Hoàn tất toàn bộ quy trình hoàn tiền");
         
         return descriptions.getOrDefault(key, "Chuyển đổi trạng thái từ " + currentStatus + " sang " + newStatus);
     }

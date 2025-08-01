@@ -3,6 +3,13 @@ package org.datn.bookstation.mapper;
 import org.datn.bookstation.dto.response.AuthorResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.AuthorBook;
+import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.entity.Review;
+import org.datn.bookstation.entity.enums.ReviewStatus;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
+import org.datn.bookstation.repository.ReviewRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -14,10 +21,20 @@ import java.util.stream.Collectors;
 @Component
 public class TrendingBookMapper {
     
+    @Autowired
+    private FlashSaleItemRepository flashSaleItemRepository;
+    
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
+    
+    @Autowired
+    private ReviewRepository reviewRepository;
+    
     /**
      * Chuyển đổi từ Object[] query result sang TrendingBookResponse
      */
     public TrendingBookResponse mapToTrendingBookResponse(Object[] data, int rank, Map<Integer, List<AuthorBook>> authorsMap) {
+        System.out.println("🔥 TRENDING REAL METHOD - Processing Book ID: " + data[0]);
         TrendingBookResponse response = new TrendingBookResponse();
         
         // Basic book info - mapping theo thứ tự trong query
@@ -40,28 +57,89 @@ public class TrendingBookMapper {
         response.setSupplierId((Integer) data[11]); // supplierId
         response.setSupplierName((String) data[12]); // supplierName
         
-        // Sales data
-        Long soldCountLong = (Long) data[13]; // soldCount
-        Long orderCountLong = (Long) data[14]; // orderCount
-        response.setSoldCount(soldCountLong != null ? soldCountLong.intValue() : 0);
-        response.setOrderCount(orderCountLong != null ? orderCountLong.intValue() : 0);
+        // Sales data - Handle possible type casting issues
+        Object soldCountObj = data[13]; // soldCount
+        Object orderCountObj = data[14]; // orderCount
         
-        // Review data
+        int soldCount = 0;
+        if (soldCountObj != null) {
+            if (soldCountObj instanceof Long) {
+                soldCount = ((Long) soldCountObj).intValue();
+            } else if (soldCountObj instanceof Integer) {
+                soldCount = (Integer) soldCountObj;
+            }
+        }
+        
+        int orderCount = 0;
+        if (orderCountObj != null) {
+            if (orderCountObj instanceof Long) {
+                orderCount = ((Long) orderCountObj).intValue();
+            } else if (orderCountObj instanceof Integer) {
+                orderCount = (Integer) orderCountObj;
+            }
+        }
+        
+        response.setSoldCount(soldCount);
+        response.setOrderCount(orderCount);
+        
+        // ✅ FORCE OVERRIDE: Luôn lấy soldCount thực từ repository
+        Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(response.getId());
+        System.out.println("🔥 FORCE OVERRIDE - Book ID: " + response.getId() + " soldCount from " + soldCount + " to " + realSoldCount);
+        response.setSoldCount(realSoldCount != null ? realSoldCount : 0);
+        response.setOrderCount(realSoldCount != null ? realSoldCount : 0);
+        
+        // Review data - Handle possible type casting issues
         Double avgRating = (Double) data[15]; // avgRating
-        Long reviewCountLong = (Long) data[16]; // reviewCount
-        response.setRating(avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 0.0);
-        response.setReviewCount(reviewCountLong != null ? reviewCountLong.intValue() : 0);
+        Object reviewCountObj = data[16]; // reviewCount
         
-        // Flash sale info
+        int reviewCount = 0;
+        if (reviewCountObj != null) {
+            if (reviewCountObj instanceof Long) {
+                reviewCount = ((Long) reviewCountObj).intValue();
+            } else if (reviewCountObj instanceof Integer) {
+                reviewCount = (Integer) reviewCountObj;
+            }
+        }
+        
+        response.setRating(avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 0.0);
+        response.setReviewCount(reviewCount);
+        
+        // Flash sale info - Handle possible type casting issues
         Boolean isInFlashSale = (Boolean) data[17]; // isInFlashSale
         BigDecimal flashSalePrice = (BigDecimal) data[18]; // flashSalePrice
         Integer flashSaleStockQuantity = (Integer) data[19]; // flashSaleStockQuantity
-        Integer flashSaleSoldCount = (Integer) data[20]; // flashSaleSoldCount
+        Object flashSaleSoldCountObj = data[20]; // flashSaleSoldCount
+        
+        int flashSaleSoldCount = 0;
+        if (flashSaleSoldCountObj != null) {
+            if (flashSaleSoldCountObj instanceof Long) {
+                flashSaleSoldCount = ((Long) flashSaleSoldCountObj).intValue();
+            } else if (flashSaleSoldCountObj instanceof Integer) {
+                flashSaleSoldCount = (Integer) flashSaleSoldCountObj;
+            }
+        }
         
         response.setIsInFlashSale(isInFlashSale != null ? isInFlashSale : false);
         response.setFlashSalePrice(flashSalePrice);
         response.setFlashSaleStockQuantity(flashSaleStockQuantity);
-        response.setFlashSaleSoldCount(flashSaleSoldCount != null ? flashSaleSoldCount : 0);
+        response.setFlashSaleSoldCount(flashSaleSoldCount);
+        
+        System.out.println("🔥 TRENDING REAL - Book ID: " + response.getId() + 
+                         ", isInFlashSale: " + response.getIsInFlashSale() +
+                         ", flashSaleSoldCount from query: " + flashSaleSoldCount);
+        
+        // ✅ OVERRIDE: Lấy flashSaleSoldCount thực từ repository nếu đang trong flash sale
+        if (response.getIsInFlashSale()) {
+            FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(response.getId());
+            if (currentFlashSale != null) {
+                // ✅ FIX: Dùng FlashSaleItem.soldCount giống BookResponseMapper
+                int realFlashSaleSoldCount = currentFlashSale.getSoldCount() != null ? currentFlashSale.getSoldCount() : 0;
+                
+                System.out.println("🔥 TRENDING REAL - Override flashSaleSoldCount from " + flashSaleSoldCount + 
+                                 " to " + realFlashSaleSoldCount);
+                response.setFlashSaleSoldCount(realFlashSaleSoldCount);
+            }
+        }
         
         // Calculate discount percentage if in flash sale
         if (response.getIsInFlashSale() && flashSalePrice != null && response.getPrice() != null) {
@@ -147,6 +225,7 @@ public class TrendingBookMapper {
      * Gán điểm trending thấp hơn nhưng vẫn đảm bảo có sản phẩm hiển thị
      */
     public TrendingBookResponse mapToFallbackTrendingBookResponse(Object[] data, int rank, Map<Integer, List<AuthorBook>> authorsMap) {
+        System.out.println("🔥 FALLBACK METHOD - Processing Book ID: " + data[0]);
         TrendingBookResponse response = new TrendingBookResponse();
         
         // Basic book info - mapping theo thứ tự trong fallback query
@@ -169,20 +248,16 @@ public class TrendingBookMapper {
         response.setSupplierId((Integer) data[11]); // supplierId
         response.setSupplierName((String) data[12]); // supplierName
         
-        // Sales data (fallback = 0)
-        response.setSoldCount(0);
-        response.setOrderCount(0);
+        // ✅ FIX: Lấy số liệu thực từ repository thay vì hardcode từ query
+        enrichWithRealData(response);
         
-        // Review data (fallback = 0)
-        response.setRating(0.0);
-        response.setReviewCount(0);
-        
-        // Flash sale info (fallback = false)
-        response.setIsInFlashSale(false);
-        response.setFlashSalePrice(null);
-        response.setFlashSaleStockQuantity(null);
-        response.setFlashSaleSoldCount(0); // ✅ Fallback flash sale sold count
-        response.setDiscountPercentage(0);
+        // 🔥 FORCE OVERRIDE soldCount for Book ID 1 regardless of enrichment
+        if (response.getId() == 1) {
+            Integer forceSoldCount = orderDetailRepository.countSoldQuantityByBook(1);
+            System.out.println("🔥🔥 FALLBACK FORCE OVERRIDE - Book ID 1 soldCount: " + forceSoldCount);
+            response.setSoldCount(forceSoldCount != null ? forceSoldCount : 0);
+            response.setOrderCount(response.getSoldCount());
+        }
         
         // 🔥 FALLBACK TRENDING SCORE: Dựa trên độ mới và các yếu tố khác
         response.setTrendingRank(rank);
@@ -198,7 +273,7 @@ public class TrendingBookMapper {
         }
         
         // Set images (nhiều ảnh)
-        String imagesStr = (String) data[21]; // images (đã chuyển từ data[20] thành data[21])
+        String imagesStr = (String) data[13]; // images 
         if (imagesStr != null && !imagesStr.isEmpty()) {
             List<String> images = java.util.Arrays.stream(imagesStr.split(","))
                 .map(String::trim)
@@ -211,26 +286,121 @@ public class TrendingBookMapper {
         
         return response;
     }
+    
+    /**
+     * ✅ Lấy số liệu thực từ repository (giống BookResponseMapper)
+     */
+    private void enrichWithRealData(TrendingBookResponse response) {
+        System.out.println("🔍 ENRICHING - Book ID: " + response.getId() + " with real data");
+        
+        // Sales data - Lấy từ repository giống BookResponseMapper
+        Integer totalSold = orderDetailRepository.countSoldQuantityByBook(response.getId());
+        response.setSoldCount(totalSold != null ? totalSold : 0);
+        
+        System.out.println("🔍 ENRICHING - soldCount: " + totalSold + " -> " + response.getSoldCount());
+        
+        // Order count - Đơn giản hóa, set bằng soldCount (vì không có method riêng)
+        response.setOrderCount(response.getSoldCount());
+        
+        // Review data - Tính từ list reviews
+        List<Review> reviews = reviewRepository.findByBookId(response.getId());
+        if (reviews != null && !reviews.isEmpty()) {
+            double avgRating = reviews.stream()
+                    .filter(r -> r.getReviewStatus() == ReviewStatus.APPROVED)
+                    .mapToInt(Review::getRating)
+                    .average()
+                    .orElse(0.0);
+            int reviewCount = (int) reviews.stream()
+                    .filter(r -> r.getReviewStatus() == ReviewStatus.APPROVED)
+                    .count();
+            
+            response.setRating(Math.round(avgRating * 10.0) / 10.0);
+            response.setReviewCount(reviewCount);
+        } else {
+            response.setRating(0.0);
+            response.setReviewCount(0);
+        }
+        
+        // Flash sale info - Lấy từ repository giống BookResponseMapper
+        FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(response.getId());
+        System.out.println("🔍 DEBUG - Book ID: " + response.getId() + ", FlashSaleItem: " + 
+                          (currentFlashSale != null ? "Found (soldCount=" + currentFlashSale.getSoldCount() + ")" : "NULL"));
+        
+        if (currentFlashSale != null) {
+            response.setIsInFlashSale(true);
+            response.setFlashSalePrice(currentFlashSale.getDiscountPrice());
+            response.setFlashSaleStockQuantity(currentFlashSale.getStockQuantity());
+            
+            // ✅ FIX: Dùng FlashSaleItem.soldCount giống BookResponseMapper
+            response.setFlashSaleSoldCount(currentFlashSale.getSoldCount() != null ? currentFlashSale.getSoldCount() : 0);
+            
+            System.out.println("🔍 ENRICHING - FlashSaleItem.soldCount: " + currentFlashSale.getSoldCount() + 
+                             ", Final flashSaleSoldCount: " + response.getFlashSaleSoldCount());
+            
+            // Calculate discount percentage for flash sale
+            if (response.getFlashSalePrice() != null && response.getPrice() != null) {
+                BigDecimal discount = response.getPrice().subtract(response.getFlashSalePrice());
+                BigDecimal discountPercentage = discount.divide(response.getPrice(), 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+                response.setDiscountPercentage(discountPercentage.intValue());
+                // Giá gốc vẫn giữ nguyên, price sẽ là giá sau discount
+                response.setPrice(response.getFlashSalePrice());
+                response.setDiscountActive(true);
+            }
+        } else {
+            System.out.println("🔍 DEBUG - No active flash sale found, setting flashSaleSoldCount to 0");
+            response.setIsInFlashSale(false);
+            response.setFlashSalePrice(null);
+            response.setFlashSaleStockQuantity(null);
+            response.setFlashSaleSoldCount(0);
+            response.setDiscountPercentage(0);
+            response.setDiscountActive(false);
+        }
+    }
 
     /**
-     * 🔥 FALLBACK: Tính trending score cho sách chưa có đủ dữ liệu
-     * Dựa trên: Độ mới (60%) + Giá cả (20%) + Stock (20%)
+     * 🔥 FALLBACK: Tính trending score cho sách chưa có đủ dữ liệu trending
+     * Dựa trên: Sales (30%) + Reviews (20%) + Độ mới (30%) + Flash Sale (10%) + Giá cả (10%)
      */
     private Double calculateFallbackTrendingScore(TrendingBookResponse book) {
-        // Recency Score (60%) - Ưu tiên sách mới
+        // Sales Score (30%) - Có data thực từ database
+        double salesScore = 0.0;
+        if (book.getSoldCount() > 0 || book.getOrderCount() > 0) {
+            salesScore = (book.getSoldCount() * 0.6 + book.getOrderCount() * 0.4) / 5.0; // Normalize
+            salesScore = Math.min(salesScore, 8.0); // Cap at 8.0
+        }
+        
+        // Review Score (20%) - Có data thực từ database  
+        double reviewScore = 0.0;
+        if (book.getReviewCount() > 0) {
+            reviewScore = (book.getRating() * 0.7 + Math.min(book.getReviewCount() / 5.0, 3) * 0.3);
+            reviewScore = Math.min(reviewScore, 8.0); // Cap at 8.0
+        }
+        
+        // Recency Score (30%) - Ưu tiên sách mới
         long thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000);
         long sevenDaysAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000);
         
         double recencyScore;
         if (book.getCreatedAt() > sevenDaysAgo) {
-            recencyScore = 8.0; // Sách mới trong 7 ngày
+            recencyScore = 7.0; // Sách mới trong 7 ngày
         } else if (book.getCreatedAt() > thirtyDaysAgo) {
-            recencyScore = 6.0; // Sách mới trong 30 ngày
+            recencyScore = 5.0; // Sách mới trong 30 ngày
         } else {
-            recencyScore = 3.0; // Sách cũ
+            recencyScore = 2.0; // Sách cũ
         }
         
-        // Price Score (20%) - Giá hợp lý có điểm cao hơn
+        // Flash Sale Bonus (10%) - Có data thực từ database
+        double flashSaleBonus = 0.0;
+        if (book.getIsInFlashSale()) {
+            flashSaleBonus = 8.0;
+            // Bonus thêm nếu có người mua flash sale
+            if (book.getFlashSaleSoldCount() > 0) {
+                flashSaleBonus = 10.0;
+            }
+        }
+        
+        // Price Score (10%) - Giá hợp lý có điểm cao hơn
         double priceScore = 5.0; // Điểm trung bình
         if (book.getPrice() != null) {
             // Giá từ 50k-200k: điểm cao
@@ -244,25 +414,14 @@ public class TrendingBookMapper {
             }
         }
         
-        // Stock Score (20%) - Stock nhiều có điểm cao hơn
-        double stockScore = 5.0; // Điểm trung bình
-        if (book.getStockQuantity() != null) {
-            if (book.getStockQuantity() >= 50) {
-                stockScore = 8.0;
-            } else if (book.getStockQuantity() >= 20) {
-                stockScore = 6.0;
-            } else if (book.getStockQuantity() >= 5) {
-                stockScore = 4.0;
-            } else {
-                stockScore = 2.0;
-            }
+        // Tổng điểm fallback
+        double totalScore = (salesScore * 0.3) + (reviewScore * 0.2) + (recencyScore * 0.3) + 
+                           (flashSaleBonus * 0.1) + (priceScore * 0.1);
+        
+        // Điểm fallback luôn < 5.0 để phân biệt với trending thực, trừ khi có sales/reviews tốt
+        if (book.getSoldCount() == 0 && book.getReviewCount() == 0) {
+            totalScore = Math.min(totalScore, 4.5);
         }
-        
-        // Tổng điểm fallback (thấp hơn trending thực)
-        double totalScore = (recencyScore * 0.6) + (priceScore * 0.2) + (stockScore * 0.2);
-        
-        // Điểm fallback luôn < 5.0 để phân biệt với trending thực
-        totalScore = Math.min(totalScore, 4.9);
         
         return Math.round(totalScore * 10.0) / 10.0;
     }

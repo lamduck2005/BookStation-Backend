@@ -1,6 +1,5 @@
 package org.datn.bookstation.repository;
 
-import org.datn.bookstation.dto.request.BookCategoryRequest;
 import org.datn.bookstation.entity.Book;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,7 +55,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
                flashSale.discountPrice as flashSalePrice,
                flashSale.stockQuantity as flashSaleStockQuantity,
-               0 as flashSaleSoldCount,
+               COALESCE(flashSaleSold.soldCount, 0) as flashSaleSoldCount,
                b.images as images
         FROM Book b
         LEFT JOIN (
@@ -89,6 +88,19 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                   AND fs.startTime <= :currentTime 
                   AND fs.endTime >= :currentTime
         ) flashSale ON b.id = flashSale.bookId
+        LEFT JOIN (
+            SELECT od.book.id as bookId,
+                   SUM(od.quantity) as soldCount
+            FROM OrderDetail od
+            JOIN FlashSaleItem fsi ON od.book.id = fsi.book.id 
+            JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+            WHERE od.order.orderStatus = 'COMPLETED'
+                  AND od.createdAt >= fs.startTime
+                  AND od.createdAt <= fs.endTime
+                  AND fs.status = 1 
+                  AND fsi.status = 1
+            GROUP BY od.book.id
+        ) flashSaleSold ON b.id = flashSaleSold.bookId
         WHERE b.status = 1 
               AND b.stockQuantity > 0
         ORDER BY (
@@ -148,13 +160,11 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                false as isInFlashSale,
                NULL as flashSalePrice,
                NULL as flashSaleStockQuantity,
+               0 as flashSaleSoldCount,
                b.images as images
         FROM Book b
         WHERE b.status = 1 
               AND b.stockQuantity > 0
-              AND (:categoryId IS NULL OR b.category.id = :categoryId)
-              AND (:minPrice IS NULL OR b.price >= :minPrice)
-              AND (:maxPrice IS NULL OR b.price <= :maxPrice)
         ORDER BY 
             b.createdAt DESC,
             b.price ASC,
@@ -184,6 +194,17 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     );
 
     /**
+     * Đếm tổng số sách active (không filter)
+     */
+    @Query("""
+        SELECT COUNT(b.id)
+        FROM Book b
+        WHERE b.status = 1 
+              AND b.stockQuantity > 0
+        """)
+    Long countAllActiveBooks();
+
+    /**
      *  HOT DISCOUNT: Lấy sách hot giảm sốc (flash sale + discount cao)
      */
     @Query("""
@@ -207,7 +228,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                CASE WHEN flashSale.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
                flashSale.discountPrice as flashSalePrice,
                flashSale.stockQuantity as flashSaleStockQuantity,
-               0 as flashSaleSoldCount,
+               COALESCE(flashSaleSold.soldCount, 0) as flashSaleSoldCount,
                b.images as images
         FROM Book b
         LEFT JOIN (
@@ -238,6 +259,19 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                   AND fs.startTime <= :currentTime 
                   AND fs.endTime >= :currentTime
         ) flashSale ON b.id = flashSale.bookId
+        LEFT JOIN (
+            SELECT od.book.id as bookId,
+                   SUM(od.quantity) as soldCount
+            FROM OrderDetail od
+            JOIN FlashSaleItem fsi ON od.book.id = fsi.book.id 
+            JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+            WHERE od.order.orderStatus = 'COMPLETED'
+                  AND od.createdAt >= fs.startTime
+                  AND od.createdAt <= fs.endTime
+                  AND fs.status = 1 
+                  AND fsi.status = 1
+            GROUP BY od.book.id
+        ) flashSaleSold ON b.id = flashSaleSold.bookId
         WHERE b.status = 1 
               AND b.stockQuantity > 0
               AND (flashSale.id IS NOT NULL OR b.discountActive = true)
