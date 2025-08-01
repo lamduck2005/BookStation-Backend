@@ -36,15 +36,16 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ###
 
 ### ===== 4. LUỒNG HOÀN TRẢ - TẠO YÊU CẦU HOÀN TRẢ =====
-### Khách hàng tạo yêu cầu hoàn trả (đơn hàng đã DELIVERED hoặc PARTIALLY_REFUNDED)
-POST {{baseUrl}}/api/refunds
+### ✅ Khách hàng tạo yêu cầu hoàn trả (đơn hàng đã DELIVERED hoặc PARTIALLY_REFUNDED)
+### ⚠️  LƯU Ý: Order status tự động chuyển sang REFUND_REQUESTED
+POST {{baseUrl}}/api/refunds?userId=1
 Content-Type: application/json
 Authorization: Bearer YOUR_JWT_TOKEN
 
 {
     "orderId": 5,
     "refundType": "PARTIAL",
-    "reason": "Hàng bị lỗi",
+    "reason": "WRONG_ITEM",
     "customerNote": "Sách bị rách nhiều trang",
     "evidenceImages": ["http://localhost:8080/uploads/refund-evidence/2025/07/damage1.jpg"],
     "refundItems": [
@@ -139,6 +140,26 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ### ===== 11. VALIDATE YÊU CẦU HOÀN TRẢ =====
 ### Kiểm tra xem order có thể tạo yêu cầu hoàn mới không
 GET {{baseUrl}}/api/refunds/validate/5/1
+Authorization: Bearer YOUR_JWT_TOKEN
+
+###
+
+### ===== TEST CÁC TRẠNG THÁI KHÔNG CÒN REFUND_REQUESTED =====
+
+### ✅ Test 1: DELIVERED không có availableTransitions chứa REFUND_REQUESTED
+GET {{baseUrl}}/api/orders/5
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### ✅ Test 2: REFUND_REQUESTED không có availableTransitions nào
+GET {{baseUrl}}/api/orders/6
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### ✅ Test 3: PARTIALLY_REFUNDED không có availableTransitions chứa REFUND_REQUESTED  
+GET {{baseUrl}}/api/orders/7
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### ✅ Test 4: Xem response có reasonDisplay không
+GET {{baseUrl}}/api/refunds/all?page=0&size=5
 Authorization: Bearer YOUR_JWT_TOKEN
 
 ###

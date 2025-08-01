@@ -18,6 +18,7 @@ public class RefundRequestResponse {
     private String status;
     private String statusDisplay;
     private String reason;
+    private String reasonDisplay; // ✅ THÊM MỚI: Hiển thị reason bằng tiếng Việt
     private String customerNote;
     private String adminNote;
     private List<String> evidenceImages;

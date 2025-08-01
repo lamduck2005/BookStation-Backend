@@ -52,17 +52,17 @@ public class OrderStatusUtil {
         transitions.put(OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELED));
         transitions.put(OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED));
         
-        // ✅ SỬA: DELIVERED chỉ có thể chuyển sang REFUND_REQUESTED khi khách yêu cầu hoàn trả
-        transitions.put(OrderStatus.DELIVERED, Set.of(OrderStatus.REFUND_REQUESTED));
+        // ✅ SỬA: DELIVERED không có trạng thái tiếp theo vì REFUND_REQUESTED chỉ do USER tạo
+        transitions.put(OrderStatus.DELIVERED, Set.of()); // Không có chuyển trạng thái nào từ DELIVERED
         
         // Luồng giao hàng thất bại
         transitions.put(OrderStatus.DELIVERY_FAILED, Set.of(OrderStatus.REDELIVERING, OrderStatus.RETURNING_TO_WAREHOUSE));
         transitions.put(OrderStatus.REDELIVERING, Set.of(OrderStatus.DELIVERED, OrderStatus.RETURNING_TO_WAREHOUSE));
         transitions.put(OrderStatus.RETURNING_TO_WAREHOUSE, Set.of(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE));
         
-        // ✅ LUỒNG HOÀN TRẢ THỰC TẾ - CHÍNH XÁC
-        // Yêu cầu hoàn trả → Admin phê duyệt hoặc từ chối  
-        transitions.put(OrderStatus.REFUND_REQUESTED, Set.of(OrderStatus.AWAITING_GOODS_RETURN, OrderStatus.DELIVERED));
+        // ✅ LUỒNG HOÀN TRẢ THỰC TẾ - CHỈ ADMIN ĐƯỢC CHUYỂN
+        // ❌ REFUND_REQUESTED không có trạng thái tiếp theo - chỉ admin approve/reject qua API riêng
+        transitions.put(OrderStatus.REFUND_REQUESTED, Set.of()); // Không có chuyển trạng thái thủ công
         
         // Chờ lấy hàng hoàn trả → Admin xác nhận đã nhận hàng từ khách
         transitions.put(OrderStatus.AWAITING_GOODS_RETURN, Set.of(OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER));
@@ -74,9 +74,8 @@ public class OrderStatusUtil {
         // Hàng đã về kho → Có thể hoàn tiền (thông qua API processRefund)
         transitions.put(OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, Set.of()); // Không có chuyển thủ công
         
-        // ✅ XỬ LÝ HOÀN TIỀN MỘT PHẦN
-        // Hoàn tiền một phần → Có thể tạo yêu cầu hoàn mới cho phần còn lại
-        transitions.put(OrderStatus.PARTIALLY_REFUNDED, Set.of(OrderStatus.REFUND_REQUESTED));
+        // ✅ PARTIALLY_REFUNDED không có trạng thái tiếp theo - user tạo yêu cầu hoàn mới qua API
+        transitions.put(OrderStatus.PARTIALLY_REFUNDED, Set.of()); // User tạo refund request mới
         
         // Trạng thái cuối
         transitions.put(OrderStatus.CANCELED, Set.of());

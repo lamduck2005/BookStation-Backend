@@ -39,16 +39,14 @@ public class BookQuantityServiceImpl implements BookQuantityService {
     
     @Override
     public void moveProcessingToSold(List<OrderDetail> orderDetails) {
-        // Vẫn cần giảm stock quantity khi giao hàng thành công
+        // ✅ CHỈ trừ stock quantity khi giao hàng thành công - KHÔNG cộng sold count (đã có trong OrderServiceImpl)
         for (OrderDetail detail : orderDetails) {
             if (detail.getBook() != null) {
                 var book = bookRepository.findById(detail.getBook().getId()).orElse(null);
                 if (book != null) {
                     int newStock = Math.max(0, book.getStockQuantity() - detail.getQuantity());
                     book.setStockQuantity(newStock);
-                    // Tăng sold count
-                    int newSoldCount = (book.getSoldCount() != null ? book.getSoldCount() : 0) + detail.getQuantity();
-                    book.setSoldCount(newSoldCount);
+                    // ❌ KHÔNG cộng sold count nữa - đã xử lý trong OrderServiceImpl.handleDeliveredBusinessLogic()
                     bookRepository.save(book);
                 }
             }
@@ -58,9 +56,7 @@ public class BookQuantityServiceImpl implements BookQuantityService {
                 if (flashSaleItem != null) {
                     int newStock = Math.max(0, flashSaleItem.getStockQuantity() - detail.getQuantity());
                     flashSaleItem.setStockQuantity(newStock);
-                    // Tăng flash sale sold count
-                    int newSoldCount = (flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0) + detail.getQuantity();
-                    flashSaleItem.setSoldCount(newSoldCount);
+                    // ❌ KHÔNG cộng flash sale sold count nữa - đã xử lý trong OrderServiceImpl.handleDeliveredBusinessLogic()
                     flashSaleItemRepository.save(flashSaleItem);
                 }
             }
