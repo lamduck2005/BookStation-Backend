@@ -17,6 +17,7 @@ import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.repository.RefundItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.RefundService;
+import org.datn.bookstation.utils.RefundReasonUtil; // ✅ THÊM IMPORT MỚI
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,7 +130,19 @@ public class RefundServiceImpl implements RefundService {
         // 6. SAVE REFUND REQUEST
         RefundRequest savedRequest = refundRequestRepository.save(refundRequest);
 
-        // 7. CREATE REFUND ITEMS FOR PARTIAL REFUND
+        // ✅ 7. CHUYỂN TRẠNG THÁI ĐỜN HÀNG SANG REFUND_REQUESTED
+        // Cho phép từ DELIVERED hoặc PARTIALLY_REFUNDED
+        if (order.getOrderStatus() == OrderStatus.DELIVERED || 
+            order.getOrderStatus() == OrderStatus.PARTIALLY_REFUNDED) {
+            order.setOrderStatus(OrderStatus.REFUND_REQUESTED);
+            order.setUpdatedAt(System.currentTimeMillis());
+            order.setUpdatedBy(userId);
+            orderRepository.save(order);
+        } else {
+            throw new RuntimeException("Chỉ có thể tạo yêu cầu hoàn trả từ trạng thái DELIVERED hoặc PARTIALLY_REFUNDED");
+        }
+
+        // 8. CREATE REFUND ITEMS FOR PARTIAL REFUND
         if (request.getRefundType().equals("PARTIAL")) {
             for (RefundRequestCreate.RefundItemRequest item : request.getRefundItems()) {
                 RefundItem refundItem = new RefundItem();
@@ -151,7 +164,7 @@ public class RefundServiceImpl implements RefundService {
             }
         }
 
-        log.info("✅ REFUND REQUEST CREATED: id={}, orderId={}, amount={}, status=PENDING", 
+        log.info("✅ REFUND REQUEST CREATED: id={}, orderId={}, amount={}, status=PENDING, orderStatus=REFUND_REQUESTED", 
                  savedRequest.getId(), request.getOrderId(), refundAmount);
 
         return convertToResponse(savedRequest);
@@ -176,13 +189,18 @@ public class RefundServiceImpl implements RefundService {
         request.setApprovedAt(System.currentTimeMillis());
         request.setUpdatedAt(System.currentTimeMillis());
 
-        // 🔥 CRITICAL FIX: Đồng bộ Order status
+        // ✅ CHUYỂN TRẠNG THÁI ĐỌN HÀNG THEO NGHIỆP VỤ THỰC TẾ
         Order order = request.getOrder();
         if (approval.getStatus().equals("APPROVED")) {
-            order.setOrderStatus(OrderStatus.REFUNDING); // Đã phê duyệt, đang hoàn tiền
+            // ✅ SỬA: Phê duyệt → Chuyển sang AWAITING_GOODS_RETURN (chờ lấy hàng hoàn trả)
+            order.setOrderStatus(OrderStatus.AWAITING_GOODS_RETURN);
+            log.info("✅ Order status changed to AWAITING_GOODS_RETURN - Waiting for customer to return goods");
         } else if (approval.getStatus().equals("REJECTED")) {
-            order.setOrderStatus(OrderStatus.DELIVERED); // Từ chối, trở về delivered
+            // Từ chối → Trở về DELIVERED
+            order.setOrderStatus(OrderStatus.DELIVERED);
+            log.info("✅ Order status reverted to DELIVERED - Refund request rejected");
         }
+        order.setUpdatedAt(System.currentTimeMillis());
         order.setUpdatedBy(adminId);
         orderRepository.save(order);
 
@@ -218,9 +236,10 @@ public class RefundServiceImpl implements RefundService {
         request.setRejectedAt(System.currentTimeMillis());
         request.setUpdatedAt(System.currentTimeMillis());
 
-        // ✅ Đổi trạng thái đơn hàng về DELIVERED (khách có thể tạo yêu cầu hoàn trả mới sau)
+        // ✅ Trả về DELIVERED khi từ chối hoàn trả
         Order order = request.getOrder();
         order.setOrderStatus(OrderStatus.DELIVERED);
+        order.setUpdatedAt(System.currentTimeMillis());
         order.setUpdatedBy(adminId);
         orderRepository.save(order);
 
@@ -241,13 +260,15 @@ public class RefundServiceImpl implements RefundService {
             throw new RuntimeException("Chỉ có thể xử lý yêu cầu đã được phê duyệt");
         }
 
-        // ✅ SỬA LOGIC: CHỈ hoàn voucher, KHÔNG trừ soldCount và KHÔNG cộng stock
-        // soldCount sẽ được trừ khi admin chuyển Order status thành GOODS_RECEIVED_FROM_CUSTOMER
         Order order = request.getOrder();
         
-        // ✅ REMOVED: Không trừ sold count ở đây nữa
-        // soldCount chỉ được trừ khi admin transition order status → GOODS_RECEIVED_FROM_CUSTOMER
-        
+        // ✅ VALIDATION NGHIÊM NGẶT: CHỈ hoàn tiền khi hàng đã về kho
+        if (order.getOrderStatus() != OrderStatus.GOODS_RETURNED_TO_WAREHOUSE) {
+            throw new RuntimeException("Chỉ có thể hoàn tiền khi hàng đã về kho (GOODS_RETURNED_TO_WAREHOUSE). " +
+                    "Trạng thái hiện tại: " + order.getOrderStatus() + ". " +
+                    "Vui lòng chuyển trạng thái đơn hàng đến 'Hàng đã về kho' trước khi hoàn tiền.");
+        }
+
         // Hoàn voucher nếu có
         if (order.getRegularVoucherCount() > 0 || order.getShippingVoucherCount() > 0) {
             // Call voucher service to restore voucher usage
@@ -255,13 +276,14 @@ public class RefundServiceImpl implements RefundService {
                      order.getCode(), order.getRegularVoucherCount(), order.getShippingVoucherCount());
         }
 
-        // ✅ SỬA: Set trạng thái cuối cùng dựa trên RefundType thay vì REFUNDING
+        // ✅ CHUYỂN TRẠNG THÁI CUỐI CÙNG
         OrderStatus finalStatus = (request.getRefundType() == RefundRequest.RefundType.FULL) 
             ? OrderStatus.REFUNDED 
             : OrderStatus.PARTIALLY_REFUNDED;
         
         order.setOrderStatus(finalStatus);
         order.setUpdatedAt(System.currentTimeMillis());
+        order.setUpdatedBy(adminId);
         orderRepository.save(order);
 
         // Update refund request status
@@ -274,7 +296,7 @@ public class RefundServiceImpl implements RefundService {
         log.info("✅ REFUND PROCESSED: id={}, orderId={}, adminId={}, refundType={}, finalOrderStatus={}", 
                  refundRequestId, request.getOrder().getId(), adminId, 
                  request.getRefundType(), finalStatus);
-        log.info("⚠️  STOCK NOT RESTORED YET - Admin must change order status to GOODS_RETURNED_TO_WAREHOUSE to restore stock");
+        log.info("ℹ️  STOCK đã được cộng lại khi chuyển sang GOODS_RETURNED_TO_WAREHOUSE");
 
         return convertToResponse(savedRequest);
     }
@@ -307,17 +329,22 @@ public class RefundServiceImpl implements RefundService {
             return "Bạn không có quyền hoàn trả đơn hàng này";
         }
 
-        if (order.getOrderStatus() != OrderStatus.DELIVERED) {
-            return "Chỉ có thể hoàn trả đơn hàng đã giao thành công";
+        // ✅ CHO PHÉP TẠO YÊU CẦU HOÀN MỚI KHI:
+        // 1. Đơn hàng đã giao thành công (DELIVERED) 
+        // 2. Hoặc đã hoàn tiền một phần (PARTIALLY_REFUNDED) - khách muốn hoàn tiếp
+        if (order.getOrderStatus() != OrderStatus.DELIVERED && 
+            order.getOrderStatus() != OrderStatus.PARTIALLY_REFUNDED) {
+            return "Chỉ có thể hoàn trả đơn hàng đã giao thành công hoặc đã hoàn tiền một phần";
         }
 
+        // ✅ KIỂM TRA XEM CÓ YÊU CẦU HOÀN TRẢ ĐANG XỬ LÝ KHÔNG
         boolean hasActiveRefund = refundRequestRepository.existsActiveRefundRequestForOrder(orderId);
         
         if (hasActiveRefund) {
             return "Đơn hàng này đã có yêu cầu hoàn trả đang xử lý";
         }
 
-        return null; // Valid
+        return null; // Valid - có thể tạo yêu cầu hoàn trả
     }
 
     private RefundRequestResponse convertToResponse(RefundRequest request) {
@@ -330,6 +357,7 @@ public class RefundServiceImpl implements RefundService {
         response.setStatus(request.getStatus().name());
         response.setStatusDisplay(request.getStatus().getDisplayName());
         response.setReason(request.getReason());
+        response.setReasonDisplay(RefundReasonUtil.getReasonDisplayName(request.getReason())); // ✅ THÊM MỚI
         response.setCustomerNote(request.getCustomerNote());
         response.setAdminNote(request.getAdminNote());
         response.setTotalRefundAmount(request.getTotalRefundAmount());

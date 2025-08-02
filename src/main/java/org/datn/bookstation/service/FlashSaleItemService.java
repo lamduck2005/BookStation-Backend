@@ -5,7 +5,6 @@ import org.datn.bookstation.dto.request.FlashSaleItemRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
-import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 
 import java.math.BigDecimal;

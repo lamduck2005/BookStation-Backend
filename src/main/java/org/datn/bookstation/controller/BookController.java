@@ -24,6 +24,7 @@ import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,14 +44,14 @@ import java.util.Arrays;
 @AllArgsConstructor
 @RequestMapping("/api/books")
 public class BookController {
-
+    
     private final BookService bookService;
     private final BookResponseMapper bookResponseMapper;
     private final BookDetailResponseMapper bookDetailResponseMapper;
     private final TrendingCacheService trendingCacheService;
     private final FlashSaleItemService flashSaleItemService;
     private final FlashSaleItemRepository flashSaleItemRepository;
-
+    private final OrderDetailRepository orderDetailRepository;
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
             @RequestParam(defaultValue = "0") int page,
@@ -63,14 +64,13 @@ public class BookController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Byte status,
             @RequestParam(required = false) String bookCode) {
-
+        
         PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
-                page, size, bookName, categoryId, supplierId, publisherId, minPrice, maxPrice, status, bookCode);
-        ApiResponse<PaginationResponse<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
-                books);
+            page, size, bookName, categoryId, supplierId, publisherId, minPrice, maxPrice, status, bookCode);
+        ApiResponse<PaginationResponse<BookResponse>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
-
     @GetMapping("/client")
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAllClient(
             @RequestParam(defaultValue = "0") int page,
@@ -93,12 +93,11 @@ public class BookController {
         }
 
         PaginationResponse<BookResponse> books = bookService.getAllWithPagination(
-                page, size, bookName, parentCategoryId, categoryId, authorIdList, publisherId, minPrice, maxPrice);
-        ApiResponse<PaginationResponse<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
-                books);
+                page, size, bookName,parentCategoryId, categoryId,authorIdList, publisherId, minPrice, maxPrice);
+        ApiResponse<PaginationResponse<BookResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Thành công", books);
         return ResponseEntity.ok(response);
     }
-
     /**
      * 🔥 API lấy danh sách sản phẩm xu hướng (POST)
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
@@ -115,10 +114,36 @@ public class BookController {
         // Các trường filter khác sẽ bị bỏ qua
 
         PaginationResponse<TrendingBookResponse> trendingBooks = bookService.getTrendingBooks(cleanRequest);
-        String message = cleanRequest.isDailyTrending() ? "Lấy danh sách sản phẩm xu hướng theo ngày thành công"
-                : "Lấy danh sách sách hot giảm sốc thành công";
-        ApiResponse<PaginationResponse<TrendingBookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
-                message, trendingBooks);
+
+        // 🔥 REAL FIX: Thay vì dùng repository query SAI, dùng Book.soldCount từ database như /api/books
+        System.out.println("🔥 REAL FIX: Using Book.soldCount from database instead of repository query");
+        if (trendingBooks != null && trendingBooks.getContent() != null) {
+            for (TrendingBookResponse book : trendingBooks.getContent()) {
+                // Lấy Book entity trực tiếp từ database để có soldCount đúng
+                try {
+                    Book bookEntity = bookService.getById(book.getId());
+                    if (bookEntity != null && bookEntity.getSoldCount() != null) {
+                        int dbSoldCount = bookEntity.getSoldCount();
+                        int currentSoldCount = book.getSoldCount();
+
+                        if (currentSoldCount != dbSoldCount) {
+                            System.out.println("🔥 REAL FIX - Book ID " + book.getId() +
+                                             ": " + currentSoldCount + " → " + dbSoldCount + " (from Book.soldCount)");
+                            book.setSoldCount(dbSoldCount);
+                            book.setOrderCount(dbSoldCount);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error getting Book entity for ID " + book.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+
+        String message = cleanRequest.isDailyTrending() ?
+            "Lấy danh sách sản phẩm xu hướng theo ngày thành công" :
+            "Lấy danh sách sách hot giảm sốc thành công";
+        ApiResponse<PaginationResponse<TrendingBookResponse>> response =
+            new ApiResponse<>(HttpStatus.OK.value(), message, trendingBooks);
         return ResponseEntity.ok(response);
     }
 
@@ -127,9 +152,9 @@ public class BookController {
         Book book = bookService.getById(id);
         if (book == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
+                .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
         }
-
+        
         BookDetailResponse bookDetailResponse = bookDetailResponseMapper.toDetailResponse(book);
         return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", bookDetailResponse));
     }
@@ -139,31 +164,31 @@ public class BookController {
         ApiResponse<Book> response = bookService.add(bookRequest);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, response.getMessage(), null));
+                .body(new ApiResponse<>(404, response.getMessage(), null));
         }
         if (response.getStatus() == 400) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ApiResponse<>(400, response.getMessage(), null));
+                .body(new ApiResponse<>(400, response.getMessage(), null));
         }
-
+        
         BookResponse bookResponse = bookResponseMapper.toResponse(response.getData());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new ApiResponse<>(201, "Tạo sách thành công", bookResponse));
+            .body(new ApiResponse<>(201, "Tạo sách thành công", bookResponse));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<BookResponse>> update(@PathVariable Integer id,
-            @Valid @RequestBody BookRequest bookRequest) {
+    public ResponseEntity<ApiResponse<BookResponse>> update(@PathVariable Integer id, 
+                                                           @Valid @RequestBody BookRequest bookRequest) {
         ApiResponse<Book> response = bookService.update(bookRequest, id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, response.getMessage(), null));
+                .body(new ApiResponse<>(404, response.getMessage(), null));
         }
         if (response.getStatus() == 400) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ApiResponse<>(400, response.getMessage(), null));
+                .body(new ApiResponse<>(400, response.getMessage(), null));
         }
-
+        
         BookResponse bookResponse = bookResponseMapper.toResponse(response.getData());
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật sách thành công", bookResponse));
     }
@@ -179,20 +204,21 @@ public class BookController {
         ApiResponse<Book> response = bookService.toggleStatus(id);
         if (response.getStatus() == 404) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
+                .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
         }
-
+        
         BookResponse bookResponse = bookResponseMapper.toResponse(response.getData());
         return ResponseEntity.ok(new ApiResponse<>(200, "Cập nhật trạng thái thành công", bookResponse));
     }
+
 
     @GetMapping("/dropdown")
     public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownBooks(
             @RequestParam(required = false) String search) {
         // Logic lấy danh sách dropdown đã chuyển sang service với hỗ trợ tìm kiếm
         List<DropdownOptionResponse> dropdown = bookService.getDropdownOptionsWithDetails(search);
-        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
-                "Lấy danh sách sách thành công", dropdown);
+        ApiResponse<List<DropdownOptionResponse>> response =
+                new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách sách thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 
@@ -204,55 +230,55 @@ public class BookController {
     @PostMapping("/validate-quantity")
     public ResponseEntity<ApiResponse<QuantityValidationResponse>> validateQuantity(
             @Valid @RequestBody QuantityValidationRequest request) {
-
+        
         Book book = bookService.getById(request.getBookId());
         if (book == null) {
             QuantityValidationResponse response = QuantityValidationResponse
-                    .failure("Không tìm thấy sách", 0);
+                .failure("Không tìm thấy sách", 0);
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate thất bại", response));
         }
-
+        
         // Kiểm tra xem sách có đang trong flash sale không
         FlashSaleItem activeFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
-
+        
         if (activeFlashSale != null) {
             // Nếu là flash sale, validate theo flash sale stock và giới hạn mua
             int flashSaleStock = activeFlashSale.getStockQuantity();
             Integer maxPurchasePerUser = activeFlashSale.getMaxPurchasePerUser();
-
+            
             // Validate số lượng không vượt quá stock flash sale
             if (request.getQuantity() > flashSaleStock) {
                 QuantityValidationResponse response = QuantityValidationResponse.flashSaleFailure(
-                        "Flash sale chỉ còn " + flashSaleStock + " sản phẩm",
-                        book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+                    "Flash sale chỉ còn " + flashSaleStock + " sản phẩm", 
+                    book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
                 return ResponseEntity.ok(new ApiResponse<>(200, "Validate flash sale thất bại", response));
             }
-
+            
             // Validate giới hạn mua per user (nếu có)
             if (maxPurchasePerUser != null && request.getQuantity() > maxPurchasePerUser) {
                 QuantityValidationResponse response = QuantityValidationResponse.flashSaleFailure(
-                        "Mỗi khách hàng chỉ được mua tối đa " + maxPurchasePerUser + " sản phẩm flash sale",
-                        book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+                    "Mỗi khách hàng chỉ được mua tối đa " + maxPurchasePerUser + " sản phẩm flash sale", 
+                    book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
                 return ResponseEntity.ok(new ApiResponse<>(200, "Validate giới hạn mua thất bại", response));
             }
-
+            
             // Flash sale thành công
             QuantityValidationResponse response = QuantityValidationResponse.flashSaleSuccess(
-                    book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
+                book.getStockQuantity(), flashSaleStock, maxPurchasePerUser);
             response.setMessage("Có thể mua " + request.getQuantity() + " sản phẩm với giá flash sale");
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate flash sale thành công", response));
-
+            
         } else {
             // Không phải flash sale, validate theo stock thông thường
             int availableQuantity = book.getStockQuantity();
             boolean isValid = request.getQuantity() > 0 && request.getQuantity() <= availableQuantity;
-
-            QuantityValidationResponse response = isValid
-                    ? QuantityValidationResponse.success(availableQuantity)
-                    : QuantityValidationResponse.failure(
-                            "Số lượng không hợp lệ, tồn kho hiện tại: " + availableQuantity,
-                            availableQuantity);
-
+            
+            QuantityValidationResponse response = isValid 
+                ? QuantityValidationResponse.success(availableQuantity)
+                : QuantityValidationResponse.failure(
+                    "Số lượng không hợp lệ, tồn kho hiện tại: " + availableQuantity, 
+                    availableQuantity);
+            
             return ResponseEntity.ok(new ApiResponse<>(200, "Validate thành công", response));
         }
     }
@@ -261,10 +287,10 @@ public class BookController {
     public ResponseEntity<ApiResponse<List<BookResponse>>> getBooksByCategory(@PathVariable Integer categoryId) {
         List<Book> books = bookService.getBooksByCategory(categoryId);
         List<BookResponse> bookResponses = books.stream()
-                .map(bookResponseMapper::toResponse)
-                .collect(Collectors.toList());
-        ApiResponse<List<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
-                bookResponses);
+            .map(bookResponseMapper::toResponse)
+            .collect(Collectors.toList());
+        ApiResponse<List<BookResponse>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Thành công", bookResponses);
         return ResponseEntity.ok(response);
     }
 
@@ -272,10 +298,10 @@ public class BookController {
     public ResponseEntity<ApiResponse<List<BookResponse>>> getBooksBySupplier(@PathVariable Integer supplierId) {
         List<Book> books = bookService.getBooksBySupplier(supplierId);
         List<BookResponse> bookResponses = books.stream()
-                .map(bookResponseMapper::toResponse)
-                .collect(Collectors.toList());
-        ApiResponse<List<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
-                bookResponses);
+            .map(bookResponseMapper::toResponse)
+            .collect(Collectors.toList());
+        ApiResponse<List<BookResponse>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Thành công", bookResponses);
         return ResponseEntity.ok(response);
     }
 
@@ -283,10 +309,10 @@ public class BookController {
     public ResponseEntity<ApiResponse<List<BookResponse>>> getActiveBooks() {
         List<Book> books = bookService.getActiveBooks();
         List<BookResponse> bookResponses = books.stream()
-                .map(bookResponseMapper::toResponse)
-                .collect(Collectors.toList());
-        ApiResponse<List<BookResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
-                bookResponses);
+            .map(bookResponseMapper::toResponse)
+            .collect(Collectors.toList());
+        ApiResponse<List<BookResponse>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Thành công", bookResponses);
         return ResponseEntity.ok(response);
     }
 
@@ -297,22 +323,22 @@ public class BookController {
     @GetMapping("/test-publication-date")
     public ResponseEntity<ApiResponse<Map<String, Object>>> testPublicationDate() {
         Map<String, Object> testData = new HashMap<>();
-
+        
         // Test convert từ LocalDate sang timestamp
         LocalDate testDate = LocalDate.of(2010, 1, 1);
         Long timestamp = DateTimeUtil.dateToTimestamp(testDate);
-
+        
         // Test convert từ timestamp về LocalDate
         LocalDate convertedBack = DateTimeUtil.timestampToDate(timestamp);
-
+        
         testData.put("originalDate", testDate.toString());
         testData.put("timestamp", timestamp);
         testData.put("convertedBack", convertedBack.toString());
         testData.put("isEqual", testDate.equals(convertedBack));
         testData.put("currentTimestamp", DateTimeUtil.nowTimestamp());
-
-        ApiResponse<Map<String, Object>> response = new ApiResponse<>(HttpStatus.OK.value(),
-                "Test publicationDate conversion thành công", testData);
+        
+        ApiResponse<Map<String, Object>> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Test publicationDate conversion thành công", testData);
         return ResponseEntity.ok(response);
     }
 
@@ -322,30 +348,29 @@ public class BookController {
     @GetMapping("/admin/cache/trending/stats")
     public ResponseEntity<ApiResponse<String>> getTrendingCacheStats() {
         String stats = trendingCacheService.getCacheStatistics();
-        ApiResponse<String> response = new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", stats);
+        ApiResponse<String> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache statistics", stats);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/admin/cache/trending/invalidate")
     public ResponseEntity<ApiResponse<String>> invalidateTrendingCache() {
         trendingCacheService.invalidateAllTrendingCache();
-        ApiResponse<String> response = new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated successfully",
-                "All trending cache has been cleared");
+        ApiResponse<String> response = 
+            new ApiResponse<>(HttpStatus.OK.value(), "Cache invalidated successfully", "All trending cache has been cleared");
         return ResponseEntity.ok(response);
     }
-
     @GetMapping("/bycategoryid/{id}")
     public ResponseEntity<ApiResponse<List<BookCategoryRequest>>> bookByCategoryId(
             @PathVariable("id") Integer id,
             @RequestParam(name = "text", required = false) String text) {
-        if (id == null) {
+        if (id==null){
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
-
     @GetMapping("/flashsalebook")
-    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale() {
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale(){
         return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
     }
 
@@ -362,13 +387,13 @@ public class BookController {
     @PostMapping("/calculate-price")
     public ResponseEntity<ApiResponse<BookPriceCalculationResponse>> calculateBookPrice(
             @Valid @RequestBody BookPriceCalculationRequest request) {
-
+        
         Book book = bookService.getById(request.getBookId());
         if (book == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
+                .body(new ApiResponse<>(404, "Không tìm thấy sách", null));
         }
-
+        
         BookPriceCalculationResponse response = bookService.calculateBookPrice(book, request);
         return ResponseEntity.ok(new ApiResponse<>(200, "Tính giá thành công", response));
     }
