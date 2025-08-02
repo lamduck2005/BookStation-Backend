@@ -12,6 +12,7 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSale;
 import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.mapper.BookFlashSaleMapper;
 import org.datn.bookstation.mapper.FlashSaleItemMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
@@ -56,10 +57,13 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
     private CartItemService cartItemService;
 
     @Override
-    public ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size, Integer flashSaleId, String bookName, Byte status,
-                                                                                   BigDecimal minPrice, BigDecimal maxPrice, BigDecimal minPercent, BigDecimal maxPercent, Integer minQuantity, Integer maxQuantity) {
+    public ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size,
+            Integer flashSaleId, String bookName, Byte status,
+            BigDecimal minPrice, BigDecimal maxPrice, BigDecimal minPercent, BigDecimal maxPercent, Integer minQuantity,
+            Integer maxQuantity) {
         Pageable pageable = PageRequest.of(page, size);
-        Specification<FlashSaleItem> spec = FlashSaleItemSpecification.filterBy(flashSaleId, bookName, status, minPrice, maxPrice, minPercent, maxPercent, minQuantity, maxQuantity);
+        Specification<FlashSaleItem> spec = FlashSaleItemSpecification.filterBy(flashSaleId, bookName, status, minPrice,
+                maxPrice, minPercent, maxPercent, minQuantity, maxQuantity);
         Page<FlashSaleItem> itemPage = flashSaleItemRepository.findAll(spec, pageable);
 
         List<FlashSaleItemResponse> content = itemPage.getContent().stream()
@@ -87,7 +91,8 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         if (book == null) {
             return new ApiResponse<>(404, "Sách không tồn tại", null);
         }
-        boolean exists = flashSaleItemRepository.existsByFlashSaleIdAndBookId(request.getFlashSaleId(), request.getBookId());
+        boolean exists = flashSaleItemRepository.existsByFlashSaleIdAndBookId(request.getFlashSaleId(),
+                request.getBookId());
         if (exists) {
             return new ApiResponse<>(400, "Sách này đã có trong flash sale này!", null);
         }
@@ -115,7 +120,8 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         if (existing == null) {
             return new ApiResponse<>(404, "Flash sale item không tồn tại", null);
         }
-        Integer flashSaleId = request.getFlashSaleId() != null ? request.getFlashSaleId() : existing.getFlashSale().getId();
+        Integer flashSaleId = request.getFlashSaleId() != null ? request.getFlashSaleId()
+                : existing.getFlashSale().getId();
         Integer bookId = request.getBookId() != null ? request.getBookId() : existing.getBook().getId();
         boolean exists = flashSaleItemRepository.existsByFlashSaleIdAndBookIdAndIdNot(flashSaleId, bookId, id);
         if (exists) {
@@ -157,7 +163,8 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         if (request.getBookId() != null || request.getFlashSaleId() != null) {
             try {
                 int syncedCartCount = cartItemService.syncCartItemsWithNewFlashSale(flashSaleId);
-                log.info("🔄 AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items",
+                log.info(
+                        "🔄 AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items",
                         id, flashSaleId, bookId, syncedCartCount);
             } catch (Exception e) {
                 log.warn("⚠️ WARNING: Failed to sync cart items after updating flash sale item {}: {}",
@@ -165,7 +172,8 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             }
         }
 
-        return new ApiResponse<>(200, "Cập nhật flash sale item thành công", flashSaleItemMapper.toResponse(updatedItem));
+        return new ApiResponse<>(200, "Cập nhật flash sale item thành công",
+                flashSaleItemMapper.toResponse(updatedItem));
     }
 
     @Override
@@ -183,8 +191,13 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
     @Override
     public ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale() {
         Long now = System.currentTimeMillis();
+        Long thirtyDaysAgo = now - (30L * 24 * 60 * 60 * 1000);
+        List<Object[]> books = flashSaleItemRepository.findAllBookFlashSaleDTO(now, thirtyDaysAgo);
 
-        return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", flashSaleItemRepository.findAllBookFlashSaleDTO(now));
+        List<FlashSaleItemBookRequest> dtoList = books.stream()
+                .map(BookFlashSaleMapper::mapToFlashSaleItemBookRequest)
+                .collect(Collectors.toList());
 
+        return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", dtoList);
     }
-} 
+}

@@ -6,27 +6,27 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class FlashSaleItemBookRequest {
-     private Integer bookId;
+    private Integer id;
     private String bookName;
-    private String description;
     private BigDecimal price;
+    private BigDecimal originalPrice;
+    private Integer discountPercentage;
     private Integer stockQuantity;
-    private Long publicationDate;
-    private String bookCode;
-    private Byte status;
-    private Integer categoryId;
+    private List<String> images;
     private String categoryName;
-    private String coverImageUrl;
-    private BigDecimal discountValue;
-    private Integer discountPercent;
-    private Boolean discountActive;
-    private Integer flashSaleItemId;
-    private  BigDecimal discountPrice;
-    private BigDecimal discountPercentage;
+    private Boolean isInFlashSale;
+    private BigDecimal flashSalePrice;
+    private Integer flashSaleStockQuantity;
+    private Integer flashSaleSoldCount;
+    private Integer soldCount;
+
+
 
 
 }

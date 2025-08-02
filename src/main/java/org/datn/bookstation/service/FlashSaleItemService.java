@@ -24,6 +24,7 @@ public interface FlashSaleItemService {
     ApiResponse<FlashSaleItemResponse> toggleStatus(Integer id);
 
     ApiResponse<List<FlashSaleItemBookRequest>> findAllBooksInActiveFlashSale();
+
     /**
      * Tìm flash sale item đang active theo bookId
      */
