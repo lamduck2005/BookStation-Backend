@@ -1,4 +1,4 @@
-package org.datn.bookstation.controller;
+    package org.datn.bookstation.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
@@ -11,28 +11,23 @@ import org.datn.bookstation.dto.response.UserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.datn.bookstation.repository.UserRankRepository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.List;
 import java.util.stream.Collectors;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 
 import org.datn.bookstation.entity.UserRank;
-import org.datn.bookstation.repository.PointRepository;
 import org.datn.bookstation.repository.UserRepository;
-import org.springframework.data.repository.query.Param;
+import org.datn.bookstation.repository.RoleRepository;
+import org.datn.bookstation.dto.response.RoleResponse;
+import org.datn.bookstation.dto.response.RoleDropdownResponse;
 
-import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
 
 
 
@@ -41,12 +36,14 @@ import com.microsoft.sqlserver.jdbc.spatialdatatypes.Point;
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
-    
     private final PasswordEncoder passwordEncoder;
+    
     @Autowired
     private UserRankRepository userRankRepo;
     @Autowired  
-    private UserRepository  userRepository;
+    private UserRepository userRepository;
+    @Autowired
+    private RoleRepository roleRepository;
 
 
      
@@ -217,5 +214,49 @@ public ResponseEntity<Boolean> updatePassword(@RequestParam Integer id,
             customers
         );
         return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * API lấy danh sách các vai trò để làm dropdown filter
+     */
+    @GetMapping("/roles")
+    public ResponseEntity<ApiResponse<List<RoleResponse>>> getRoles() {
+        List<RoleResponse> roles = roleRepository.findAll().stream()
+            .map(role -> new RoleResponse(
+                role.getId(),
+                role.getRoleName().name(),
+                role.getDescription(),
+                role.getStatus()
+            ))
+            .toList();
+        
+        ApiResponse<List<RoleResponse>> response = new ApiResponse<>(
+            HttpStatus.OK.value(), 
+            "Lấy danh sách vai trò thành công", 
+            roles
+        );
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * API lấy danh sách vai trò (id, tên tiếng Việt) cho dropdown filter
+     */
+    @GetMapping("/dropdown-roles")
+    public ResponseEntity<ApiResponse<List<RoleDropdownResponse>>> getRoleDropdown() {
+        List<RoleDropdownResponse> roles = roleRepository.findAll().stream()
+            .map(role -> new RoleDropdownResponse(role.getId(), getRoleNameVi(role.getRoleName().name())))
+            .collect(Collectors.toList());
+        ApiResponse<List<RoleDropdownResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách vai trò thành công", roles);
+        return ResponseEntity.ok(response);
+    }
+
+    // Hàm chuyển đổi tên vai trò sang tiếng Việt
+    private String getRoleNameVi(String roleName) {
+        switch (roleName) {
+            case "ADMIN": return "Quản trị viên";
+            case "CUSTOMER": return "Khách hàng";
+            case "STAFF": return "Nhân viên";
+            default: return roleName;
+        }
     }
 }

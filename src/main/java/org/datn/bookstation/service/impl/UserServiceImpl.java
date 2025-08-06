@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -27,7 +28,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.datn.bookstation.entity.User;
 
 @Service
 @AllArgsConstructor
@@ -35,11 +35,46 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     @Override
     public PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email, String phoneNumber, Integer roleId, String status) {
         Pageable pageable = PageRequest.of(page, size);
-        // TODO: Thay bằng query động nếu cần lọc nâng cao
-        Page<User> userPage = userRepository.findAll(pageable);
+        
+        // Tạo specification để filter
+        Specification<User> spec = (root, query, cb) -> cb.conjunction();
+        
+        // Filter theo tên
+        if (fullName != null && !fullName.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> 
+                cb.like(cb.lower(root.get("fullName")), "%" + fullName.toLowerCase() + "%"));
+        }
+        
+        // Filter theo email
+        if (email != null && !email.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> 
+                cb.like(cb.lower(root.get("email")), "%" + email.toLowerCase() + "%"));
+        }
+        
+        // Filter theo số điện thoại
+        if (phoneNumber != null && !phoneNumber.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> 
+                cb.like(root.get("phoneNumber"), "%" + phoneNumber + "%"));
+        }
+        
+        // Filter theo role
+        if (roleId != null) {
+            spec = spec.and((root, query, cb) -> 
+                cb.equal(root.get("role").get("id"), roleId));
+        }
+        
+        // Filter theo status
+        if (status != null && !status.trim().isEmpty()) {
+            Byte statusByte = "ACTIVE".equalsIgnoreCase(status) ? (byte) 1 : (byte) 0;
+            spec = spec.and((root, query, cb) -> 
+                cb.equal(root.get("status"), statusByte));
+        }
+        
+        Page<User> userPage = userRepository.findAll(spec, pageable);
         List<UserResponse> content = userPage.getContent().stream().map(this::toResponse).collect(Collectors.toList());
         return PaginationResponse.<UserResponse>builder()
                 .content(content)
@@ -57,23 +92,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ApiResponse<UserResponse> add(UserRequest req) {
+        // Validate các trường bắt buộc
+        if (req.getFull_name() == null || req.getFull_name().trim().isEmpty()) {
+            return new ApiResponse<>(400, "Họ tên không được để trống", null);
+        }
+        if (req.getEmail() == null || req.getEmail().trim().isEmpty()) {
+            return new ApiResponse<>(400, "Email không được để trống", null);
+        }
+        if (req.getRole_id() == null) {
+            return new ApiResponse<>(400, "Vai trò không được để trống", null);
+        }
+        
         // Validate email trùng
         if (userRepository.findByEmail(req.getEmail()).isPresent()) {
             return new ApiResponse<>(400, "Email đã tồn tại", null);
         }
+        
+        // Validate role tồn tại
+        if (roleRepository.findById(req.getRole_id()).isEmpty()) {
+            return new ApiResponse<>(400, "Vai trò không tồn tại", null);
+        }
+        
         User user = new User();
-        user.setFullName(req.getFull_name());
-        user.setEmail(req.getEmail());
-        user.setPhoneNumber(req.getPhone_number());
+        user.setFullName(req.getFull_name().trim());
+        user.setEmail(req.getEmail().trim());
+        user.setPhoneNumber(req.getPhone_number() != null ? req.getPhone_number().trim() : null);
         user.setStatus(parseStatus(req.getStatus()));
+        // Set password mặc định cho user được tạo bởi admin
+        user.setPassword(passwordEncoder.encode("123456")); // Password mặc định
         user.setCreatedAt(System.currentTimeMillis());
         user.setUpdatedAt(System.currentTimeMillis());
         user.setTotalSpent(req.getTotal_spent() != null ? req.getTotal_spent() : BigDecimal.ZERO);
         user.setTotalPoint(req.getTotal_point() != null ? req.getTotal_point() : 0);
-        // Set role nếu có
-        if (req.getRole_id() != null) {
-            user.setRole(roleRepository.findById(req.getRole_id()).orElse(null));
-        }
+        // Set role
+        user.setRole(roleRepository.findById(req.getRole_id()).get());
+        
         User saved = userRepository.save(user);
         return new ApiResponse<>(201, "Tạo mới thành công", toResponse(saved));
     }
@@ -193,6 +246,7 @@ public class UserServiceImpl implements UserService {
         res.setEmail(u.getEmail());
         res.setPhone_number(u.getPhoneNumber());
         res.setRole_id(u.getRole() != null ? u.getRole().getId() : null);
+        res.setRole_name(u.getRole() != null ? u.getRole().getRoleName().name() : null); // Thêm tên vai trò
         res.setStatus(u.getStatus() != null && u.getStatus() == 1 ? "ACTIVE" : "INACTIVE");
         res.setCreated_at(formatTime(u.getCreatedAt()));
         res.setUpdated_at(formatTime(u.getUpdatedAt()));
