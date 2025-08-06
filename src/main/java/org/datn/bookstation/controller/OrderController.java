@@ -214,6 +214,17 @@ public class OrderController {
             .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 
+    @GetMapping("/processing-by-book/{bookId}")
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getProcessingOrdersByBookId(@PathVariable Integer bookId) {
+        List<OrderResponse> orders = orderService.getProcessingOrdersByBookId(bookId);
+        ApiResponse<List<OrderResponse>> response = new ApiResponse<>(
+            HttpStatus.OK.value(),
+            "Lấy danh sách đơn hàng đang xử lý theo sách thành công",
+            orders
+        );
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/order-statuses")
     public ResponseEntity<ApiResponse<List<EnumOptionResponse>>> getOrderStatuses() {
         List<EnumOptionResponse> orderStatuses = Arrays.stream(OrderStatus.values())

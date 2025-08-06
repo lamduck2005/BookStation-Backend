@@ -49,6 +49,7 @@ public class OrderServiceImpl implements OrderService {
     private final AddressRepository addressRepository;
     private final RefundRequestRepository refundRequestRepository;
     private final RefundItemRepository refundItemRepository;
+    private final VoucherRepository voucherRepository;
     private final PointManagementService pointManagementService;
     private final OrderResponseMapper orderResponseMapper;
     private final VoucherCalculationService voucherCalculationService;
@@ -358,12 +359,16 @@ public class OrderServiceImpl implements OrderService {
 
         orderDetailRepository.saveAll(orderDetails);
 
-        // ✅ CẬP NHẬT VOUCHER USAGE (nếu có sử dụng voucher)
+        // ✅ CẬP NHẬT VOUCHER USAGE VÀ LƯU ORDERV OUCHER ENTITIES (nếu có sử dụng voucher)
         if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
             try {
+                // 1. Update voucher usage counts
                 voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
                 
-                // Update voucher count trong order theo số lượng discount đã tính
+                // 2. ✅ FIX: Save OrderVoucher entities để vouchers hiển thị trong API responses
+                saveOrderVouchers(order, request.getVoucherIds(), calculatedSubtotal, shippingFee);
+                
+                // 3. Update voucher count trong order theo số lượng discount đã tính
                 order.setRegularVoucherCount(discountAmount.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
                 order.setShippingVoucherCount(discountShipping.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
                 orderRepository.save(order);
@@ -481,6 +486,29 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getOrdersByStatus(OrderStatus status) {
         List<Order> orders = orderRepository.findByOrderStatusOrderByCreatedAtDesc(status);
         return orders.stream()
+            .map(orderResponseMapper::toResponse)
+            .toList();
+    }
+
+    @Override
+    public List<OrderResponse> getProcessingOrdersByBookId(Integer bookId) {
+        // Sử dụng trạng thái processing từ BookProcessingQuantityService
+        List<OrderStatus> processingStatuses = List.of(
+            OrderStatus.PENDING,                        // Chờ xử lý
+            OrderStatus.CONFIRMED,                      // Đã xác nhận  
+            OrderStatus.SHIPPED,                        // Đang giao hàng
+            OrderStatus.DELIVERY_FAILED,                // Giao hàng thất bại
+            OrderStatus.REDELIVERING,                   // Đang giao lại
+            OrderStatus.RETURNING_TO_WAREHOUSE,         // Đang trả về kho
+            OrderStatus.REFUND_REQUESTED,               // Yêu cầu hoàn trả
+            OrderStatus.AWAITING_GOODS_RETURN,          // Đang chờ lấy hàng hoàn trả
+            OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,   // Đã nhận hàng hoàn trả từ khách
+            OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,    // Hàng đã về kho
+            OrderStatus.REFUNDING                       // Đang hoàn tiền
+        );
+        
+        List<Order> processingOrders = orderDetailRepository.findProcessingOrdersByBookId(bookId, processingStatuses);
+        return processingOrders.stream()
             .map(orderResponseMapper::toResponse)
             .toList();
     }
@@ -962,5 +990,56 @@ public class OrderServiceImpl implements OrderService {
         // Map sang DTO
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
         return response;
+    }
+    
+    /**
+     * ✅ ENHANCED: Save OrderVoucher entities để vouchers hiển thị trong API responses
+     */
+    private void saveOrderVouchers(Order order, List<Integer> voucherIds, BigDecimal orderSubtotal, BigDecimal shippingFee) {
+        if (voucherIds == null || voucherIds.isEmpty()) {
+            return;
+        }
+        
+        try {
+            // Get vouchers from database
+            List<Voucher> vouchers = voucherRepository.findAllById(voucherIds);
+            
+            for (Voucher voucher : vouchers) {
+                // Calculate actual discount applied for this voucher
+                BigDecimal discountApplied = voucherCalculationService.calculateSingleVoucherDiscount(voucher, orderSubtotal, shippingFee);
+                
+                // Create OrderVoucher entity
+                OrderVoucher orderVoucher = new OrderVoucher();
+                
+                // Set composite ID
+                OrderVoucherId id = new OrderVoucherId();
+                id.setOrderId(order.getId());
+                id.setVoucherId(voucher.getId());
+                orderVoucher.setId(id);
+                
+                // Set relationships
+                orderVoucher.setOrder(order);
+                orderVoucher.setVoucher(voucher);
+                
+                // Set voucher information (will be auto-set in @PrePersist)
+                orderVoucher.setVoucherCategory(voucher.getVoucherCategory());
+                orderVoucher.setDiscountType(voucher.getDiscountType());
+                
+                // Set discount applied amount
+                orderVoucher.setDiscountApplied(discountApplied);
+                
+                // appliedAt will be set in @PrePersist
+                
+                // Save OrderVoucher
+                orderVoucherRepository.save(orderVoucher);
+                
+                log.info("✅ Saved OrderVoucher: orderId={}, voucherId={}, discountApplied={}", 
+                    order.getId(), voucher.getId(), discountApplied);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to save OrderVoucher entities for order {}: {}", order.getId(), e.getMessage(), e);
+            // Không throw exception để không làm fail việc tạo order
+        }
     }
 }

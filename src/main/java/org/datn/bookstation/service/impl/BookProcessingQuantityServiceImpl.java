@@ -22,18 +22,31 @@ public class BookProcessingQuantityServiceImpl implements BookProcessingQuantity
     private final OrderDetailRepository orderDetailRepository;
     private final BookRepository bookRepository;
     
-    // ✅ FIXED: Các trạng thái đơn hàng được coi là "đang xử lý"
-    // Bao gồm cả GOODS_RECEIVED_FROM_CUSTOMER vì đây là hàng cần trả về kho
+    // ✅ FIXED: Các trạng thái đơn hàng được coi là "đang xử lý"  
+    // LOẠI BỎ TẤT CẢ REFUND-related statuses vì sẽ tính riêng qua RefundItem
     private static final List<OrderStatus> PROCESSING_STATUSES = List.of(
-        OrderStatus.PENDING,
-        OrderStatus.CONFIRMED, 
-        OrderStatus.SHIPPED,
-        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER  // ✅ THÊM: Hàng đã nhận từ khách, cần xử lý trả về kho
+        OrderStatus.PENDING,                        // Chờ xử lý
+        OrderStatus.CONFIRMED,                      // Đã xác nhận  
+        OrderStatus.SHIPPED,                        // Đang giao hàng
+        OrderStatus.DELIVERY_FAILED,                // Giao hàng thất bại
+        OrderStatus.REDELIVERING,                   // Đang giao lại
+        OrderStatus.RETURNING_TO_WAREHOUSE          // Đang trả về kho
+        // ❌ LOẠI BỎ TẤT CẢ: REFUND_REQUESTED, AWAITING_GOODS_RETURN, REFUNDING
+        // ❌ KHÔNG BAO GỒM: DELIVERED, REFUNDED, PARTIALLY_REFUNDED, CANCELED, GOODS_RECEIVED_FROM_CUSTOMER, GOODS_RETURNED_TO_WAREHOUSE
     );
     
     @Override
     public Integer getProcessingQuantity(Integer bookId) {
-        return orderDetailRepository.sumQuantityByBookIdAndOrderStatuses(bookId, PROCESSING_STATUSES);
+        // 1. Tính từ các trạng thái đang xử lý bình thường (không bao gồm refund statuses)
+        Integer processingQuantity = orderDetailRepository.sumQuantityByBookIdAndOrderStatuses(bookId, PROCESSING_STATUSES);
+        
+        // 2. ✅ Cộng CHÍNH XÁC số lượng RefundItem đang active (PENDING hoặc APPROVED)
+        Integer activeRefundQuantity = orderDetailRepository.sumActiveRefundQuantityByBookId(bookId);
+        
+        int total = (processingQuantity != null ? processingQuantity : 0) + 
+                   (activeRefundQuantity != null ? activeRefundQuantity : 0);
+        
+        return total;
     }
     
     @Override

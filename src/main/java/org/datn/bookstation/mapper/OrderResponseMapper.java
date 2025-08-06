@@ -50,6 +50,7 @@ public class OrderResponseMapper {
         response.setShippingFee(order.getShippingFee());
         response.setDiscountAmount(order.getDiscountAmount());
         response.setDiscountShipping(order.getDiscountShipping());
+        response.setVoucherDiscountAmount(order.getDiscountAmount().add(order.getDiscountShipping())); // ✅ THÊM: Tổng discount voucher
         response.setTotalAmount(order.getTotalAmount());
         response.setRegularVoucherCount(order.getRegularVoucherCount());
         response.setShippingVoucherCount(order.getShippingVoucherCount());
@@ -139,11 +140,19 @@ public class OrderResponseMapper {
         VoucherResponse response = new VoucherResponse();
         response.setId(orderVoucher.getVoucher().getId());
         response.setCode(orderVoucher.getVoucher().getCode());
+        response.setName(orderVoucher.getVoucher().getName());
+        response.setDescription(orderVoucher.getVoucher().getDescription());
+        response.setVoucherCategory(orderVoucher.getVoucher().getVoucherCategory());
+        response.setDiscountType(orderVoucher.getVoucher().getDiscountType());
         response.setDiscountPercentage(orderVoucher.getVoucher().getDiscountPercentage());
+        response.setDiscountAmount(orderVoucher.getVoucher().getDiscountAmount());
         response.setStartTime(orderVoucher.getVoucher().getStartTime());
         response.setEndTime(orderVoucher.getVoucher().getEndTime());
         response.setMinOrderValue(orderVoucher.getVoucher().getMinOrderValue());
         response.setMaxDiscountValue(orderVoucher.getVoucher().getMaxDiscountValue());
+        response.setUsageLimit(orderVoucher.getVoucher().getUsageLimit());
+        response.setUsedCount(orderVoucher.getVoucher().getUsedCount());
+        response.setUsageLimitPerUser(orderVoucher.getVoucher().getUsageLimitPerUser());
         response.setStatus(orderVoucher.getVoucher().getStatus());
         response.setCreatedAt(orderVoucher.getVoucher().getCreatedAt());
         response.setUpdatedAt(orderVoucher.getVoucher().getUpdatedAt());

@@ -52,4 +52,20 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
 
     @Query("SELECT od.book.id, COALESCE(SUM(od.quantity), 0) FROM OrderDetail od JOIN od.order o WHERE od.book.id IN :bookIds AND o.orderStatus IN :statuses GROUP BY od.book.id")
     List<Object[]> sumQuantityByBookIdsAndOrderStatuses(@Param("bookIds") List<Integer> bookIds, @Param("statuses") List<org.datn.bookstation.entity.enums.OrderStatus> statuses);
+
+    // ✅ THÊM MỚI: Lấy danh sách Order đang xử lý theo book ID
+    @Query("SELECT DISTINCT o FROM Order o JOIN o.orderDetails od WHERE od.book.id = :bookId AND o.orderStatus IN :processingStatuses ORDER BY o.createdAt DESC")
+    List<org.datn.bookstation.entity.Order> findProcessingOrdersByBookId(@Param("bookId") Integer bookId, @Param("processingStatuses") List<org.datn.bookstation.entity.enums.OrderStatus> processingStatuses);
+
+    // ✅ THÊM MỚI: Tính số lượng yêu cầu hoàn trả theo book ID (cần cộng thêm vào processing)
+    @Query("SELECT COALESCE(SUM(ri.refundQuantity), 0) FROM RefundItem ri " +
+           "WHERE ri.book.id = :bookId " +
+           "AND ri.refundRequest.status IN ('PENDING', 'APPROVED')")
+    Integer sumRefundRequestedQuantityByBookId(@Param("bookId") Integer bookId);
+
+    // ✅ THAY ĐỔI: Đếm CHÍNH XÁC số lượng RefundItem đang trong process (tất cả trạng thái active)
+    @Query("SELECT COALESCE(SUM(ri.refundQuantity), 0) FROM RefundItem ri " +
+           "WHERE ri.book.id = :bookId " +
+           "AND ri.refundRequest.status IN ('PENDING', 'APPROVED')")
+    Integer sumActiveRefundQuantityByBookId(@Param("bookId") Integer bookId);
 }

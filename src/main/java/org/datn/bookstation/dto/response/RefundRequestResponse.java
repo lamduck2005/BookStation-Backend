@@ -50,6 +50,7 @@ public class RefundRequestResponse {
         private BigDecimal unitPrice;
         private BigDecimal totalAmount;
         private String reason;
+        private String reasonDisplay; // ✅ THÊM: Hiển thị lý do bằng tiếng Việt
         private Long createdAt;
     }
 }

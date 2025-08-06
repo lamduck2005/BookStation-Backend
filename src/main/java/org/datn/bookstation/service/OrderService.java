@@ -40,6 +40,9 @@ public interface OrderService {
     
     List<OrderResponse> getOrdersByStatus(OrderStatus status);
     
+    // ✅ THÊM MỚI: API lấy danh sách đơn hàng đang xử lý theo book ID
+    List<OrderResponse> getProcessingOrdersByBookId(Integer bookId);
+    
     ApiResponse<OrderResponse> cancelOrder(Integer id, String reason, Integer userId);
     
     /**
