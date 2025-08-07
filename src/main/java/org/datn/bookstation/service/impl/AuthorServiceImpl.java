@@ -5,6 +5,7 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.repository.AuthorRepository;
+import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.service.AuthorService;
 import org.datn.bookstation.specification.AuthorSpecification;
 import org.springframework.data.domain.Page;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +22,9 @@ import java.util.List;
 @AllArgsConstructor
 public class AuthorServiceImpl implements AuthorService {
     private final AuthorRepository authorRepository;
+
+    @Autowired
+    private BookRepository bookRepository;
 
     @Override
     public ApiResponse<List<Author>> getAll() {
@@ -187,6 +192,13 @@ public class AuthorServiceImpl implements AuthorService {
             if (author == null) {
                 return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
             }
+
+            // ✅ Không cho phép xóa nếu có sách thuộc tác giả này
+            boolean hasBook = bookRepository.existsByAuthorBooks_Author_Id(id); // hoặc existsByAuthorBooks_Author_Id(id)
+            if (hasBook) {
+                return new ApiResponse<>(400, "Không thể xóa vì có sách thuộc tác giả này!", null);
+            }
+
             authorRepository.deleteById(id);
             return new ApiResponse<>(200, "Xóa tác giả thành công", author);
         } catch (Exception e) {

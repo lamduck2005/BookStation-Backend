@@ -109,7 +109,6 @@ public class TrendingBookMapper {
         BigDecimal flashSalePrice = (BigDecimal) data[18]; // flashSalePrice
         Integer flashSaleStockQuantity = (Integer) data[19]; // flashSaleStockQuantity
         Object flashSaleSoldCountObj = data[20]; // flashSaleSoldCount
-        
         int flashSaleSoldCount = 0;
         if (flashSaleSoldCountObj != null) {
             if (flashSaleSoldCountObj instanceof Long) {
@@ -122,6 +121,8 @@ public class TrendingBookMapper {
         response.setIsInFlashSale(isInFlashSale != null ? isInFlashSale : false);
         response.setFlashSalePrice(flashSalePrice);
         response.setFlashSaleStockQuantity(flashSaleStockQuantity);
+        System.out.println("flashSaleSoldCountObj"+flashSaleSoldCount);
+
         response.setFlashSaleSoldCount(flashSaleSoldCount);
         
         System.out.println("🔥 TRENDING REAL - Book ID: " + response.getId() + 

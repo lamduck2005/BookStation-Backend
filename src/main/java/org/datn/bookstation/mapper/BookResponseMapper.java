@@ -82,7 +82,7 @@ public class BookResponseMapper {
                 .collect(Collectors.toList());
             response.setAuthors(authors);
         }
-        
+
         // Set images (nhiều ảnh)
         if (book.getImages() != null && !book.getImages().isEmpty()) {
             List<String> images = java.util.Arrays.stream(book.getImages().split(","))
@@ -96,11 +96,13 @@ public class BookResponseMapper {
         
         // ✅ ADMIN CẦN: Tính số lượng đã bán
         Integer totalSold = orderDetailRepository.countSoldQuantityByBook(book.getId());
+
+
         response.setSoldCount(totalSold != null ? totalSold : 0);
-        
         // ✅ ADMIN CẦN: Thông tin discount của book
         response.setDiscountValue(book.getDiscountValue());
         response.setDiscountPercent(book.getDiscountPercent());
+        System.out.println("getDiscountPercent"+book.getDiscountPercent());
         // ✅ Thêm discountActive vào response
         response.setDiscountActive(book.getDiscountActive());
         // ✅ SỬA: Trả về soldCount từ Book entity
@@ -109,6 +111,7 @@ public class BookResponseMapper {
         response.setProcessingQuantity(bookProcessingQuantityService.getProcessingQuantity(book.getId()));
         // ✅ ADMIN CẦN: Kiểm tra Flash Sale hiện tại
         FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+        System.out.println(currentFlashSale);
         if (currentFlashSale != null) {
             response.setIsInFlashSale(true);
             response.setFlashSalePrice(currentFlashSale.getDiscountPrice()); // discountPrice là giá sau giảm giá

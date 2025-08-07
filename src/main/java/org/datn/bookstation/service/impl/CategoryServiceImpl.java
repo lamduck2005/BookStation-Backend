@@ -6,12 +6,14 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.ParentCategoryResponse;
 import org.datn.bookstation.entity.Category;
 import org.datn.bookstation.mapper.CategoryMap;
+import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.service.CategoryService;
 import org.datn.bookstation.specification.CategorySpecification;
 
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +23,9 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
     private CategoryRepository categoryRepository;
     private CategoryMap categoryMap;
+
+    @Autowired
+    private BookRepository bookRepository;
 
     @Override
     public ApiResponse<List<Category>> getAll() {
@@ -99,12 +104,12 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> update(Category category, Integer id) {
         try {
-              // ✅ Kiểm tra tên trùng (loại trừ chính nó)
-        String trimmedName = category.getCategoryName().trim();
-        Category existingCategory = categoryRepository.findByCategoryNameIgnoreCase(trimmedName);
-        if (existingCategory != null && !existingCategory.getId().equals(id)) {
-            return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
-        }
+            // ✅ Kiểm tra tên trùng (loại trừ chính nó)
+            String trimmedName = category.getCategoryName().trim();
+            Category existingCategory = categoryRepository.findByCategoryNameIgnoreCase(trimmedName);
+            if (existingCategory != null && !existingCategory.getId().equals(id)) {
+                return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
+            }
 
             // ✅ Validate ID
             if (id == null || id <= 0) {
@@ -137,6 +142,12 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedBy(1);
 
+            // ✅ Không cho phép sửa nếu id này là cha của danh mục khác
+            boolean isParentOfAny = categoryRepository.existsByParentCategoryId(id);
+            if (isParentOfAny) {
+                return new ApiResponse<>(400, "Không thể sửa vì danh mục này đang là cha của danh mục khác!", null);
+            }
+
             categoryById.setId(id);
             Category updatedCategory = categoryRepository.save(categoryById);
             return new ApiResponse<>(200, "Cập nhật danh mục thành công", updatedCategory);
@@ -152,6 +163,19 @@ public class CategoryServiceImpl implements CategoryService {
             if (categoryById == null) {
                 return new ApiResponse<>(404, "Không tìm thấy danh mục với ID: " + id, null);
             }
+
+            // ✅ Không cho phép xóa nếu id này là cha của danh mục khác
+            boolean isParentOfAny = categoryRepository.existsByParentCategoryId(id);
+            if (isParentOfAny) {
+                return new ApiResponse<>(400, "Không thể xóa vì danh mục này đang là cha của danh mục khác!", null);
+            }
+
+            // ✅ Không cho phép xóa nếu có sách thuộc danh mục này
+            boolean hasBook = bookRepository.existsByCategoryId(id);
+            if (hasBook) {
+                return new ApiResponse<>(400, "Không thể xóa vì có sách thuộc danh mục này!", null);
+            }
+
             categoryRepository.delete(categoryById);
             return new ApiResponse<>(200, "Xóa danh mục thành công", categoryById);
         } catch (Exception e) {

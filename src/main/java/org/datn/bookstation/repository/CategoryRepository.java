@@ -63,4 +63,6 @@ public interface CategoryRepository extends JpaRepository<Category, Integer>, Jp
 
     // Trong CategoryRepository
     Category findByCategoryNameIgnoreCase(String categoryName);
+
+    boolean existsByParentCategoryId(Integer id);
 }

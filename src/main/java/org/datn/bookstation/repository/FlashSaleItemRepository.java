@@ -109,34 +109,48 @@ public interface FlashSaleItemRepository
      * Lấy danh sách tất cả sách (Book) hiện đang trong flash‑sale còn hiệu lực.
      */
     @Query("""
-                SELECT b.id as id,
-                       b.bookName as bookName,
-                       b.price as price,
-                       b.stockQuantity as stockQuantity,
-                       b.images as images,
-                       b.category.categoryName as categoryName,
-                       CASE WHEN fsi.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
-                       fsi.discountPrice as flashSalePrice,
-                       fsi.stockQuantity as flashSaleStockQuantity,
-                       0 as flashSaleSoldCount,
-                       COALESCE(salesData.soldCount, 0) as soldCount
-                FROM FlashSaleItem fsi
-                JOIN fsi.book b
-                JOIN b.category c
-                LEFT JOIN (
-                    SELECT od.book.id as bookId,
-                           SUM(od.quantity) as soldCount,
-                           COUNT(DISTINCT od.order.id) as orderCount
-                    FROM OrderDetail od
-                    WHERE od.order.createdAt >= :thirtyDaysAgo
-                      AND od.order.orderStatus = 'COMPLETED'
-                    GROUP BY od.book.id
-                ) salesData ON b.id = salesData.bookId
-                WHERE fsi.status = 1
-                  AND fsi.flashSale.status = 1
-                  AND fsi.flashSale.startTime <= :now
-                  AND fsi.flashSale.endTime >= :now
-                  AND b.status = 1
+                    SELECT b.id as id,
+                           b.bookName as bookName,
+                           b.price as price,
+                           b.stockQuantity as stockQuantity,
+                           b.images as images,
+                           b.category.categoryName as categoryName,
+                           CASE WHEN fsi.id IS NOT NULL THEN true ELSE false END as isInFlashSale,
+                           fsi.discountPrice as flashSalePrice,
+                           fsi.stockQuantity as flashSaleStockQuantity,
+                           COALESCE(flashSaleSold.soldCount, 0) as flashSaleSoldCount,
+                           COALESCE(salesData.soldCount, 0) as soldCount
+                    FROM FlashSaleItem fsi
+                    JOIN fsi.book b
+                    JOIN b.category c
+                    LEFT JOIN (
+                        SELECT od.book.id as bookId,
+                               SUM(od.quantity) as soldCount,
+                               COUNT(DISTINCT od.order.id) as orderCount
+                        FROM OrderDetail od
+                        WHERE od.order.createdAt >= :thirtyDaysAgo
+                          AND od.order.orderStatus = 'COMPLETED'
+                        GROUP BY od.book.id
+                    ) salesData ON b.id = salesData.bookId
+                    LEFT JOIN (
+                        SELECT od.book.id as bookId,
+                               SUM(od.quantity) as soldCount
+                        FROM OrderDetail od
+                        JOIN FlashSaleItem fsi ON od.book.id = fsi.book.id 
+                        JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+                        WHERE od.order.orderStatus = 'COMPLETED'
+                              AND od.createdAt >= fs.startTime
+                              AND od.createdAt <= fs.endTime
+                              AND fs.status = 1 
+                              AND fsi.status = 1
+                        GROUP BY od.book.id
+                    ) flashSaleSold ON b.id = flashSaleSold.bookId
+                    WHERE fsi.status = 1
+                      AND fsi.flashSale.status = 1
+                      AND fsi.flashSale.startTime <= :now
+                      AND fsi.flashSale.endTime >= :now
+                      AND b.status = 1
+                      AND b.stockQuantity > 0
             """)
     List<Object[]> findAllBookFlashSaleDTO(@Param("now") Long now,
                                            @Param("thirtyDaysAgo") Long thirtyDaysAgo);

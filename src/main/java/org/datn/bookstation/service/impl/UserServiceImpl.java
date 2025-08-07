@@ -6,6 +6,7 @@ import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserResponse;
+import org.datn.bookstation.dto.response.TopSpenderResponse;
 import org.datn.bookstation.entity.Role;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.mapper.UserMapper;
@@ -35,8 +36,10 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final RoleRepository roleRepository;
+
     @Override
-    public PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email, String phoneNumber, Integer roleId, String status) {
+    public PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email,
+            String phoneNumber, Integer roleId, String status) {
         Pageable pageable = PageRequest.of(page, size);
         // TODO: Thay bằng query động nếu cần lọc nâng cao
         Page<User> userPage = userRepository.findAll(pageable);
@@ -86,7 +89,8 @@ public class UserServiceImpl implements UserService {
         }
         User user = userOpt.get();
         // Nếu đổi email, check trùng
-        if (req.getEmail() != null && !req.getEmail().equals(user.getEmail()) && userRepository.findByEmail(req.getEmail()).isPresent()) {
+        if (req.getEmail() != null && !req.getEmail().equals(user.getEmail())
+                && userRepository.findByEmail(req.getEmail()).isPresent()) {
             return new ApiResponse<>(400, "Email đã tồn tại", null);
         }
         user.setFullName(req.getFull_name());
@@ -116,7 +120,7 @@ public class UserServiceImpl implements UserService {
             return new ApiResponse<>(404, "Không tìm thấy", null);
         }
         User user = userOpt.get();
-        user.setStatus(user.getStatus() != null && user.getStatus() == 1 ? (byte)0 : (byte)1);
+        user.setStatus(user.getStatus() != null && user.getStatus() == 1 ? (byte) 0 : (byte) 1);
         user.setUpdatedAt(System.currentTimeMillis());
         User saved = userRepository.save(user);
         return new ApiResponse<>(200, "Cập nhật trạng thái thành công", toResponse(saved));
@@ -124,41 +128,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ApiResponse<User> getUserByEmail(String email) {
-        return new ApiResponse<>(200, "Cập nhật trạng thái thành công",userRepository.findByEmail(email).get());
+        return new ApiResponse<>(200, "Cập nhật trạng thái thành công", userRepository.findByEmail(email).get());
 
     }
 
     @Override
     public ApiResponse<User> updateClient(User user, Integer id) {
         User userById = userRepository.findById(id).get();
-        if (userById==null) {
+        if (userById == null) {
             return new ApiResponse<>(404, "Không tìm thấy", null);
         }
         userById.setUpdatedAt(System.currentTimeMillis());
         userById.setFullName(user.getFullName());
         userById.setPhoneNumber(user.getPhoneNumber());
         User userUpdate = userRepository.save(userById);
-        return new ApiResponse<>(200, "Cập nhật thông tin thành công",userUpdate);
+        return new ApiResponse<>(200, "Cập nhật thông tin thành công", userUpdate);
     }
 
     @Override
     public ApiResponse<List<UserRoleRequest>> getUserPOS(String text) {
         Specification<User> userSpecification = UserRankSpecification.filterBy(text);
-        List<User> users = userRepository.findAll( userSpecification);
+        List<User> users = userRepository.findAll(userSpecification);
 
-        return new ApiResponse<>(200,"Lấy danh sách user thành công",userMapper.userMapper(users));
+        return new ApiResponse<>(200, "Lấy danh sách user thành công", userMapper.userMapper(users));
     }
 
     @Override
     public ApiResponse<User> addRetail(User req) {
-        if (userRepository.getByPhoneNumber(req.getPhoneNumber())==null){
+        if (userRepository.getByPhoneNumber(req.getPhoneNumber()) == null) {
             Role role = roleRepository.findById(3).get();
             req.setRole(role);
 
-         User userSave=   userRepository.save(req);
-            return new ApiResponse<>(200,"Thêm khách vãng lai thành công",userSave);
-        }else {
-            return new ApiResponse<>(400,"Thêm khách lẻ thất bại ",null);
+            User userSave = userRepository.save(req);
+            return new ApiResponse<>(200, "Thêm khách vãng lai thành công", userSave);
+        } else {
+            return new ApiResponse<>(400, "Thêm khách lẻ thất bại ", null);
         }
 
     }
@@ -170,19 +174,41 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public ApiResponse<List<TopSpenderResponse>> getTopSpenders(int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        List<TopSpenderResponse> result = userRepository.findTopSpenders(pageable);
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    @Override
+    public ApiResponse<Long> getTotalUsers() {
+        long total = userRepository.count();
+        long totalActive = userRepository.countActiveUsers();
+        // Nếu bạn chỉ muốn trả về tổng user đang hoạt động:
+        return new ApiResponse<>(200, "Thành công", totalActive);
+        // Nếu muốn trả về tổng tất cả user, dùng: return new ApiResponse<>(200, "Thành
+        // công", total);
+    }
+
     // Helper chuyển status String -> Byte
     private Byte parseStatus(String status) {
-        if (status == null) return 1;
-        if (status.equalsIgnoreCase("ACTIVE") || status.equals("1")) return 1;
-        if (status.equalsIgnoreCase("INACTIVE") || status.equals("0")) return 0;
+        if (status == null)
+            return 1;
+        if (status.equalsIgnoreCase("ACTIVE") || status.equals("1"))
+            return 1;
+        if (status.equalsIgnoreCase("INACTIVE") || status.equals("0"))
+            return 0;
         try {
             return Byte.valueOf(status);
         } catch (Exception e) {
             return 1;
         }
     }
+
     private Byte parseStatus(String status, Byte defaultStatus) {
-        if (status == null) return defaultStatus != null ? defaultStatus : 1;
+        if (status == null)
+            return defaultStatus != null ? defaultStatus : 1;
         return parseStatus(status);
     }
 
@@ -202,7 +228,8 @@ public class UserServiceImpl implements UserService {
     }
 
     private String formatTime(Long millis) {
-        if (millis == null) return null;
+        if (millis == null)
+            return null;
         return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
     }
 
@@ -214,10 +241,11 @@ public class UserServiceImpl implements UserService {
         if (search == null || search.trim().isEmpty()) {
             return List.of();
         }
-        
+
         String searchTerm = "%" + search.toLowerCase().trim() + "%";
-        List<User> users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(searchTerm, searchTerm);
-        
+        List<User> users = userRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(searchTerm,
+                searchTerm);
+
         return users.stream()
                 .filter(user -> user.getStatus() != null && user.getStatus() == 1) // Chỉ lấy user active
                 .map(this::toResponse)

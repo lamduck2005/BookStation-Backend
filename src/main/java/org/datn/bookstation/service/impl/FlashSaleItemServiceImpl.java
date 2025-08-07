@@ -83,6 +83,26 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
 
     @Override
     public ApiResponse<FlashSaleItemResponse> create(FlashSaleItemRequest request) {
+        // Validate đầu vào
+        if (request.getFlashSaleId() == null || request.getBookId() == null) {
+            return new ApiResponse<>(400, "Thiếu flashSaleId hoặc bookId", null);
+        }
+        if (request.getDiscountPrice() == null || request.getDiscountPrice().compareTo(BigDecimal.ZERO) < 0) {
+            return new ApiResponse<>(400, "Giá khuyến mãi không hợp lệ", null);
+        }
+        if (request.getDiscountPercentage() != null
+                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 0
+                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(100)) > 0)) {
+            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 0 đến 100", null);
+        }
+        if (request.getStockQuantity() == null || request.getStockQuantity() < 0) {
+            return new ApiResponse<>(400, "Số lượng tồn kho không hợp lệ", null);
+        }
+        if (request.getMaxPurchasePerUser() != null && request.getMaxPurchasePerUser() < 0) {
+            return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
+        }
+
+        // Các bước xử lý như cũ...
         FlashSale flashSale = flashSaleRepository.findById(request.getFlashSaleId()).orElse(null);
         if (flashSale == null) {
             return new ApiResponse<>(404, "Flash sale không tồn tại", null);
@@ -120,6 +140,23 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         if (existing == null) {
             return new ApiResponse<>(404, "Flash sale item không tồn tại", null);
         }
+
+        // Validate đầu vào
+        if (request.getDiscountPrice() != null && request.getDiscountPrice().compareTo(BigDecimal.ZERO) < 0) {
+            return new ApiResponse<>(400, "Giá khuyến mãi không hợp lệ", null);
+        }
+        if (request.getDiscountPercentage() != null
+                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 0
+                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(100)) > 0)) {
+            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 0 đến 100", null);
+        }
+        if (request.getStockQuantity() != null && request.getStockQuantity() <= 0) {
+            return new ApiResponse<>(400, "Số lượng tồn kho không hợp lệ", null);
+        }
+        if (request.getMaxPurchasePerUser() != null && request.getMaxPurchasePerUser() < 0) {
+            return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
+        }
+
         Integer flashSaleId = request.getFlashSaleId() != null ? request.getFlashSaleId()
                 : existing.getFlashSale().getId();
         Integer bookId = request.getBookId() != null ? request.getBookId() : existing.getBook().getId();
@@ -195,7 +232,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         List<Object[]> books = flashSaleItemRepository.findAllBookFlashSaleDTO(now, thirtyDaysAgo);
 
         List<FlashSaleItemBookRequest> dtoList = books.stream()
-                .map(BookFlashSaleMapper::mapToFlashSaleItemBookRequest)
+                .map(data -> BookFlashSaleMapper.mapToFlashSaleItemBookRequest(data, flashSaleItemRepository))
                 .collect(Collectors.toList());
 
         return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", dtoList);

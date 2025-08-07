@@ -3,15 +3,8 @@ package org.datn.bookstation.service.impl;
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.*;
 import lombok.extern.slf4j.Slf4j;
-import org.datn.bookstation.dto.request.BookCategoryRequest;
-import org.datn.bookstation.dto.request.BookRequest;
-import org.datn.bookstation.dto.request.TrendingRequest;
-import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
-import org.datn.bookstation.dto.response.ApiResponse;
-import org.datn.bookstation.dto.response.BookResponse;
-import org.datn.bookstation.dto.response.PaginationResponse;
-import org.datn.bookstation.dto.response.TrendingBookResponse;
-import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
+
+import org.datn.bookstation.dto.response.*;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
@@ -21,10 +14,7 @@ import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
 import org.datn.bookstation.entity.FlashSaleItem;
-import org.datn.bookstation.mapper.BookCategoryMapper;
-import org.datn.bookstation.mapper.BookMapper;
-import org.datn.bookstation.mapper.BookResponseMapper;
-import org.datn.bookstation.mapper.TrendingBookMapper;
+import org.datn.bookstation.mapper.*;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
@@ -34,9 +24,6 @@ import org.datn.bookstation.repository.AuthorRepository;
 import org.datn.bookstation.repository.AuthorBookRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
-import org.datn.bookstation.service.BookService;
-import org.datn.bookstation.service.TrendingCacheService;
-import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.service.*;
 import org.datn.bookstation.specification.BookSpecification;
 import org.springframework.cache.annotation.Cacheable;
@@ -58,7 +45,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.datn.bookstation.validator.ImageUrlValidator;
-import org.datn.bookstation.service.BookProcessingQuantityService;
 
 @Service
 @AllArgsConstructor
@@ -81,11 +67,12 @@ public class BookServiceImpl implements BookService {
     private final OrderDetailRepository orderDetailRepository;
     private final BookProcessingQuantityService bookProcessingQuantityService;
     private final FlashSaleService flashSaleService;
+
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
-                                                                 Integer categoryId, Integer supplierId, Integer publisherId,
-                                                                 BigDecimal minPrice, BigDecimal maxPrice,
-                                                                 Byte status, String bookCode) {
+            Integer categoryId, Integer supplierId, Integer publisherId,
+            BigDecimal minPrice, BigDecimal maxPrice,
+            Byte status, String bookCode) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Specification<Book> specification = BookSpecification.filterBy(bookName, categoryId, supplierId, publisherId,
                 minPrice, maxPrice, status, bookCode);
@@ -105,19 +92,21 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName, Integer parentId, Integer categoryId,List<Integer> authorId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice) {
+    public PaginationResponse<FlashSaleItemBookRequest> getAllWithPagination(int page, int size, String bookName,
+            Integer parentId,
+            Integer categoryId, List<Integer> authorId, Integer publisherId, BigDecimal minPrice, BigDecimal maxPrice) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Specification<Book> specification = BookSpecification.filterBy(bookName, parentId, categoryId,authorId, publisherId,
+        Specification<Book> specification = BookSpecification.filterBy(bookName, parentId, categoryId, authorId,
+                publisherId,
                 minPrice, maxPrice);
         Page<Book> bookPage = bookRepository.findAll(specification, pageable);
-        List<Book> books = bookRepository.findAll(specification);
-        System.out.println(books);
 
-        List<BookResponse> bookResponses = bookPage.getContent().stream()
-                .map(bookResponseMapper::toResponse)
+        List<FlashSaleItemBookRequest> bookResponses = bookPage.getContent().stream()
+                .map(book -> BookFlashSaleMapper.mapToFlashSaleItemBookRequest(book, flashSaleItemRepository,
+                        orderDetailRepository))
                 .collect(Collectors.toList());
 
-        return PaginationResponse.<BookResponse>builder()
+        return PaginationResponse.<FlashSaleItemBookRequest>builder()
                 .content(bookResponses)
                 .pageNumber(bookPage.getNumber())
                 .pageSize(bookPage.getSize())
@@ -254,9 +243,9 @@ public class BookServiceImpl implements BookService {
         } else {
             books = getActiveBooks();
         }
-        
+
         List<org.datn.bookstation.dto.response.DropdownOptionResponse> result = new ArrayList<>();
-        
+
         for (Book book : books) {
             // Lấy thông tin flash sale nếu có
             FlashSaleItem flashSaleItem = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
@@ -269,7 +258,8 @@ public class BookServiceImpl implements BookService {
                 if (book.getDiscountValue() != null) {
                     normalPrice = originalPrice.subtract(book.getDiscountValue());
                 } else if (book.getDiscountPercent() != null) {
-                    BigDecimal discountAmount = originalPrice.multiply(BigDecimal.valueOf(book.getDiscountPercent())).divide(BigDecimal.valueOf(100));
+                    BigDecimal discountAmount = originalPrice.multiply(BigDecimal.valueOf(book.getDiscountPercent()))
+                            .divide(BigDecimal.valueOf(100));
                     normalPrice = originalPrice.subtract(discountAmount);
                 }
             }
@@ -284,13 +274,18 @@ public class BookServiceImpl implements BookService {
             int stockQuantity = book.getStockQuantity() != null ? book.getStockQuantity() : 0;
             // ✅ SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
             int processingQuantity = bookProcessingQuantityService.getProcessingQuantity(book.getId());
-            
+
             // Flash sale related data
-            int flashSaleSold = flashSaleItem != null && flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
+            int flashSaleSold = flashSaleItem != null && flashSaleItem.getSoldCount() != null
+                    ? flashSaleItem.getSoldCount()
+                    : 0;
             // ✅ SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
-            int flashSaleProcessing = flashSaleItem != null ? 
-                bookProcessingQuantityService.getFlashSaleProcessingQuantity(flashSaleItem.getId()) : 0;
-            int flashSaleStock = flashSaleItem != null && flashSaleItem.getStockQuantity() != null ? flashSaleItem.getStockQuantity() : 0;
+            int flashSaleProcessing = flashSaleItem != null
+                    ? bookProcessingQuantityService.getFlashSaleProcessingQuantity(flashSaleItem.getId())
+                    : 0;
+            int flashSaleStock = flashSaleItem != null && flashSaleItem.getStockQuantity() != null
+                    ? flashSaleItem.getStockQuantity()
+                    : 0;
 
             org.datn.bookstation.dto.response.DropdownOptionResponse option = new org.datn.bookstation.dto.response.DropdownOptionResponse();
             option.setId(book.getId());
@@ -322,15 +317,15 @@ public class BookServiceImpl implements BookService {
             }
 
             // Validate book name uniqueness (excluding current book)
-            if (!existing.getBookName().equalsIgnoreCase(request.getBookName()) && 
-                bookRepository.existsByBookNameIgnoreCase(request.getBookName())) {
+            if (!existing.getBookName().equalsIgnoreCase(request.getBookName()) &&
+                    bookRepository.existsByBookNameIgnoreCase(request.getBookName())) {
                 return new ApiResponse<>(400, "Tên sách đã tồn tại", null);
             }
 
             // Validate book code uniqueness (excluding current book)
-            if (request.getBookCode() != null && 
-                !existing.getBookCode().equals(request.getBookCode()) && 
-                bookRepository.existsByBookCode(request.getBookCode())) {
+            if (request.getBookCode() != null &&
+                    !existing.getBookCode().equals(request.getBookCode()) &&
+                    bookRepository.existsByBookCode(request.getBookCode())) {
                 return new ApiResponse<>(400, "Mã sách đã tồn tại", null);
             }
 
@@ -397,8 +392,8 @@ public class BookServiceImpl implements BookService {
             if (request.getDiscountPercent() != null) {
                 existing.setDiscountPercent(request.getDiscountPercent());
             }
-                // Luôn cập nhật discountActive từ request (kể cả null/false)
-                existing.setDiscountActive(request.getDiscountActive());
+            // Luôn cập nhật discountActive từ request (kể cả null/false)
+            existing.setDiscountActive(request.getDiscountActive());
 
             if (request.getBookCode() != null) {
                 existing.setBookCode(request.getBookCode());
@@ -434,7 +429,7 @@ public class BookServiceImpl implements BookService {
                 }
                 existing.setPublisher(publisher);
             }
-            
+
             // Update images (multi-image support like EventServiceImpl)
             if (request.getImages() != null) {
                 imageUrlValidator.validate(request.getImages());
@@ -448,15 +443,15 @@ public class BookServiceImpl implements BookService {
             if (imagesString != null) {
                 existing.setImages(imagesString); // Đảm bảo entity Book có trường images (String)
             }
-            
+
             existing.setUpdatedBy(1); // Default updated by system user
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
-            
+
             // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
             trendingCacheService.invalidateAllTrendingCache();
-            
+
             return new ApiResponse<>(200, "Cập nhật sách thành công", saved);
 
         } catch (Exception e) {
@@ -483,10 +478,10 @@ public class BookServiceImpl implements BookService {
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
-            
+
             // 🔥 INVALIDATE TRENDING CACHE ON STATUS CHANGE
             trendingCacheService.invalidateAllTrendingCache();
-            
+
             return new ApiResponse<>(200, "Cập nhật trạng thái thành công", saved);
 
         } catch (Exception e) {
@@ -494,17 +489,18 @@ public class BookServiceImpl implements BookService {
         }
     }
 
-    // ❌ REMOVED: Old getTrendingBooks method - replaced by new TrendingRequest-based method
+    // ❌ REMOVED: Old getTrendingBooks method - replaced by new
+    // TrendingRequest-based method
 
-    // ❌ REMOVED: Old getTrendingBooksWithFallback method - replaced by new getDailyTrendingWithFallback
+    // ❌ REMOVED: Old getTrendingBooksWithFallback method - replaced by new
+    // getDailyTrendingWithFallback
 
     /**
      * 🔥 NEW MAIN METHOD: Trending books với TrendingRequest
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
      */
     @Override
-    @Cacheable(value = "trending-books", 
-        key = "#request.type + '-' + #request.page + '-' + #request.size")
+    @Cacheable(value = "trending-books", key = "#request.type + '-' + #request.page + '-' + #request.size")
     public PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request) {
         try {
             // Validate request
@@ -550,8 +546,9 @@ public class BookServiceImpl implements BookService {
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
         // Không truyền filter, chỉ lấy tổng thể
         Page<Object[]> trendingData = bookRepository.findTrendingBooksData(
-            thirtyDaysAgo, sixtyDaysAgo, currentTime, pageable);
-        log.info("🔥 DAILY TRENDING - Found {} records, need {} records", trendingData.getTotalElements(), request.getSize());
+                thirtyDaysAgo, sixtyDaysAgo, currentTime, pageable);
+        log.info("🔥 DAILY TRENDING - Found {} records, need {} records", trendingData.getTotalElements(),
+                request.getSize());
         if (trendingData.getTotalElements() < request.getSize()) {
             log.info("🔥 DAILY TRENDING - Not enough records, using fallback!");
             return getDailyTrendingWithFallback(request, trendingData, thirtyDaysAgo, sixtyDaysAgo, currentTime);
@@ -585,17 +582,18 @@ public class BookServiceImpl implements BookService {
         // 1. Thêm trending thực sự (nếu có)
         if (!existingTrending.isEmpty()) {
             System.out.println("🔥 EXISTING TRENDING - Processing " + existingTrending.getContent().size() + " books");
-            PaginationResponse<TrendingBookResponse> existingResponse =
-                    mapTrendingDataToResponse(existingTrending, 0, existingTrending.getContent().size());
+            PaginationResponse<TrendingBookResponse> existingResponse = mapTrendingDataToResponse(existingTrending, 0,
+                    existingTrending.getContent().size());
             allTrendingBooks.addAll(existingResponse.getContent());
         }
 
-        // 2. Bổ sung từ sách thực tế trong database (DAILY_TRENDING không filter category)
+        // 2. Bổ sung từ sách thực tế trong database (DAILY_TRENDING không filter
+        // category)
         int needMore = request.getSize() - allTrendingBooks.size();
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findFallbackTrendingBooks(
-                PageRequest.of(0, needMore * 2));
-            
+                    PageRequest.of(0, needMore * 2));
+
             // Lọc bỏ những sách đã có
             Set<Integer> existingBookIds = allTrendingBooks.stream()
                     .map(TrendingBookResponse::getId)
@@ -606,16 +604,15 @@ public class BookServiceImpl implements BookService {
                             .map(data -> (Integer) data[0])
                             .filter(id -> !existingBookIds.contains(id))
                             .limit(needMore)
-                            .collect(Collectors.toList())
-            );
+                            .collect(Collectors.toList()));
 
             int fallbackRank = allTrendingBooks.size() + 1;
             for (Object[] data : fallbackBooks) {
                 Integer bookId = (Integer) data[0];
                 System.out.println("🔍 FALLBACK ITERATION - Book ID: " + bookId +
-                                 ", existingBookIds.contains: " + existingBookIds.contains(bookId) +
-                                 ", allTrendingBooks.size: " + allTrendingBooks.size() +
-                                 ", request.getSize: " + request.getSize());
+                        ", existingBookIds.contains: " + existingBookIds.contains(bookId) +
+                        ", allTrendingBooks.size: " + allTrendingBooks.size() +
+                        ", request.getSize: " + request.getSize());
                 if (!existingBookIds.contains(bookId) && allTrendingBooks.size() < request.getSize()) {
                     TrendingBookResponse book = trendingBookMapper.mapToFallbackTrendingBookResponse(
                             data, fallbackRank++, authorsMap);
@@ -624,7 +621,8 @@ public class BookServiceImpl implements BookService {
             }
         }
 
-        // 3. Tính tổng số phần tử dựa trên database thực tế (DAILY_TRENDING không filter category)
+        // 3. Tính tổng số phần tử dựa trên database thực tế (DAILY_TRENDING không
+        // filter category)
         long totalElements = bookRepository.countAllActiveBooks();
 
         // 🔥 FINAL FIX: Force override soldCount for Book ID 1 in final result
@@ -636,7 +634,7 @@ public class BookServiceImpl implements BookService {
                 book.setOrderCount(book.getSoldCount());
             }
         }
-        
+
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allTrendingBooks)
                 .pageNumber(request.getPage())
@@ -657,8 +655,8 @@ public class BookServiceImpl implements BookService {
         // 1. Thêm sách giảm giá thực sự (nếu có)
         if (!existingDiscount.isEmpty()) {
             log.info("🔥 HOT DISCOUNT - Processing {} existing discount books", existingDiscount.getContent().size());
-            PaginationResponse<TrendingBookResponse> existingResponse =
-                    mapTrendingDataToResponse(existingDiscount, 0, existingDiscount.getContent().size());
+            PaginationResponse<TrendingBookResponse> existingResponse = mapTrendingDataToResponse(existingDiscount, 0,
+                    existingDiscount.getContent().size());
             allDiscountBooks.addAll(existingResponse.getContent());
             log.info("🔥 HOT DISCOUNT - After existing: {} books added", allDiscountBooks.size());
         }
@@ -667,8 +665,8 @@ public class BookServiceImpl implements BookService {
         int needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
             List<Object[]> fallbackBooks = bookRepository.findGoodPriceBooks(
-                PageRequest.of(0, needMore * 2));
-            
+                    PageRequest.of(0, needMore * 2));
+
             Set<Integer> existingBookIds = allDiscountBooks.stream()
                     .map(TrendingBookResponse::getId)
                     .collect(Collectors.toSet());
@@ -678,8 +676,7 @@ public class BookServiceImpl implements BookService {
                             .map(data -> (Integer) data[0])
                             .filter(id -> !existingBookIds.contains(id))
                             .limit(needMore)
-                            .collect(Collectors.toList())
-            );
+                            .collect(Collectors.toList()));
 
             int fallbackRank = allDiscountBooks.size() + 1;
             for (Object[] data : fallbackBooks) {
@@ -705,7 +702,7 @@ public class BookServiceImpl implements BookService {
                 book.setOrderCount(book.getSoldCount());
             }
         }
-        
+
         return PaginationResponse.<TrendingBookResponse>builder()
                 .content(allDiscountBooks)
                 .pageNumber(request.getPage())
@@ -724,8 +721,7 @@ public class BookServiceImpl implements BookService {
         Map<Integer, List<AuthorBook>> authorsMap = getAuthorsForBooks(
                 trendingData.getContent().stream()
                         .map(data -> (Integer) data[0])
-                        .collect(Collectors.toList())
-        );
+                        .collect(Collectors.toList()));
 
         List<TrendingBookResponse> trendingBooks = new ArrayList<>();
         int rank = page * size + 1;
@@ -785,9 +781,8 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text) {
-        Specification<Book> bookSpecification = BookSpecification.filterBy(id,text);
+        Specification<Book> bookSpecification = BookSpecification.filterBy(id, text);
         List<Book> books = bookRepository.findAll(bookSpecification);
-
 
         return new ApiResponse<>(200, "Đã nhập được list search từ ", bookCategoryMapper.booksMapper(books));
     }
@@ -809,7 +804,7 @@ public class BookServiceImpl implements BookService {
         Integer actualDiscountPercent = 0;
         Boolean hasDiscount = false;
         String discountType = null;
-        
+
         // Tính discount nếu được kích hoạt
         if (Boolean.TRUE.equals(request.getDiscountActive())) {
             if (request.getDiscountValue() != null && request.getDiscountValue().compareTo(BigDecimal.ZERO) > 0) {
@@ -823,25 +818,25 @@ public class BookServiceImpl implements BookService {
                 hasDiscount = true;
                 discountType = "VALUE";
                 actualDiscountPercent = discountAmount.multiply(BigDecimal.valueOf(100))
-                    .divide(originalPrice, 0, RoundingMode.HALF_UP).intValue();
-                
+                        .divide(originalPrice, 0, RoundingMode.HALF_UP).intValue();
+
             } else if (request.getDiscountPercent() != null && request.getDiscountPercent() > 0) {
                 // Discount theo phần trăm
                 actualDiscountPercent = request.getDiscountPercent();
                 discountAmount = originalPrice.multiply(BigDecimal.valueOf(actualDiscountPercent))
-                    .divide(BigDecimal.valueOf(100));
+                        .divide(BigDecimal.valueOf(100));
                 finalPrice = originalPrice.subtract(discountAmount);
                 hasDiscount = true;
                 discountType = "PERCENT";
             }
         }
-        
+
         // Kiểm tra flash sale hiện tại
         Boolean hasFlashSale = false;
         BigDecimal flashSalePrice = null;
         BigDecimal flashSavings = BigDecimal.ZERO;
         String flashSaleName = null;
-        
+
         try {
             FlashSaleItem activeFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
             if (activeFlashSale != null) {
@@ -854,21 +849,21 @@ public class BookServiceImpl implements BookService {
             // Log error nhưng không fail request
             System.err.println("Error checking flash sale: " + e.getMessage());
         }
-        
+
         return BookPriceCalculationResponse.builder()
-            .bookId(book.getId())
-            .bookName(book.getBookName())
-            .originalPrice(originalPrice)
-            .finalPrice(finalPrice)
-            .discountAmount(discountAmount)
-            .discountPercent(actualDiscountPercent)
-            .hasDiscount(hasDiscount)
-            .discountType(discountType)
-            .hasFlashSale(hasFlashSale)
-            .flashSalePrice(flashSalePrice)
-            .flashSavings(flashSavings)
-            .flashSaleName(flashSaleName)
-            .build();
+                .bookId(book.getId())
+                .bookName(book.getBookName())
+                .originalPrice(originalPrice)
+                .finalPrice(finalPrice)
+                .discountAmount(discountAmount)
+                .discountPercent(actualDiscountPercent)
+                .hasDiscount(hasDiscount)
+                .discountType(discountType)
+                .hasFlashSale(hasFlashSale)
+                .flashSalePrice(flashSalePrice)
+                .flashSavings(flashSavings)
+                .flashSaleName(flashSaleName)
+                .build();
     }
 
     @Override
@@ -905,4 +900,31 @@ public class BookServiceImpl implements BookService {
         }
     }
 
+    @Override
+    public ApiResponse<Long> getTotalSoldBooks() {
+        return new ApiResponse<>(200, "Thành công", bookRepository.getTotalSoldBooks());
+    }
+
+    @Override
+    public ApiResponse<Long> getTotalStockBooks() {
+        return new ApiResponse<>(200, "Thành công", bookRepository.getTotalStockBooks());
+    }
+
+    @Override
+    public ApiResponse<BigDecimal> getTotalRevenue() {
+        return new ApiResponse<>(200, "Thành công", bookRepository.getTotalRevenue());
+    }
+
+    @Override
+    public ApiResponse<List<TopBookSoldResponse>> getTopBookSold(int limit) {
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, limit);
+        List<TopBookSoldResponse> result = bookRepository.findTopBookSold(pageable);
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    @Override
+    public ApiResponse<List<BookStockResponse>> getAllBookStock() {
+        List<BookStockResponse> result = bookRepository.findAllBookStock();
+        return new ApiResponse<>(200, "Thành công", result);
+    }
 }

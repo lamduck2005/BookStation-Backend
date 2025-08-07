@@ -9,6 +9,7 @@ import org.datn.bookstation.dto.request.AdminRefundDecisionDto;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.OrderResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.RevenueStatsResponse;
 import org.datn.bookstation.entity.*;
 import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.entity.RefundRequest.RefundStatus;
@@ -31,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -39,7 +43,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderServiceImpl implements OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final OrderVoucherRepository orderVoucherRepository;
@@ -62,53 +66,53 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public PaginationResponse<OrderResponse> getAllWithPagination(int page, int size, String code,
             Integer userId, OrderStatus orderStatus, String orderType, Long startDate, Long endDate) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        
+
         Specification<Order> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            
+
             if (code != null && !code.trim().isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("code")), 
-                    "%" + code.toLowerCase() + "%"));
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("code")),
+                        "%" + code.toLowerCase() + "%"));
             }
-            
+
             if (userId != null) {
                 predicates.add(criteriaBuilder.equal(root.get("user").get("id"), userId));
             }
-            
+
             if (orderStatus != null) {
                 predicates.add(criteriaBuilder.equal(root.get("orderStatus"), orderStatus));
             }
-            
+
             if (orderType != null && !orderType.trim().isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("orderType")), 
-                    "%" + orderType.toLowerCase() + "%"));
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("orderType")),
+                        "%" + orderType.toLowerCase() + "%"));
             }
-            
+
             if (startDate != null) {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("orderDate"), startDate));
             }
-            
+
             if (endDate != null) {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("orderDate"), endDate));
             }
-            
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
-        
+
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
         List<OrderResponse> orderResponses = orderPage.getContent().stream()
-            .map(orderResponseMapper::toResponse)
-            .toList();
-        
+                .map(orderResponseMapper::toResponse)
+                .toList();
+
         return PaginationResponse.<OrderResponse>builder()
-            .content(orderResponses)
-            .pageNumber(page)
-            .pageSize(size)
-            .totalElements(orderPage.getTotalElements())
-            .totalPages(orderPage.getTotalPages())
-            .build();
+                .content(orderResponses)
+                .pageNumber(page)
+                .pageSize(size)
+                .totalElements(orderPage.getTotalElements())
+                .totalPages(orderPage.getTotalPages())
+                .build();
     }
 
     @Override
@@ -119,19 +123,19 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Order getById(Integer id) {
         return orderRepository.findById(id)
-            .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + id));
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + id));
     }
 
     @Override
     public OrderResponse getByIdWithDetails(Integer id) {
         Order order = getById(id);
-        
+
         // Lấy order details với đầy đủ thông tin
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(id);
-        
+
         // Lấy order vouchers
         List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
-        
+
         // Sử dụng mapper với details
         return orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
     }
@@ -143,14 +147,15 @@ public class OrderServiceImpl implements OrderService {
         User user = null;
         if (request.getUserId() != null) {
             user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy người dùng với ID: " + request.getUserId()));
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy người dùng với ID: " + request.getUserId()));
         } else if (!"COUNTER".equalsIgnoreCase(request.getOrderType())) {
             throw new BusinessException("User ID là bắt buộc cho đơn hàng online");
         }
 
         // Validate order type - CHỈ CHO PHÉP "ONLINE" và "COUNTER"
-        if (!"ONLINE".equalsIgnoreCase(request.getOrderType()) && 
-            !"COUNTER".equalsIgnoreCase(request.getOrderType())) {
+        if (!"ONLINE".equalsIgnoreCase(request.getOrderType()) &&
+                !"COUNTER".equalsIgnoreCase(request.getOrderType())) {
             throw new BusinessException("Kiểu đơn hàng chỉ được phép là 'ONLINE' hoặc 'COUNTER'");
         }
 
@@ -158,7 +163,8 @@ public class OrderServiceImpl implements OrderService {
         Address address = null;
         if (request.getAddressId() != null) {
             address = addressRepository.findById(request.getAddressId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy địa chỉ với ID: " + request.getAddressId()));
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy địa chỉ với ID: " + request.getAddressId()));
         } else if (!"COUNTER".equalsIgnoreCase(request.getOrderType())) {
             throw new BusinessException("Address ID là bắt buộc cho đơn hàng online");
         }
@@ -166,22 +172,24 @@ public class OrderServiceImpl implements OrderService {
         // ✅ BACKEND TỰ TÍNH TOÁN SUBTOTAL từ orderDetails - KHÔNG TIN FRONTEND
         BigDecimal calculatedSubtotal = BigDecimal.ZERO;
         for (var detailRequest : request.getOrderDetails()) {
-            BigDecimal itemTotal = detailRequest.getUnitPrice().multiply(BigDecimal.valueOf(detailRequest.getQuantity()));
+            BigDecimal itemTotal = detailRequest.getUnitPrice()
+                    .multiply(BigDecimal.valueOf(detailRequest.getQuantity()));
             calculatedSubtotal = calculatedSubtotal.add(itemTotal);
         }
 
         // ✅ TỰ TÍNH VOUCHER DISCOUNT (nếu có)
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal discountShipping = BigDecimal.ZERO;
-        
+
         if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
             // Tạo order tạm để tính voucher
             Order tempOrder = new Order();
             tempOrder.setSubtotal(calculatedSubtotal);
             tempOrder.setShippingFee(request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO);
-            
+
             try {
-                VoucherCalculationService.VoucherCalculationResult voucherResult = voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getVoucherIds(), request.getUserId());
+                VoucherCalculationService.VoucherCalculationResult voucherResult = voucherCalculationService
+                        .calculateVoucherDiscount(tempOrder, request.getVoucherIds(), request.getUserId());
                 discountAmount = voucherResult.getTotalProductDiscount();
                 discountShipping = voucherResult.getTotalShippingDiscount();
             } catch (Exception e) {
@@ -191,7 +199,8 @@ public class OrderServiceImpl implements OrderService {
 
         // ✅ TỰ TÍNH TOTAL AMOUNT - KHÔNG TIN FRONTEND
         BigDecimal shippingFee = request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO;
-        BigDecimal calculatedTotalAmount = calculatedSubtotal.add(shippingFee).subtract(discountAmount).subtract(discountShipping);
+        BigDecimal calculatedTotalAmount = calculatedSubtotal.add(shippingFee).subtract(discountAmount)
+                .subtract(discountShipping);
         calculatedTotalAmount = calculatedTotalAmount.max(BigDecimal.ZERO); // Không âm
 
         // Create order
@@ -206,15 +215,15 @@ public class OrderServiceImpl implements OrderService {
         order.setDiscountAmount(discountAmount);
         order.setDiscountShipping(discountShipping);
         order.setSubtotal(calculatedSubtotal); // ✅ Dùng giá trị backend tính
-        order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính  
+        order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính
         order.setNotes(request.getNotes());
-        
+
         // ✅ THÊM: Set thông tin người nhận cho đơn hàng tại quầy
         if ("COUNTER".equalsIgnoreCase(request.getOrderType())) {
             order.setRecipientName(request.getRecipientName());
             order.setPhoneNumber(request.getPhoneNumber());
         }
-        
+
         // ✅ FIX: Set createdBy properly for counter sales
         if (user != null) {
             order.setCreatedBy(user.getId()); // Online order - use customer ID
@@ -226,7 +235,8 @@ public class OrderServiceImpl implements OrderService {
 
         if (request.getStaffId() != null) {
             User staff = userRepository.findById(request.getStaffId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + request.getStaffId()));
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy nhân viên với ID: " + request.getStaffId()));
             order.setStaff(staff);
         }
 
@@ -236,100 +246,110 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetail> orderDetails = new ArrayList<>();
         for (var detailRequest : request.getOrderDetails()) {
             Book book = bookRepository.findById(detailRequest.getBookId())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy sách với ID: " + detailRequest.getBookId()));
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy sách với ID: " + detailRequest.getBookId()));
 
             // ✅ ENHANCED: Xử lý logic flash sale và mixed purchase
             FlashSaleItem flashSaleItem = null;
             int quantityToOrder = detailRequest.getQuantity();
-            
+
             if (detailRequest.getFlashSaleItemId() != null) {
                 // Trường hợp 1: Frontend đã chỉ định flash sale item
                 flashSaleItem = flashSaleItemRepository.findById(detailRequest.getFlashSaleItemId())
-                    .orElseThrow(() -> new BusinessException("Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId()));
-                
+                        .orElseThrow(() -> new BusinessException(
+                                "Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId()));
+
                 // ✅ Validate flash sale purchase limit per user
-                if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), request.getUserId(), quantityToOrder)) {
-                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), request.getUserId());
+                if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), request.getUserId(),
+                        quantityToOrder)) {
+                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(),
+                            request.getUserId());
                     int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
-                    throw new BusinessException("Bạn đã mua " + currentPurchased + "/" + maxAllowed + 
-                        " sản phẩm flash sale này. Không thể mua thêm " + quantityToOrder + " sản phẩm.");
+                    throw new BusinessException("Bạn đã mua " + currentPurchased + "/" + maxAllowed +
+                            " sản phẩm flash sale này. Không thể mua thêm " + quantityToOrder + " sản phẩm.");
                 }
-                
+
                 // Validate flash sale stock
                 if (flashSaleItem.getStockQuantity() < quantityToOrder) {
-                    throw new BusinessException("Không đủ số lượng flash sale cho sản phẩm: " + book.getBookName() + 
-                        " (Flash sale còn: " + flashSaleItem.getStockQuantity() + ", Yêu cầu: " + quantityToOrder + ")");
+                    throw new BusinessException("Không đủ số lượng flash sale cho sản phẩm: " + book.getBookName() +
+                            " (Flash sale còn: " + flashSaleItem.getStockQuantity() + ", Yêu cầu: " + quantityToOrder
+                            + ")");
                 }
-                
+
                 // Trừ flash sale stock
                 flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() - quantityToOrder);
                 flashSaleItemRepository.save(flashSaleItem);
-                
+
                 // Trừ book stock (vì sách flash sale cũng tính vào tổng stock)
                 book.setStockQuantity(book.getStockQuantity() - quantityToOrder);
                 bookRepository.save(book);
-                
+
             } else {
                 // Trường hợp 2: Không chỉ định flash sale - kiểm tra tự động
                 // Tìm flash sale active cho book này
                 Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleItemRepository
-                    .findActiveFlashSalesByBookId(book.getId().longValue(), System.currentTimeMillis())
-                    .stream()
-                    .findFirst();
-                
+                        .findActiveFlashSalesByBookId(book.getId().longValue(), System.currentTimeMillis())
+                        .stream()
+                        .findFirst();
+
                 if (activeFlashSaleOpt.isPresent()) {
                     FlashSaleItem activeFlashSale = activeFlashSaleOpt.get();
                     int flashSaleStock = activeFlashSale.getStockQuantity();
-                    
+
                     if (flashSaleStock >= quantityToOrder) {
                         // ✅ ENHANCED: Validate flash sale purchase limit với hai loại thông báo
-                        if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(), request.getUserId(), quantityToOrder)) {
-                            int currentPurchased = flashSaleService.getUserPurchasedQuantity(activeFlashSale.getId().longValue(), request.getUserId());
+                        if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(),
+                                request.getUserId(), quantityToOrder)) {
+                            int currentPurchased = flashSaleService
+                                    .getUserPurchasedQuantity(activeFlashSale.getId().longValue(), request.getUserId());
                             int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
-                            
+
                             // ✅ LOẠI 1: Đã đạt giới hạn tối đa
                             if (currentPurchased >= maxAllowed) {
-                                throw new BusinessException("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" + 
-                                    book.getBookName() + "' cho phép. Không thể đặt hàng thêm.");
+                                throw new BusinessException("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" +
+                                        book.getBookName() + "' cho phép. Không thể đặt hàng thêm.");
                             }
-                            
-                            // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép  
+
+                            // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
                             int remainingAllowed = maxAllowed - currentPurchased;
                             if (quantityToOrder > remainingAllowed) {
-                                throw new BusinessException("Bạn đã mua " + currentPurchased + " sản phẩm, chỉ được mua thêm tối đa " + 
-                                    remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
+                                throw new BusinessException("Bạn đã mua " + currentPurchased
+                                        + " sản phẩm, chỉ được mua thêm tối đa " +
+                                        remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
                             }
-                            
+
                             // ✅ LOẠI 3: Thông báo chung
-                            throw new BusinessException("Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
-                                book.getBookName() + "'.");
+                            throw new BusinessException(
+                                    "Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" +
+                                            book.getBookName() + "'.");
                         }
-                        
+
                         // Đủ flash sale stock - dùng toàn bộ flash sale
                         flashSaleItem = activeFlashSale;
                         flashSaleItem.setStockQuantity(flashSaleStock - quantityToOrder);
                         flashSaleItemRepository.save(flashSaleItem);
-                        
+
                         // Cập nhật unit price về flash sale price
                         detailRequest.setUnitPrice(activeFlashSale.getDiscountPrice());
-                        
-                        log.info("✅ Auto-applied flash sale for book {}: {} items at price {}", 
-                            book.getId(), quantityToOrder, activeFlashSale.getDiscountPrice());
+
+                        log.info("✅ Auto-applied flash sale for book {}: {} items at price {}",
+                                book.getId(), quantityToOrder, activeFlashSale.getDiscountPrice());
                     } else if (flashSaleStock > 0) {
-                        // Không đủ flash sale stock - KHÔNG hỗ trợ mixed purchase trong OrderServiceImpl
+                        // Không đủ flash sale stock - KHÔNG hỗ trợ mixed purchase trong
+                        // OrderServiceImpl
                         // Để tránh phức tạp, báo lỗi để frontend xử lý
                         throw new BusinessException("Flash sale chỉ còn " + flashSaleStock + " sản phẩm. " +
-                            "Vui lòng đặt " + flashSaleStock + " sản phẩm flash sale trong đơn riêng.");
+                                "Vui lòng đặt " + flashSaleStock + " sản phẩm flash sale trong đơn riêng.");
                     }
                     // Nếu flashSaleStock = 0, không áp dụng flash sale
                 }
-                
+
                 // Validate và trừ book stock thông thường
                 if (book.getStockQuantity() < quantityToOrder) {
-                    throw new BusinessException("Không đủ số lượng tồn kho cho sản phẩm: " + book.getBookName() + 
-                        " (Tồn kho: " + book.getStockQuantity() + ", Yêu cầu: " + quantityToOrder + ")");
+                    throw new BusinessException("Không đủ số lượng tồn kho cho sản phẩm: " + book.getBookName() +
+                            " (Tồn kho: " + book.getStockQuantity() + ", Yêu cầu: " + quantityToOrder + ")");
                 }
-                
+
                 book.setStockQuantity(book.getStockQuantity() - quantityToOrder);
                 bookRepository.save(book);
             }
@@ -345,7 +365,7 @@ public class OrderServiceImpl implements OrderService {
             orderDetail.setFlashSaleItem(flashSaleItem); // null nếu không phải flash sale
             orderDetail.setQuantity(quantityToOrder);
             orderDetail.setUnitPrice(detailRequest.getUnitPrice());
-            
+
             // ✅ FIX: Set createdBy properly for counter sales
             if (order.getUser() != null) {
                 orderDetail.setCreatedBy(order.getUser().getId()); // Online order
@@ -362,12 +382,12 @@ public class OrderServiceImpl implements OrderService {
         if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
             try {
                 voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
-                
+
                 // Update voucher count trong order theo số lượng discount đã tính
                 order.setRegularVoucherCount(discountAmount.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
                 order.setShippingVoucherCount(discountShipping.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
                 orderRepository.save(order);
-                
+
             } catch (Exception e) {
                 log.warn("Không thể cập nhật voucher usage: {}", e.getMessage());
             }
@@ -381,15 +401,15 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public ApiResponse<OrderResponse> update(OrderRequest request, Integer id) {
         Order existingOrder = getById(id);
-        
+
         // Only allow updates for PENDING orders
         if (existingOrder.getOrderStatus() != OrderStatus.PENDING) {
             throw new BusinessException("Chỉ có thể cập nhật đơn hàng ở trạng thái PENDING");
         }
 
         // Validate order type
-        if (!"ONLINE".equalsIgnoreCase(request.getOrderType()) && 
-            !"COUNTER".equalsIgnoreCase(request.getOrderType())) {
+        if (!"ONLINE".equalsIgnoreCase(request.getOrderType()) &&
+                !"COUNTER".equalsIgnoreCase(request.getOrderType())) {
             throw new BusinessException("Kiểu đơn hàng chỉ được phép là 'ONLINE' hoặc 'COUNTER'");
         }
 
@@ -403,7 +423,7 @@ public class OrderServiceImpl implements OrderService {
 
         Order updatedOrder = orderRepository.save(existingOrder);
         OrderResponse response = orderResponseMapper.toResponse(updatedOrder);
-        
+
         return new ApiResponse<>(HttpStatus.OK.value(), "Cập nhật đơn hàng thành công", response);
     }
 
@@ -412,13 +432,13 @@ public class OrderServiceImpl implements OrderService {
     public ApiResponse<OrderResponse> updateStatus(Integer id, OrderStatus newStatus, Integer staffId) {
         Order order = getById(id);
         OrderStatus oldStatus = order.getOrderStatus();
-        
+
         // Update status
         order.setOrderStatus(newStatus);
-        
+
         if (staffId != null) {
             User staff = userRepository.findById(staffId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + staffId));
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy nhân viên với ID: " + staffId));
             order.setStaff(staff);
             order.setUpdatedBy(staffId);
         }
@@ -428,19 +448,19 @@ public class OrderServiceImpl implements OrderService {
 
         Order updatedOrder = orderRepository.save(order);
         OrderResponse response = orderResponseMapper.toResponse(updatedOrder);
-        
+
         return new ApiResponse<>(HttpStatus.OK.value(), "Cập nhật trạng thái đơn hàng thành công", response);
     }
 
     @Override
     public void delete(Integer id) {
         Order order = getById(id);
-        
+
         // Only allow deletion of PENDING or CANCELED orders
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.CANCELED) {
             throw new BusinessException("Chỉ có thể xóa đơn hàng ở trạng thái PENDING hoặc CANCELED");
         }
-        
+
         orderRepository.delete(order);
     }
 
@@ -448,52 +468,52 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getOrdersByUser(Integer userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream()
-            .map(orderResponseMapper::toResponse)
-            .toList();
+                .map(orderResponseMapper::toResponse)
+                .toList();
     }
 
     @Override
     public PaginationResponse<OrderResponse> getOrdersByUserWithPagination(Integer userId, int page, int size) {
         userRepository.findById(userId)
-            .orElseThrow(() -> new BusinessException("Không tìm thấy người dùng với ID: " + userId));
-        
+                .orElseThrow(() -> new BusinessException("Không tìm thấy người dùng với ID: " + userId));
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        
-        Specification<Order> spec = (root, query, criteriaBuilder) -> 
-            criteriaBuilder.equal(root.get("user").get("id"), userId);
-            
+
+        Specification<Order> spec = (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("user").get("id"),
+                userId);
+
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
-        
+
         List<OrderResponse> orderResponses = orderPage.getContent().stream()
-            .map(orderResponseMapper::toResponse)
-            .toList();
-        
+                .map(orderResponseMapper::toResponse)
+                .toList();
+
         return PaginationResponse.<OrderResponse>builder()
-            .content(orderResponses)
-            .pageNumber(page)
-            .pageSize(size)
-            .totalElements(orderPage.getTotalElements())
-            .totalPages(orderPage.getTotalPages())
-            .build();
+                .content(orderResponses)
+                .pageNumber(page)
+                .pageSize(size)
+                .totalElements(orderPage.getTotalElements())
+                .totalPages(orderPage.getTotalPages())
+                .build();
     }
 
     @Override
     public List<OrderResponse> getOrdersByStatus(OrderStatus status) {
         List<Order> orders = orderRepository.findByOrderStatusOrderByCreatedAtDesc(status);
         return orders.stream()
-            .map(orderResponseMapper::toResponse)
-            .toList();
+                .map(orderResponseMapper::toResponse)
+                .toList();
     }
 
     @Override
     @Transactional
     public ApiResponse<OrderResponse> cancelOrder(Integer id, String reason, Integer userId) {
         Order order = getById(id);
-        
+
         // Validate that order can be canceled
-        if (order.getOrderStatus() == OrderStatus.DELIVERED || 
-            order.getOrderStatus() == OrderStatus.CANCELED ||
-            order.getOrderStatus() == OrderStatus.REFUNDED) {
+        if (order.getOrderStatus() == OrderStatus.DELIVERED ||
+                order.getOrderStatus() == OrderStatus.CANCELED ||
+                order.getOrderStatus() == OrderStatus.REFUNDED) {
             throw new BusinessException("Không thể hủy đơn hàng ở trạng thái hiện tại");
         }
 
@@ -512,20 +532,20 @@ public class OrderServiceImpl implements OrderService {
 
         Order canceledOrder = orderRepository.save(order);
         OrderResponse response = orderResponseMapper.toResponse(canceledOrder);
-        
+
         return new ApiResponse<>(HttpStatus.OK.value(), "Hủy đơn hàng thành công", response);
     }
 
     @Override
     @Transactional
-    public ApiResponse<OrderResponse> partialRefund(Integer orderId, Integer userId, String reason, 
+    public ApiResponse<OrderResponse> partialRefund(Integer orderId, Integer userId, String reason,
             List<OrderDetailRefundRequest> refundDetails) {
-        
+
         Order order = getById(orderId);
-        
+
         // Validate order status - Cho phép REFUNDING từ admin approval process
-        if (order.getOrderStatus() != OrderStatus.DELIVERED && 
-            order.getOrderStatus() != OrderStatus.REFUNDING) {
+        if (order.getOrderStatus() != OrderStatus.DELIVERED &&
+                order.getOrderStatus() != OrderStatus.REFUNDING) {
             throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao hoặc đã được phê duyệt hoàn trả");
         }
 
@@ -547,21 +567,22 @@ public class OrderServiceImpl implements OrderService {
 
         Order refundedOrder = orderRepository.save(order);
         OrderResponse response = orderResponseMapper.toResponse(refundedOrder);
-        
+
         return new ApiResponse<>(HttpStatus.OK.value(), "Hoàn trả một phần đơn hàng thành công", response);
     }
 
     @Override
     @Transactional
     public ApiResponse<OrderResponse> fullRefund(Integer orderId, Integer userId, String reason) {
-        
+
         Order order = getById(orderId);
-        
+
         // Validate order status - Cho phép REFUNDING từ admin approval process
-        if (order.getOrderStatus() != OrderStatus.DELIVERED && 
-            order.getOrderStatus() != OrderStatus.SHIPPED && 
-            order.getOrderStatus() != OrderStatus.REFUNDING) {
-            throw new BusinessException("Chỉ có thể hoàn trả đơn hàng đã giao, đang vận chuyển hoặc đã được phê duyệt hoàn trả");
+        if (order.getOrderStatus() != OrderStatus.DELIVERED &&
+                order.getOrderStatus() != OrderStatus.SHIPPED &&
+                order.getOrderStatus() != OrderStatus.REFUNDING) {
+            throw new BusinessException(
+                    "Chỉ có thể hoàn trả đơn hàng đã giao, đang vận chuyển hoặc đã được phê duyệt hoàn trả");
         }
 
         // Validate user authorization
@@ -582,7 +603,7 @@ public class OrderServiceImpl implements OrderService {
 
         Order refundedOrder = orderRepository.save(order);
         OrderResponse response = orderResponseMapper.toResponse(refundedOrder);
-        
+
         return new ApiResponse<>(HttpStatus.OK.value(), "Hoàn trả toàn bộ đơn hàng thành công", response);
     }
 
@@ -594,40 +615,40 @@ public class OrderServiceImpl implements OrderService {
 
     private void handleStatusChangeBusinessLogic(Order order, OrderStatus oldStatus, OrderStatus newStatus) {
         User user = order.getUser();
-        
+
         switch (newStatus) {
             case CONFIRMED:
                 if (oldStatus == OrderStatus.PENDING) {
                     log.info("Order {} confirmed", order.getCode());
                 }
                 break;
-                
+
             case SHIPPED:
                 if (oldStatus == OrderStatus.CONFIRMED) {
                     log.info("Order {} shipped", order.getCode());
                 }
                 break;
-                
+
             case DELIVERED:
                 // ✅ CHÍNH THỨC CỘNG SỐ LƯỢNG ĐÃ BÁN KHI GIAO THÀNH CÔNG
                 handleDeliveredBusinessLogic(order);
-                
+
                 // ✅ Award points khi đơn hàng DELIVERED (không chỉ từ SHIPPED)
                 // Đảm bảo chỉ tích điểm 1 lần
                 pointManagementService.earnPointsFromOrder(order, user);
                 log.info("Order {} delivered successfully, sold count updated, points awarded", order.getCode());
                 break;
-                
+
             case DELIVERY_FAILED:
                 // ✅ KHÔI PHỤC STOCK KHI GIAO HÀNG THẤT BẠI
                 handleDeliveryFailedBusinessLogic(order, oldStatus);
                 log.info("Order {} delivery failed, stock restored", order.getCode());
                 break;
-                
+
             case CANCELED:
                 handleCancellationBusinessLogic(order, oldStatus);
                 break;
-                
+
             default:
                 log.info("Order {} status changed from {} to {}", order.getCode(), oldStatus, newStatus);
         }
@@ -675,21 +696,21 @@ public class OrderServiceImpl implements OrderService {
                 int currentSoldCount = flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
                 flashSaleItem.setSoldCount(currentSoldCount + detail.getQuantity());
                 flashSaleItemRepository.save(flashSaleItem);
-                
-                log.info("FlashSaleItem {} sold count updated: +{} = {}", 
-                    flashSaleItem.getId(), detail.getQuantity(), flashSaleItem.getSoldCount());
+
+                log.info("FlashSaleItem {} sold count updated: +{} = {}",
+                        flashSaleItem.getId(), detail.getQuantity(), flashSaleItem.getSoldCount());
             }
-            
+
             // ✅ Cộng sold count cho book (cả flash sale và regular)
             Book book = detail.getBook();
             int currentBookSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
             book.setSoldCount(currentBookSoldCount + detail.getQuantity());
             bookRepository.save(book);
-            
-            log.info("Book {} sold count updated: +{} = {}", 
-                book.getId(), detail.getQuantity(), book.getSoldCount());
+
+            log.info("Book {} sold count updated: +{} = {}",
+                    book.getId(), detail.getQuantity(), book.getSoldCount());
         }
-        
+
         log.info("Order {} delivered successfully, all sold counts updated", order.getCode());
     }
 
@@ -707,64 +728,71 @@ public class OrderServiceImpl implements OrderService {
                 flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + detail.getQuantity());
                 // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
                 flashSaleItemRepository.save(flashSaleItem);
-                
-                log.info("FlashSaleItem {} stock restored: +{}", 
-                    flashSaleItem.getId(), detail.getQuantity());
+
+                log.info("FlashSaleItem {} stock restored: +{}",
+                        flashSaleItem.getId(), detail.getQuantity());
             }
-            
+
             // ✅ CHỈ restore book stock (không cần trừ sold count)
             Book book = detail.getBook();
             book.setStockQuantity(book.getStockQuantity() + detail.getQuantity());
             // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
             bookRepository.save(book);
-            
-            log.info("Book {} stock restored: +{}", 
-                book.getId(), detail.getQuantity());
+
+            log.info("Book {} stock restored: +{}",
+                    book.getId(), detail.getQuantity());
         }
-        
+
         log.info("Order {} delivery failed, stock restored", order.getCode());
     }
 
-    private BigDecimal handlePartialRefundBusinessLogic(Order order, List<OrderDetailRefundRequest> refundDetails, String reason) {
+    private BigDecimal handlePartialRefundBusinessLogic(Order order, List<OrderDetailRefundRequest> refundDetails,
+            String reason) {
         BigDecimal totalRefundAmount = BigDecimal.ZERO;
-        
+
         for (OrderDetailRefundRequest refundDetail : refundDetails) {
             // Find order detail by orderId and bookId
-            OrderDetail orderDetail = orderDetailRepository.findByOrderIdAndBookId(order.getId(), refundDetail.getBookId());
+            OrderDetail orderDetail = orderDetailRepository.findByOrderIdAndBookId(order.getId(),
+                    refundDetail.getBookId());
             if (orderDetail == null) {
-                throw new BusinessException("Không tìm thấy chi tiết đơn hàng cho sách ID: " + refundDetail.getBookId());
+                throw new BusinessException(
+                        "Không tìm thấy chi tiết đơn hàng cho sách ID: " + refundDetail.getBookId());
             }
-            
+
             // Validate refund quantity
             if (refundDetail.getRefundQuantity() > orderDetail.getQuantity()) {
                 throw new BusinessException("Số lượng hoàn trả vượt quá số lượng đã mua");
             }
-            
+
             // Calculate refund amount for this detail
             BigDecimal unitRefundAmount = orderDetail.getUnitPrice();
-            BigDecimal detailRefundAmount = unitRefundAmount.multiply(BigDecimal.valueOf(refundDetail.getRefundQuantity()));
+            BigDecimal detailRefundAmount = unitRefundAmount
+                    .multiply(BigDecimal.valueOf(refundDetail.getRefundQuantity()));
             totalRefundAmount = totalRefundAmount.add(detailRefundAmount);
-            
-            // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về GOODS_RETURNED_TO_WAREHOUSE
-            log.info("Partial refund calculated for book {}: quantity={}, amount={}", 
-                     refundDetail.getBookId(), refundDetail.getRefundQuantity(), detailRefundAmount);
-            
+
+            // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
+            // GOODS_RETURNED_TO_WAREHOUSE
+            log.info("Partial refund calculated for book {}: quantity={}, amount={}",
+                    refundDetail.getBookId(), refundDetail.getRefundQuantity(), detailRefundAmount);
+
             // Update order detail quantity
             orderDetail.setQuantity(orderDetail.getQuantity() - refundDetail.getRefundQuantity());
             orderDetailRepository.save(orderDetail);
         }
-        
+
         return totalRefundAmount;
     }
 
     private void handleFullRefundBusinessLogic(Order order, String reason) {
-        // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về GOODS_RETURNED_TO_WAREHOUSE
+        // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
+        // GOODS_RETURNED_TO_WAREHOUSE
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
-        
+
         // Tính toán tổng số lượng để log
         int totalQuantity = orderDetails.stream().mapToInt(OrderDetail::getQuantity).sum();
-        log.info("Full refund processed for order {}: {} items. Stock will be restored when admin changes status to GOODS_RETURNED_TO_WAREHOUSE", 
-                 order.getCode(), totalQuantity);
+        log.info(
+                "Full refund processed for order {}: {} items. Stock will be restored when admin changes status to GOODS_RETURNED_TO_WAREHOUSE",
+                order.getCode(), totalQuantity);
 
         // Restore voucher usage if applicable
         if (order.getRegularVoucherCount() > 0 || order.getShippingVoucherCount() > 0) {
@@ -774,7 +802,7 @@ public class OrderServiceImpl implements OrderService {
 
         log.info("Order {} fully refunded, stock will be restored separately", order.getCode());
     }
-    
+
     /**
      * ✅ THÊM MỚI: Khách hàng gửi yêu cầu hoàn trả
      * 🔥 FIXED: Tạo RefundRequest record trong database
@@ -784,18 +812,18 @@ public class OrderServiceImpl implements OrderService {
     public ApiResponse<OrderResponse> requestRefund(Integer orderId, RefundRequestDto refundRequest) {
         try {
             Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + orderId));
-            
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + orderId));
+
             // Kiểm tra quyền truy cập
             if (!order.getUser().getId().equals(refundRequest.getUserId().intValue())) {
                 throw new BusinessException("Bạn không có quyền hoàn trả đơn hàng này");
             }
-            
+
             // Kiểm tra trạng thái đơn hàng
             if (order.getOrderStatus() != OrderStatus.DELIVERED) {
                 throw new BusinessException("Chỉ có thể yêu cầu hoàn trả đơn hàng đã giao thành công");
             }
-            
+
             // 🔥 SOLUTION: Tạo RefundRequest record thông qua RefundService
             RefundRequest newRefundRequest = new RefundRequest();
             newRefundRequest.setOrder(order);
@@ -804,7 +832,7 @@ public class OrderServiceImpl implements OrderService {
             newRefundRequest.setRefundType(RefundType.PARTIAL); // Default, có thể điều chỉnh theo logic
             newRefundRequest.setStatus(RefundStatus.PENDING);
             newRefundRequest.setCreatedAt(System.currentTimeMillis());
-            
+
             // Set evidence images/videos if provided
             if (refundRequest.getEvidenceImages() != null) {
                 newRefundRequest.setEvidenceImages(new ArrayList<>(refundRequest.getEvidenceImages()));
@@ -812,10 +840,10 @@ public class OrderServiceImpl implements OrderService {
             if (refundRequest.getEvidenceVideos() != null) {
                 newRefundRequest.setEvidenceVideos(new ArrayList<>(refundRequest.getEvidenceVideos()));
             }
-            
+
             // Save RefundRequest first
             RefundRequest savedRefundRequest = refundRequestRepository.save(newRefundRequest);
-            
+
             // 🔥 Tạo RefundItem records cho từng sản phẩm
             if (refundRequest.getRefundDetails() != null) {
                 List<RefundItem> refundItems = new ArrayList<>();
@@ -824,36 +852,36 @@ public class OrderServiceImpl implements OrderService {
                     if (orderDetail == null) {
                         throw new BusinessException("Không tìm thấy sản phẩm trong đơn hàng");
                     }
-                    
+
                     RefundItem refundItem = new RefundItem();
                     refundItem.setRefundRequest(savedRefundRequest);
                     refundItem.setBook(orderDetail.getBook());
                     refundItem.setRefundQuantity(detail.getRefundQuantity());
                     refundItem.setUnitPrice(orderDetail.getUnitPrice());
-                    refundItem.setTotalAmount(orderDetail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getRefundQuantity())));
+                    refundItem.setTotalAmount(
+                            orderDetail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getRefundQuantity())));
                     refundItem.setCreatedAt(System.currentTimeMillis());
-                    
+
                     refundItems.add(refundItem);
                 }
                 refundItemRepository.saveAll(refundItems);
             }
-            
+
             // Cập nhật trạng thái đơn hàng
             order.setOrderStatus(OrderStatus.REFUND_REQUESTED);
             order.setCancelReason(refundRequest.getReason());
             order.setUpdatedBy(refundRequest.getUserId().intValue());
             orderRepository.save(order);
-            
-            log.info("Customer {} requested refund for order {} - RefundRequest ID: {}", 
-                refundRequest.getUserId(), order.getCode(), savedRefundRequest.getId());
-            
+
+            log.info("Customer {} requested refund for order {} - RefundRequest ID: {}",
+                    refundRequest.getUserId(), order.getCode(), savedRefundRequest.getId());
+
             OrderResponse response = orderResponseMapper.toResponse(order);
             return new ApiResponse<>(
-                HttpStatus.OK.value(),
-                "Yêu cầu hoàn trả đã được gửi thành công. Admin sẽ xem xét và phản hồi sớm nhất.",
-                response
-            );
-                
+                    HttpStatus.OK.value(),
+                    "Yêu cầu hoàn trả đã được gửi thành công. Admin sẽ xem xét và phản hồi sớm nhất.",
+                    response);
+
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -861,7 +889,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("Có lỗi xảy ra khi gửi yêu cầu hoàn trả: " + e.getMessage());
         }
     }
-    
+
     /**
      * ✅ THÊM MỚI: Admin chấp nhận yêu cầu hoàn trả
      */
@@ -870,42 +898,44 @@ public class OrderServiceImpl implements OrderService {
     public ApiResponse<OrderResponse> approveRefundRequest(AdminRefundDecisionDto decision) {
         try {
             Order order = orderRepository.findById(decision.getOrderId().intValue())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + decision.getOrderId()));
-            
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy đơn hàng với ID: " + decision.getOrderId()));
+
             // Kiểm tra trạng thái đơn hàng
             if (order.getOrderStatus() != OrderStatus.REFUND_REQUESTED) {
                 throw new BusinessException("Đơn hàng không ở trạng thái chờ xem xét hoàn trả");
             }
-            
+
             // ✅ FIX: Admin chấp nhận -> CHỈ chuyển sang REFUNDING (không auto REFUNDED)
             // Admin sẽ manual chuyển sau khi đã xử lý đầy đủ
             order.setOrderStatus(OrderStatus.REFUNDING);
             order.setUpdatedBy(decision.getAdminId().intValue());
             orderRepository.save(order);
-            
+
             // Thực hiện logic hoàn trả toàn bộ
             handleFullRefundBusinessLogic(order, decision.getAdminNotes());
-            
+
             // Trừ điểm khách hàng
             if (order.getTotalAmount() != null && order.getTotalAmount().compareTo(BigDecimal.ZERO) > 0) {
                 // TODO: Implement deductPointsForRefund method in PointManagementService
                 log.info("Should deduct points for user {} amount {}", order.getUser().getId(), order.getTotalAmount());
             }
-            
+
             // ✅ REMOVED: Không tự động chuyển thành REFUNDED nữa
             // Admin sẽ sử dụng Order Status Transition API để chuyển thành:
-            // REFUNDING → GOODS_RECEIVED_FROM_CUSTOMER → GOODS_RETURNED_TO_WAREHOUSE → REFUNDED
-            
-            log.info("✅ Admin {} approved refund for order {} - Status: REFUNDING (admin must manually transition to complete)", 
-                     decision.getAdminId(), order.getCode());
-            
+            // REFUNDING → GOODS_RECEIVED_FROM_CUSTOMER → GOODS_RETURNED_TO_WAREHOUSE →
+            // REFUNDED
+
+            log.info(
+                    "✅ Admin {} approved refund for order {} - Status: REFUNDING (admin must manually transition to complete)",
+                    decision.getAdminId(), order.getCode());
+
             OrderResponse response = orderResponseMapper.toResponse(order);
             return new ApiResponse<>(
-                HttpStatus.OK.value(),
-                "Yêu cầu hoàn trả đã được chấp nhận. Admin cần chuyển trạng thái đơn hàng để hoàn thành quy trình.",
-                response
-            );
-                
+                    HttpStatus.OK.value(),
+                    "Yêu cầu hoàn trả đã được chấp nhận. Admin cần chuyển trạng thái đơn hàng để hoàn thành quy trình.",
+                    response);
+
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -913,7 +943,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("Có lỗi xảy ra khi chấp nhận hoàn trả: " + e.getMessage());
         }
     }
-    
+
     /**
      * ✅ THÊM MỚI: Admin từ chối yêu cầu hoàn trả
      */
@@ -922,28 +952,28 @@ public class OrderServiceImpl implements OrderService {
     public ApiResponse<OrderResponse> rejectRefundRequest(AdminRefundDecisionDto decision) {
         try {
             Order order = orderRepository.findById(decision.getOrderId().intValue())
-                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng với ID: " + decision.getOrderId()));
-            
+                    .orElseThrow(
+                            () -> new BusinessException("Không tìm thấy đơn hàng với ID: " + decision.getOrderId()));
+
             // Kiểm tra trạng thái đơn hàng
             if (order.getOrderStatus() != OrderStatus.REFUND_REQUESTED) {
                 throw new BusinessException("Đơn hàng không ở trạng thái chờ xem xét hoàn trả");
             }
-            
+
             // Admin từ chối -> chuyển về DELIVERED
             order.setOrderStatus(OrderStatus.DELIVERED);
             order.setCancelReason(decision.getAdminNotes()); // Lưu lý do từ chối
             order.setUpdatedBy(decision.getAdminId().intValue());
             orderRepository.save(order);
-            
+
             log.info("Admin {} rejected refund for order {}", decision.getAdminId(), order.getCode());
-            
+
             OrderResponse response = orderResponseMapper.toResponse(order);
             return new ApiResponse<>(
-                HttpStatus.OK.value(),
-                "Yêu cầu hoàn trả đã bị từ chối",
-                response
-            );
-                
+                    HttpStatus.OK.value(),
+                    "Yêu cầu hoàn trả đã bị từ chối",
+                    response);
+
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -955,12 +985,94 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse getOrderDetailById(Integer id) {
         Order order = orderRepository.findById(id).orElse(null);
-        if (order == null) return null;
+        if (order == null)
+            return null;
         // Lấy danh sách sản phẩm và voucher của đơn hàng
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(id);
         List<org.datn.bookstation.entity.OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
         // Map sang DTO
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
         return response;
+    }
+
+    @Override
+    public ApiResponse<List<RevenueStatsResponse>> getRevenueStats(String type, Integer year, Integer month) {
+        // Nếu year null thì lấy năm hiện tại
+        if (year == null) {
+            year = LocalDate.now().getYear();
+        }
+        // Nếu month null thì lấy tháng hiện tại (nếu cần)
+        if (month == null) {
+            month = LocalDate.now().getMonthValue();
+        }
+
+        if ("month".equalsIgnoreCase(type)) {
+            List<RevenueStatsResponse> result = new ArrayList<>();
+            for (int m = 1; m <= 12; m++) {
+                LocalDateTime start = LocalDateTime.of(year, m, 1, 0, 0);
+                LocalDateTime end = start.plusMonths(1).minusSeconds(1);
+                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                List<Object[]> raw = orderRepository.getMonthlyRevenue(startMillis, endMillis);
+                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[2];
+                result.add(new RevenueStatsResponse(year, m, null, revenue));
+            }
+            return new ApiResponse<>(200, "Thành công", result);
+        } else if ("year".equalsIgnoreCase(type)) {
+            int currentYear = LocalDate.now().getYear();
+            List<RevenueStatsResponse> result = new ArrayList<>();
+            for (int y = currentYear - 2; y <= currentYear; y++) {
+                LocalDateTime start = LocalDateTime.of(y, 1, 1, 0, 0);
+                LocalDateTime end = start.plusYears(1).minusSeconds(1);
+                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                List<Object[]> raw = orderRepository.getYearlyRevenue(startMillis, endMillis);
+                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[1];
+                result.add(new RevenueStatsResponse(y, null, null, revenue));
+            }
+            return new ApiResponse<>(200, "Thành công", result);
+        } else if ("week".equalsIgnoreCase(type)) {
+            List<RevenueStatsResponse> result = new ArrayList<>();
+            LocalDateTime now = LocalDateTime.now();
+            int y = year != null ? year : now.getYear();
+            int m = month != null ? month : now.getMonthValue();
+            for (int w = 0; w < 4; w++) {
+                LocalDateTime start = LocalDateTime.of(y, m, 1, 0, 0)
+                        .with(java.time.temporal.TemporalAdjusters.firstInMonth(java.time.DayOfWeek.MONDAY))
+                        .plusWeeks(w);
+                LocalDateTime end = start.plusWeeks(1).minusSeconds(1);
+                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                List<Object[]> raw = orderRepository.getWeeklyRevenue(startMillis, endMillis);
+                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[2];
+                int weekNum = start.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+                result.add(new RevenueStatsResponse(y, null, weekNum, revenue));
+            }
+            return new ApiResponse<>(200, "Thành công", result);
+        } else {
+            return new ApiResponse<>(400, "Loại thống kê không hợp lệ", null);
+        }
+    }
+
+    @Override
+    public ApiResponse<List<RevenueStatsResponse>> getMonthlySoldQuantity() {
+        int year = LocalDate.now().getYear(); // Lấy năm hiện tại
+        List<RevenueStatsResponse> result = new ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            LocalDateTime start = LocalDateTime.of(year, m, 1, 0, 0);
+            LocalDateTime end = start.plusMonths(1).minusSeconds(1);
+            long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            List<Object[]> raw = orderRepository.getMonthlySoldQuantity(startMillis, endMillis);
+            Long sold = raw.isEmpty() ? 0L : ((Number) raw.get(0)[2]).longValue();
+            result.add(new RevenueStatsResponse(year, m, null, BigDecimal.valueOf(sold)));
+        }
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    @Override
+    public ApiResponse<Long> getTotalDeliveredOrders() {
+        Long total = orderRepository.countDeliveredOrders();
+        return new ApiResponse<>(200, "Thành công", total);
     }
 }

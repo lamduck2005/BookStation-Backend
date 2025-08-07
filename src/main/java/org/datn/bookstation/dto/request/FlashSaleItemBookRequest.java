@@ -25,7 +25,8 @@ public class FlashSaleItemBookRequest {
     private Integer flashSaleStockQuantity;
     private Integer flashSaleSoldCount;
     private Integer soldCount;
-
+    // Trạng thái giảm giá có đang kích hoạt không
+    private Boolean discountActive;
 
 
 
