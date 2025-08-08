@@ -377,6 +377,27 @@ public class RefundServiceImpl implements RefundService {
             response.setApprovedByName(request.getApprovedBy().getFullName());
         }
         
+        // ✅ THÊM: Set refundItems với thông tin chi tiết sản phẩm hoàn trả
+        if (request.getRefundItems() != null && !request.getRefundItems().isEmpty()) {
+            List<RefundRequestResponse.RefundItemResponse> refundItemResponses = request.getRefundItems().stream()
+                .map(item -> {
+                    RefundRequestResponse.RefundItemResponse itemResponse = new RefundRequestResponse.RefundItemResponse();
+                    itemResponse.setId(item.getId());
+                    itemResponse.setBookId(item.getBook().getId());
+                    itemResponse.setBookName(item.getBook().getBookName());
+                    itemResponse.setBookCode(item.getBook().getBookCode());
+                    itemResponse.setRefundQuantity(item.getRefundQuantity());
+                    itemResponse.setUnitPrice(item.getUnitPrice());
+                    itemResponse.setTotalAmount(item.getTotalAmount());
+                    itemResponse.setReason(item.getReason());
+                    itemResponse.setReasonDisplay(RefundReasonUtil.getReasonDisplayName(item.getReason())); // ✅ THÊM: Tiếng Việt
+                    itemResponse.setCreatedAt(item.getCreatedAt());
+                    return itemResponse;
+                })
+                .collect(Collectors.toList());
+            response.setRefundItems(refundItemResponses);
+        }
+        
         return response;
     }
     

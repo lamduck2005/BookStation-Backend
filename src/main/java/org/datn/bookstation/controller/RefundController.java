@@ -113,6 +113,33 @@ public class RefundController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
     }
+
+    /**
+     * ✅ API: Admin lấy chi tiết đầy đủ yêu cầu hoàn trả (bao gồm thông tin đơn hàng, voucher, lý do, ...)
+     * GET /api/refunds/{id}/admin-detail
+     */
+    @GetMapping("/{id}/admin-detail")
+    public ResponseEntity<ApiResponse<RefundRequestResponse>> getRefundAdminDetail(
+            @PathVariable Integer id) {
+        try {
+            RefundRequestResponse request = refundService.getRefundRequestById(id);
+            
+            ApiResponse<RefundRequestResponse> response = new ApiResponse<>(
+                HttpStatus.OK.value(),
+                "Lấy chi tiết admin yêu cầu hoàn trả thành công",
+                request
+            );
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<RefundRequestResponse> response = new ApiResponse<>(
+                HttpStatus.NOT_FOUND.value(),
+                "Không tìm thấy yêu cầu hoàn trả: " + e.getMessage(),
+                null
+            );
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+    }
     
     /**
      * ✅ API: Tạo yêu cầu hoàn trả mới

@@ -26,6 +26,7 @@ public class OrderResponse {
     private BigDecimal shippingFee;
     private BigDecimal discountAmount;
     private BigDecimal discountShipping;
+    private BigDecimal voucherDiscountAmount; // ✅ THÊM: Tổng discount voucher áp dụng
     private BigDecimal totalAmount;
     private Integer regularVoucherCount;
     private Integer shippingVoucherCount;
