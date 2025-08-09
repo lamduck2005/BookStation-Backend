@@ -379,15 +379,16 @@ public class OrderServiceImpl implements OrderService {
 
         orderDetailRepository.saveAll(orderDetails);
 
-        // ✅ CẬP NHẬT VOUCHER USAGE VÀ LƯU ORDERV OUCHER ENTITIES (nếu có sử dụng voucher)
+        // ✅ CẬP NHẬT VOUCHER USAGE VÀ LƯU ORDERV OUCHER ENTITIES (nếu có sử dụng
+        // voucher)
         if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
             try {
                 // 1. Update voucher usage counts
                 voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
-                
+
                 // 2. ✅ FIX: Save OrderVoucher entities để vouchers hiển thị trong API responses
                 saveOrderVouchers(order, request.getVoucherIds(), calculatedSubtotal, shippingFee);
-                
+
                 // 3. Update voucher count trong order theo số lượng discount đã tính
                 order.setRegularVoucherCount(discountAmount.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
                 order.setShippingVoucherCount(discountShipping.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
@@ -514,23 +515,23 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getProcessingOrdersByBookId(Integer bookId) {
         // Sử dụng trạng thái processing từ BookProcessingQuantityService
         List<OrderStatus> processingStatuses = List.of(
-            OrderStatus.PENDING,                        // Chờ xử lý
-            OrderStatus.CONFIRMED,                      // Đã xác nhận  
-            OrderStatus.SHIPPED,                        // Đang giao hàng
-            OrderStatus.DELIVERY_FAILED,                // Giao hàng thất bại
-            OrderStatus.REDELIVERING,                   // Đang giao lại
-            OrderStatus.RETURNING_TO_WAREHOUSE,         // Đang trả về kho
-            OrderStatus.REFUND_REQUESTED,               // Yêu cầu hoàn trả
-            OrderStatus.AWAITING_GOODS_RETURN,          // Đang chờ lấy hàng hoàn trả
-            OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,   // Đã nhận hàng hoàn trả từ khách
-            OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,    // Hàng đã về kho
-            OrderStatus.REFUNDING                       // Đang hoàn tiền
+                OrderStatus.PENDING, // Chờ xử lý
+                OrderStatus.CONFIRMED, // Đã xác nhận
+                OrderStatus.SHIPPED, // Đang giao hàng
+                OrderStatus.DELIVERY_FAILED, // Giao hàng thất bại
+                OrderStatus.REDELIVERING, // Đang giao lại
+                OrderStatus.RETURNING_TO_WAREHOUSE, // Đang trả về kho
+                OrderStatus.REFUND_REQUESTED, // Yêu cầu hoàn trả
+                OrderStatus.AWAITING_GOODS_RETURN, // Đang chờ lấy hàng hoàn trả
+                OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, // Đã nhận hàng hoàn trả từ khách
+                OrderStatus.GOODS_RETURNED_TO_WAREHOUSE, // Hàng đã về kho
+                OrderStatus.REFUNDING // Đang hoàn tiền
         );
-        
+
         List<Order> processingOrders = orderDetailRepository.findProcessingOrdersByBookId(bookId, processingStatuses);
         return processingOrders.stream()
-            .map(orderResponseMapper::toResponse)
-            .toList();
+                .map(orderResponseMapper::toResponse)
+                .toList();
     }
 
     @Override
@@ -1060,21 +1061,29 @@ public class OrderServiceImpl implements OrderService {
             }
             return new ApiResponse<>(200, "Thành công", result);
         } else if ("week".equalsIgnoreCase(type)) {
+            int numWeeks = 5; // Số tuần gần nhất bạn muốn lấy, có thể truyền từ request nếu muốn động
+            LocalDate now = LocalDate.now();
+            LocalDate startOfTargetWeek = now.with(java.time.DayOfWeek.MONDAY).minusWeeks(numWeeks - 1);
+            LocalDate endOfThisWeek = now.with(java.time.DayOfWeek.SUNDAY);
+
+            long startMillis = startOfTargetWeek.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            long endMillis = endOfThisWeek.atTime(23, 59, 59, 999_999_999).atZone(ZoneId.systemDefault()).toInstant()
+                    .toEpochMilli();
+
+            List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
+
             List<RevenueStatsResponse> result = new ArrayList<>();
-            LocalDateTime now = LocalDateTime.now();
-            int y = year != null ? year : now.getYear();
-            int m = month != null ? month : now.getMonthValue();
-            for (int w = 0; w < 4; w++) {
-                LocalDateTime start = LocalDateTime.of(y, m, 1, 0, 0)
-                        .with(java.time.temporal.TemporalAdjusters.firstInMonth(java.time.DayOfWeek.MONDAY))
-                        .plusWeeks(w);
-                LocalDateTime end = start.plusWeeks(1).minusSeconds(1);
-                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                List<Object[]> raw = orderRepository.getWeeklyRevenue(startMillis, endMillis);
-                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[2];
-                int weekNum = start.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
-                result.add(new RevenueStatsResponse(y, null, weekNum, revenue));
+            for (Object[] row : raw) {
+                String weekPeriod = (String) row[0]; // "2025-W28"
+                BigDecimal revenue = (BigDecimal) row[1];
+                Long orderCount = ((Number) row[2]).longValue();
+                // Parse week number
+                Integer weekNum = null;
+                if (weekPeriod != null && weekPeriod.contains("-W")) {
+                    weekNum = Integer.parseInt(weekPeriod.split("-W")[1]);
+                }
+                result.add(new RevenueStatsResponse(now.getYear(), null, weekNum, revenue));
+                // Nếu muốn trả về thêm orderCount, startDate, endDate thì mở rộng DTO
             }
             return new ApiResponse<>(200, "Thành công", result);
         } else {
@@ -1103,55 +1112,71 @@ public class OrderServiceImpl implements OrderService {
         Long total = orderRepository.countDeliveredOrders();
         return new ApiResponse<>(200, "Thành công", total);
     }
-    
+
     /**
-     * ✅ ENHANCED: Save OrderVoucher entities để vouchers hiển thị trong API responses
+     * ✅ ENHANCED: Save OrderVoucher entities để vouchers hiển thị trong API
+     * responses
      */
-    private void saveOrderVouchers(Order order, List<Integer> voucherIds, BigDecimal orderSubtotal, BigDecimal shippingFee) {
+    private void saveOrderVouchers(Order order, List<Integer> voucherIds, BigDecimal orderSubtotal,
+            BigDecimal shippingFee) {
         if (voucherIds == null || voucherIds.isEmpty()) {
             return;
         }
-        
+
         try {
             // Get vouchers from database
             List<Voucher> vouchers = voucherRepository.findAllById(voucherIds);
-            
+
             for (Voucher voucher : vouchers) {
                 // Calculate actual discount applied for this voucher
-                BigDecimal discountApplied = voucherCalculationService.calculateSingleVoucherDiscount(voucher, orderSubtotal, shippingFee);
-                
+                BigDecimal discountApplied = voucherCalculationService.calculateSingleVoucherDiscount(voucher,
+                        orderSubtotal, shippingFee);
+
                 // Create OrderVoucher entity
                 OrderVoucher orderVoucher = new OrderVoucher();
-                
+
                 // Set composite ID
                 OrderVoucherId id = new OrderVoucherId();
                 id.setOrderId(order.getId());
                 id.setVoucherId(voucher.getId());
                 orderVoucher.setId(id);
-                
+
                 // Set relationships
                 orderVoucher.setOrder(order);
                 orderVoucher.setVoucher(voucher);
-                
+
                 // Set voucher information (will be auto-set in @PrePersist)
                 orderVoucher.setVoucherCategory(voucher.getVoucherCategory());
                 orderVoucher.setDiscountType(voucher.getDiscountType());
-                
+
                 // Set discount applied amount
                 orderVoucher.setDiscountApplied(discountApplied);
-                
+
                 // appliedAt will be set in @PrePersist
-                
+
                 // Save OrderVoucher
                 orderVoucherRepository.save(orderVoucher);
-                
-                log.info("✅ Saved OrderVoucher: orderId={}, voucherId={}, discountApplied={}", 
-                    order.getId(), voucher.getId(), discountApplied);
+
+                log.info("✅ Saved OrderVoucher: orderId={}, voucherId={}, discountApplied={}",
+                        order.getId(), voucher.getId(), discountApplied);
             }
-            
+
         } catch (Exception e) {
             log.error("❌ Failed to save OrderVoucher entities for order {}: {}", order.getId(), e.getMessage(), e);
             // Không throw exception để không làm fail việc tạo order
         }
+    }
+
+    private Long getStartOfDay(int dayOffset) {
+        return LocalDate.now().plusDays(dayOffset)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli();
+    }
+
+    private Long getEndOfDay(int dayOffset) {
+        return LocalDate.now().plusDays(dayOffset)
+                .atTime(23, 59, 59, 999_999_999)
+                .atZone(ZoneId.systemDefault())
+                .toInstant().toEpochMilli();
     }
 }

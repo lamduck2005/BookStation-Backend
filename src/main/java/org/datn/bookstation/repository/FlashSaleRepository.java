@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface FlashSaleRepository extends JpaRepository<FlashSale, Integer>, JpaSpecificationExecutor<FlashSale> {
@@ -16,4 +17,6 @@ public interface FlashSaleRepository extends JpaRepository<FlashSale, Integer>, 
                 WHERE fl.startTime < :endTime AND fl.endTime > :startTime
             """)
     List<FlashSale> findOverlappingFlashSales(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
+
+    List<FlashSale> findByStartTimeLessThanEqualAndEndTimeGreaterThanEqual(Long dateMillis, Long dateMillis1);
 }

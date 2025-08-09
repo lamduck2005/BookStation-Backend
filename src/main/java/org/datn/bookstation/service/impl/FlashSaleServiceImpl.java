@@ -6,19 +6,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.datn.bookstation.entity.FlashSale;
-import org.datn.bookstation.entity.FlashSaleItem;
-import org.datn.bookstation.mapper.FlashSaleMapper;
-import org.datn.bookstation.repository.FlashSaleRepository;
-import org.datn.bookstation.repository.FlashSaleItemRepository;
-import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.dto.request.FlashSaleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
-import org.datn.bookstation.dto.response.FlashSaleResponse;
+import org.datn.bookstation.dto.response.FlashSaleDisplayResponse;
 import org.datn.bookstation.dto.response.FlashSaleInfoResponse;
+import org.datn.bookstation.dto.response.FlashSaleResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
-import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.entity.FlashSale;
+import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.mapper.FlashSaleCustomMapper;
+import org.datn.bookstation.mapper.FlashSaleMapper;
+import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.FlashSaleRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.CartItemService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.specification.FlashSaleSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -44,6 +46,8 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     @Autowired
     private FlashSaleMapper flashSaleMapper;
 
+    @Autowired
+    private FlashSaleCustomMapper flashSaleCustomMapper;
     @Autowired
     private ApplicationContext applicationContext;
 
@@ -531,6 +535,21 @@ public class FlashSaleServiceImpl implements FlashSaleService {
             log.error("❌ ERROR: autoUpdateFlashSaleItemsStatus({}) failed", flashSaleId, e);
             return 0;
         }
+    }
+
+    @Override
+    public ApiResponse<FlashSaleDisplayResponse> findFlashSalesByDate() {
+        Long dateMillis = System.currentTimeMillis();
+        FlashSale flashSale = flashSaleRepository
+                .findByStartTimeLessThanEqualAndEndTimeGreaterThanEqual(dateMillis, dateMillis)
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (flashSale == null) {
+            return new ApiResponse<>(404, "Không có flash sale nào trong ngày này", null);
+        }
+        return new ApiResponse<>(200, "Thành công", flashSaleCustomMapper.toDisplayResponse(flashSale));
     }
 
     /**

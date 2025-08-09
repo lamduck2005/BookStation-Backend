@@ -14,20 +14,23 @@ import org.datn.bookstation.dto.request.FlashSaleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.FlashSaleResponse;
+import org.datn.bookstation.dto.response.FlashSaleDisplayResponse;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
 @RestController
-@RequestMapping("/api/flash-sales")  
+@RequestMapping("/api/flash-sales")
 public class FlashSaleController {
     @Autowired
     private FlashSaleService flashSaleService;
 
     // @GetMapping
-    // public ApiResponse<PaginationResponse<FlashSaleResponse>> getAllFlashSaleWithPagination(@RequestParam int page, @RequestParam int size) {
-    //     return flashSaleService.getAllFlashSaleWithPagination(page, size);
+    // public ApiResponse<PaginationResponse<FlashSaleResponse>>
+    // getAllFlashSaleWithPagination(@RequestParam int page, @RequestParam int size)
+    // {
+    // return flashSaleService.getAllFlashSaleWithPagination(page, size);
     // }
 
     @GetMapping
@@ -41,15 +44,14 @@ public class FlashSaleController {
         return flashSaleService.getAllWithFilter(page, size, name, from, to, status);
     }
 
-
-
     @PostMapping
     public ApiResponse<FlashSaleResponse> createFlashSale(@RequestBody FlashSaleRequest request) {
         return flashSaleService.createFlashSale(request);
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<FlashSaleResponse> updateFlashSale(@RequestBody FlashSaleRequest request, @PathVariable Integer id) {
+    public ApiResponse<FlashSaleResponse> updateFlashSale(@RequestBody FlashSaleRequest request,
+            @PathVariable Integer id) {
         return flashSaleService.updateFlashSale(request, id);
     }
 
@@ -58,6 +60,8 @@ public class FlashSaleController {
         return flashSaleService.toggleStatus(id);
     }
 
-    
-    
+    @GetMapping("/today")
+    public ApiResponse<FlashSaleDisplayResponse> getTodayFlashSale() {
+        return flashSaleService.findFlashSalesByDate();
+    }
 }

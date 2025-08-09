@@ -99,6 +99,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
         switch (period.toLowerCase()) {
             case "weekly":
                 rawData = orderRepository.findWeeklyRevenueByDateRange(startTime, endTime);
+
                 break;
             case "monthly":
                 rawData = orderRepository.findMonthlyRevenueByDateRange(startTime, endTime);

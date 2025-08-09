@@ -373,7 +373,7 @@ public class BookController {
         return ResponseEntity.ok(bookService.getBooksByCategoryId(id, text));
     }
 
-    @GetMapping("/flashsalebook")
+    @GetMapping("/flashsale/books")
     public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksInActiveFlashSale() {
         return ResponseEntity.ok(flashSaleItemService.findAllBooksInActiveFlashSale());
     }
