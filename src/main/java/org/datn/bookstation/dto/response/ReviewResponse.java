@@ -16,4 +16,5 @@ public class ReviewResponse {
     private String comment;
     private Long reviewDate;
     private String reviewStatus;
+    private Long updatedAt;
 }
