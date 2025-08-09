@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.datn.bookstation.entity.enums.RoleName;
 
 @Service
 @RequiredArgsConstructor
@@ -50,5 +51,47 @@ public class SelectOptionsServiceImpl implements SelectOptionsService {
             .collect(Collectors.toList());
             
         return new ApiResponse<>(200, "Lấy danh sách người dùng thành công", options);
+    }
+
+    @Override
+    public ApiResponse<List<SelectOptions.UserOption>> getCustomerOptions() {
+        List<User> users = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
+        List<SelectOptions.UserOption> options = users.stream()
+            .map(user -> new SelectOptions.UserOption(
+                user.getId(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getFullName()
+            ))
+            .collect(Collectors.toList());
+        return new ApiResponse<>(200, "Lấy danh sách khách hàng thành công", options);
+    }
+
+    @Override
+    public ApiResponse<List<SelectOptions.UserOption>> getAdminOptions() {
+        List<User> users = userRepository.findByRole_RoleName(RoleName.ADMIN);
+        List<SelectOptions.UserOption> options = users.stream()
+            .map(user -> new SelectOptions.UserOption(
+                user.getId(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getFullName()
+            ))
+            .collect(Collectors.toList());
+        return new ApiResponse<>(200, "Lấy danh sách admin thành công", options);
+    }
+
+    @Override
+    public ApiResponse<List<SelectOptions.UserOption>> getStaffOptions() {
+        List<User> users = userRepository.findByRole_RoleName(RoleName.STAFF);
+        List<SelectOptions.UserOption> options = users.stream()
+            .map(user -> new SelectOptions.UserOption(
+                user.getId(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getFullName()
+            ))
+            .collect(Collectors.toList());
+        return new ApiResponse<>(200, "Lấy danh sách nhân viên thành công", options);
     }
 }
