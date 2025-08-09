@@ -26,4 +26,20 @@ public class SelectOptionsController {
     public ApiResponse<List<SelectOptions.UserOption>> getUserOptions() {
         return selectOptionsService.getUserOptions();
     }
+
+    @GetMapping("/users/customers")
+    public ApiResponse<List<SelectOptions.UserOption>> getCustomers() {
+        return selectOptionsService.getCustomerOptions();
+    }
+
+    @GetMapping("/users/admins")
+    public ApiResponse<List<SelectOptions.UserOption>> getAdmins() {
+        return selectOptionsService.getAdminOptions();
+    }
+
+    @GetMapping("/users/staffs")
+    public ApiResponse<List<SelectOptions.UserOption>> getStaffs() {
+        return selectOptionsService.getStaffOptions();
+    }
+
 }
