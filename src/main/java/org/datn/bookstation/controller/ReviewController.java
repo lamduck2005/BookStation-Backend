@@ -25,8 +25,10 @@ public class ReviewController {
             @RequestParam(required = false) Integer userId,
             @RequestParam(required = false) Long from,
             @RequestParam(required = false) Long to,
-            @RequestParam(required = false) ReviewStatus status) {
-        return reviewService.getAllWithFilter(page, size, rating, bookId, userId, from, to, status);
+            @RequestParam(required = false) ReviewStatus status,
+            @RequestParam(required = false, defaultValue = "reviewDate") String sortBy,
+            @RequestParam(required = false, defaultValue = "DESC") String sortDirection) {
+        return reviewService.getAllWithFilter(page, size, rating, bookId, userId, from, to, status, sortBy, sortDirection);
     }
 
 
@@ -43,5 +45,10 @@ public class ReviewController {
     @PatchMapping("/{id}/status")
     public ApiResponse<ReviewResponse> toggleStatus(@PathVariable Integer id) {
         return reviewService.toggleStatus(id);
+    }
+
+    @GetMapping("/stats")
+    public ApiResponse<org.datn.bookstation.dto.response.ReviewStatsResponse> getStats() {
+        return reviewService.getStats();
     }
 } 

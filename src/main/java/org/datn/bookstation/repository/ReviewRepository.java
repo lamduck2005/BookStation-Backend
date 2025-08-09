@@ -29,4 +29,8 @@ public interface ReviewRepository extends JpaRepository<Review, Integer>, JpaSpe
 
     // Tìm review theo bookId và userId
     Review findByBookIdAndUserId(Integer bookId, Integer userId);
+
+    // Đếm tổng theo status
+    long countByReviewStatus(ReviewStatus status);
+    long countByReviewStatusIn(List<ReviewStatus> statuses);
 }
