@@ -1,13 +1,13 @@
 package org.datn.bookstation.service.impl;
 
 import java.util.List;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import org.datn.bookstation.dto.request.ReviewRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.ReviewResponse;
+import org.datn.bookstation.dto.response.ReviewStatsResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Review;
 import org.datn.bookstation.entity.User;
@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
@@ -41,8 +42,8 @@ public class ReviewServiceImpl implements ReviewService {
     private ReviewMapper reviewMapper;
 
     @Override
-    public ApiResponse<PaginationResponse<ReviewResponse>> getAllWithFilter(int page, int size, Integer rating, Integer bookId, Integer userId, Long from, Long to, ReviewStatus status) {
-        Pageable pageable = PageRequest.of(page, size);
+    public ApiResponse<PaginationResponse<ReviewResponse>> getAllWithFilter(int page, int size, Integer rating, Integer bookId, Integer userId, Long from, Long to, ReviewStatus status, String sortBy, String sortDirection) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.valueOf(sortDirection), sortBy));
         Specification<Review> specification = ReviewSpecification.filterBy(rating, bookId, userId, from, to, status);
         Page<Review> reviewPage = reviewRepository.findAll(specification, pageable);
 
@@ -114,5 +115,20 @@ public class ReviewServiceImpl implements ReviewService {
         return new ApiResponse<>(200, "Cập nhật trạng thái review thành công", reviewMapper.toResponse(review));
     }
 
+    @Override
+    public ApiResponse<ReviewStatsResponse> getStats() {
+        long total = reviewRepository.count();
+        long edited = reviewRepository.countByReviewStatus(ReviewStatus.EDITED);
+        long hidden = reviewRepository.countByReviewStatus(ReviewStatus.HIDDEN);
+        long approved = reviewRepository.countByReviewStatus(ReviewStatus.APPROVED);
+
+        ReviewStatsResponse stats = ReviewStatsResponse.builder()
+                .total(total)
+                .approved(approved)
+                .edited(edited)
+                .hidden(hidden)
+                .build();
+        return new ApiResponse<>(200, "Lấy thống kê review thành công", stats);
+    }
     
 }
