@@ -87,6 +87,12 @@ public class Order {
     @Nationalized
     @Column(name = "order_type", nullable = false, length = 20)
     private String orderType;
+    
+    // ✅ THÊM MỚI: Phương thức thanh toán
+    @Size(max = 20)
+    @Nationalized
+    @Column(name = "payment_method", length = 20)
+    private String paymentMethod; // "COD", "ONLINE_PAYMENT", "BANK_TRANSFER", etc.
 
     @Nationalized
     @Lob

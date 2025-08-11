@@ -8,6 +8,7 @@ import org.datn.bookstation.dto.request.RefundRequestDto;
 import org.datn.bookstation.dto.request.AdminRefundDecisionDto;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.OrderResponse;
+import org.datn.bookstation.dto.response.OrderDetailResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.RevenueStatsResponse;
 import org.datn.bookstation.entity.*;
@@ -21,6 +22,7 @@ import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.PointManagementService;
 import org.datn.bookstation.service.VoucherCalculationService;
 import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.utils.RefundReasonUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -138,7 +140,12 @@ public class OrderServiceImpl implements OrderService {
         List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
 
         // Sử dụng mapper với details
-        return orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+        OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+        
+        // ✅ THÊM MỚI: Set thông tin hoàn trả
+        setRefundInfoToOrderResponse(response, order);
+        
+        return response;
     }
 
     @Override
@@ -210,6 +217,7 @@ public class OrderServiceImpl implements OrderService {
         order.setUser(user);
         order.setAddress(address);
         order.setOrderType(request.getOrderType().toUpperCase());
+        order.setPaymentMethod(request.getPaymentMethod()); // ✅ THÊM MỚI
         order.setOrderStatus(request.getOrderStatus());
         order.setOrderDate(System.currentTimeMillis());
         order.setShippingFee(shippingFee);
@@ -474,7 +482,16 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getOrdersByUser(Integer userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream()
-                .map(orderResponseMapper::toResponse)
+                .map(order -> {
+                    // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
+                    List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
+                    List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
+                    
+                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+                    setRefundInfoToOrderResponse(response, order);
+                    
+                    return response;
+                })
                 .toList();
     }
 
@@ -491,7 +508,16 @@ public class OrderServiceImpl implements OrderService {
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 
         List<OrderResponse> orderResponses = orderPage.getContent().stream()
-                .map(orderResponseMapper::toResponse)
+                .map(order -> {
+                    // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
+                    List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
+                    List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
+                    
+                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+                    setRefundInfoToOrderResponse(response, order);
+                    
+                    return response;
+                })
                 .toList();
 
         return PaginationResponse.<OrderResponse>builder()
@@ -1021,7 +1047,109 @@ public class OrderServiceImpl implements OrderService {
         List<org.datn.bookstation.entity.OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
         // Map sang DTO
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+        
+        // ✅ THÊM MỚI: Set thông tin hoàn trả
+        setRefundInfoToOrderResponse(response, order);
+        
         return response;
+    }
+    
+    /**
+     * ✅ THÊM MỚI: Set thông tin hoàn trả cho OrderResponse
+     */
+    private void setRefundInfoToOrderResponse(OrderResponse orderResponse, Order order) {
+        // Kiểm tra trạng thái hoàn trả
+        if (order.getOrderStatus() == OrderStatus.PARTIALLY_REFUNDED) {
+            orderResponse.setRefundType("PARTIAL");
+        } else if (order.getOrderStatus() == OrderStatus.REFUNDED) {
+            orderResponse.setRefundType("FULL");
+        }
+        
+        // Lấy thông tin hoàn trả từ RefundRequest entity
+        List<RefundRequest> refundRequests = refundRequestRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+        
+        // Lọc những request đã approved
+        List<RefundRequest> approvedRefunds = refundRequests.stream()
+            .filter(r -> r.getStatus() == RefundStatus.APPROVED || r.getStatus() == RefundStatus.COMPLETED)
+            .toList();
+        
+        if (!approvedRefunds.isEmpty()) {
+            RefundRequest latestRefund = approvedRefunds.get(approvedRefunds.size() - 1);
+            orderResponse.setTotalRefundedAmount(latestRefund.getTotalRefundAmount());
+            orderResponse.setRefundReason(latestRefund.getReason());
+            orderResponse.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(latestRefund.getReason())); // ✅ THÊM
+            orderResponse.setRefundDate(latestRefund.getApprovedAt());
+            if (latestRefund.getApprovedBy() != null) {
+                orderResponse.setRefundedByStaff(latestRefund.getApprovedBy().getId());
+                orderResponse.setRefundedByStaffName(latestRefund.getApprovedBy().getFullName());
+            }
+        }
+        
+        // ✅ Set thông tin hoàn trả cho từng order detail
+        if (orderResponse.getOrderDetails() != null) {
+            for (OrderDetailResponse detail : orderResponse.getOrderDetails()) {
+                setRefundInfoToOrderDetail(detail, order.getId());
+            }
+        }
+    }
+    
+    /**
+     * ✅ SỬA: Set thông tin hoàn trả cho OrderDetailResponse
+     */
+    private void setRefundInfoToOrderDetail(OrderDetailResponse detail, Integer orderId) {
+        // Lấy tất cả RefundItem cho sản phẩm này trong đơn hàng
+        List<RefundItem> refundItems = refundItemRepository.findByOrderIdAndBookId(orderId, detail.getBookId());
+        
+        if (!refundItems.isEmpty()) {
+            // Tính tổng số lượng và số tiền đã hoàn
+            int totalRefundedQuantity = refundItems.stream()
+                .mapToInt(RefundItem::getRefundQuantity)
+                .sum();
+            
+            BigDecimal totalRefundedAmount = refundItems.stream()
+                .map(RefundItem::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            detail.setRefundedQuantity(totalRefundedQuantity);
+            detail.setRefundedAmount(totalRefundedAmount);
+            
+            // ✅ SỬA: Lấy lý do từ RefundRequest (dropdown user chọn), không phải từ RefundItem
+            RefundItem latestItem = refundItems.get(refundItems.size() - 1);
+            RefundRequest refundRequest = latestItem.getRefundRequest();
+            
+            // Lý do chính từ dropdown user chọn
+            detail.setRefundReason(refundRequest.getReason()); 
+            detail.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(refundRequest.getReason())); // ✅ THÊM
+            detail.setRefundDate(refundRequest.getCreatedAt());
+            
+            // ✅ THÊM MỚI: Set trạng thái hoàn trả của sản phẩm
+            detail.setRefundStatus(refundRequest.getStatus().name());
+            detail.setRefundStatusDisplay(getRefundStatusDisplay(refundRequest.getStatus()));
+            
+        } else {
+            detail.setRefundedQuantity(0);
+            detail.setRefundedAmount(BigDecimal.ZERO);
+            detail.setRefundStatus("NONE");
+            detail.setRefundStatusDisplay("Không hoàn trả");
+        }
+    }
+    
+    /**
+     * ✅ THÊM MỚI: Helper method để convert trạng thái hoàn trả sang display name
+     */
+    private String getRefundStatusDisplay(RefundStatus status) {
+        switch (status) {
+            case PENDING:
+                return "Chờ phê duyệt";
+            case APPROVED:
+                return "Đã phê duyệt";
+            case REJECTED:
+                return "Đã từ chối";
+            case COMPLETED:
+                return "Hoàn thành";
+            default:
+                return "Không xác định";
+        }
     }
 
     @Override

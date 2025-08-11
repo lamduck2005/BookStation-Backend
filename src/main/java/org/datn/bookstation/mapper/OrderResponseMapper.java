@@ -59,6 +59,7 @@ public class OrderResponseMapper {
         response.setOrderStatus(order.getOrderStatus());
         response.setOrderStatusDisplay(OrderStatusUtil.getStatusDisplayName(order.getOrderStatus()));
         response.setOrderType(order.getOrderType());
+        response.setPaymentMethod(order.getPaymentMethod()); // ✅ THÊM MỚI
         response.setNotes(order.getNotes());
         response.setCancelReason(order.getCancelReason());
         response.setCreatedAt(order.getCreatedAt());

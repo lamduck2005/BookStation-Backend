@@ -28,4 +28,15 @@ public class OrderDetailResponse {
     private Integer createdBy;
     private Integer updatedBy;
     private Byte status;
+    
+    // ✅ THÊM MỚI: Thông tin hoàn trả
+    private Integer refundedQuantity = 0;
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+    private String refundReason;
+    private String refundReasonDisplay; // ✅ THÊM: Hiển thị lý do hoàn trả bằng tiếng Việt
+    private Long refundDate;
+    
+    // ✅ THÊM MỚI: Trạng thái hoàn trả của sản phẩm này
+    private String refundStatus; // "NONE", "REQUESTED", "APPROVED", "REJECTED", "COMPLETED"
+    private String refundStatusDisplay;
 }

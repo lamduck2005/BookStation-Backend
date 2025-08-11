@@ -36,26 +36,35 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
     @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime")
     Long countAllOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-    // Tính tổng doanh thu theo khoảng thời gian và trạng thái
-    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
+    // ✅ SỬA: Tính tổng doanh thu theo khoảng thời gian và trạng thái (chỉ tính subtotal, không tính phí ship)
+    @Query("SELECT COALESCE(SUM(o.subtotal), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
     BigDecimal sumRevenueByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
+    
+    // ✅ THÊM MỚI: Tính tổng số tiền đã hoàn trả theo khoảng thời gian
+    @Query("SELECT COALESCE(SUM(rr.totalRefundAmount), 0) FROM RefundRequest rr " +
+           "WHERE rr.order.orderDate >= :startTime AND rr.order.orderDate <= :endTime " +
+           "AND rr.status IN ('APPROVED', 'COMPLETED')")
+    BigDecimal sumRefundedAmountByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
     // Tính tổng phí vận chuyển theo khoảng thời gian và trạng thái
     @Query("SELECT COALESCE(SUM(o.shippingFee), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
     BigDecimal sumShippingFeeByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
 
-    // Đếm số đơn COD theo khoảng thời gian
-    @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderType = 'COD' AND o.orderStatus IN :statuses")
+    // ✅ SỬA: Đếm số đơn COD theo khoảng thời gian (sử dụng paymentMethod)
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.paymentMethod = 'COD' AND o.orderStatus IN :statuses")
     Long countCodOrdersByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
 
-    // Đếm số đơn COD thất bại (DELIVERY_FAILED, CANCELED) theo khoảng thời gian
-    @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderType = 'COD' AND o.orderStatus IN :statuses")
+    // ✅ SỬA: Đếm số đơn COD thất bại (DELIVERY_FAILED, CANCELED) theo khoảng thời gian
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.paymentMethod = 'COD' AND o.orderStatus IN :statuses")
     Long countFailedCodOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
 
-    // Lấy dữ liệu doanh thu theo ngày (cho line chart) - SQL Server native query
+    // ✅ SỬA: Lấy dữ liệu doanh thu theo ngày (cho line chart) - chỉ tính subtotal trừ refund
     @Query(value = "SELECT CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) as date, " +
-            "COALESCE(SUM(o.total_amount), 0) as revenue, COUNT(o.id) as orderCount " +
-            "FROM [order] o WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(SUM(CASE WHEN rr.status IN ('APPROVED', 'COMPLETED') THEN rr.total_refund_amount ELSE 0 END), 0) as revenue, " +
+            "COUNT(o.id) as orderCount " +
+            "FROM [order] o " +
+            "LEFT JOIN refund_request rr ON o.id = rr.order_id " +
+            "WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
             "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
             "GROUP BY CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) ORDER BY date",
             nativeQuery = true)

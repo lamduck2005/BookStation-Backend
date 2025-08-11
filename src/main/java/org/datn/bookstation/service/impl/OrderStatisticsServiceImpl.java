@@ -51,9 +51,9 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
             .totalOrdersToday(orderRepository.countAllOrdersByDateRange(todayStart, todayEnd))
             .totalOrdersThisMonth(orderRepository.countAllOrdersByDateRange(monthStart, monthEnd))
             
-            // Doanh thu
-            .revenueToday(orderRepository.sumRevenueByDateRangeAndStatuses(todayStart, todayEnd, SUCCESS_STATUSES))
-            .revenueThisMonth(orderRepository.sumRevenueByDateRangeAndStatuses(monthStart, monthEnd, SUCCESS_STATUSES))
+            // ✅ SỬA: Doanh thu (subtotal trừ đi số tiền đã hoàn trả)
+            .revenueToday(calculateNetRevenue(todayStart, todayEnd))
+            .revenueThisMonth(calculateNetRevenue(monthStart, monthEnd))
             
             // Lợi nhuận ròng (doanh thu - chi phí vận chuyển, tạm tính đơn giản)
             .netProfitToday(calculateNetProfit(todayStart, todayEnd))
@@ -399,11 +399,19 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     // ============ PRIVATE HELPER METHODS ============
     
+    // ✅ THÊM MỚI: Tính doanh thu ròng (subtotal - refund amount)
+    private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
+        BigDecimal grossRevenue = orderRepository.sumRevenueByDateRangeAndStatuses(startTime, endTime, SUCCESS_STATUSES);
+        BigDecimal refundedAmount = orderRepository.sumRefundedAmountByDateRange(startTime, endTime);
+        return grossRevenue.subtract(refundedAmount);
+    }
+    
     private BigDecimal calculateNetProfit(Long startTime, Long endTime) {
-        BigDecimal revenue = orderRepository.sumRevenueByDateRangeAndStatuses(startTime, endTime, SUCCESS_STATUSES);
+        // ✅ SỬA: Sử dụng doanh thu ròng thay vì gross revenue
+        BigDecimal netRevenue = calculateNetRevenue(startTime, endTime);
         BigDecimal shippingCost = orderRepository.sumShippingFeeByDateRangeAndStatuses(startTime, endTime, SUCCESS_STATUSES);
-        // Tạm thời tính lợi nhuận = doanh thu - phí ship (có thể mở rộng thêm chi phí khác)
-        return revenue.subtract(shippingCost);
+        // Tạm thời tính lợi nhuận = doanh thu ròng - phí ship (có thể mở rộng thêm chi phí khác)
+        return netRevenue.subtract(shippingCost);
     }
     
     private Double calculateCodRate(Long startTime, Long endTime) {
