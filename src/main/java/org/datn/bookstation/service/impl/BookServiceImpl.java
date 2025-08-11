@@ -927,4 +927,92 @@ public class BookServiceImpl implements BookService {
         List<BookStockResponse> result = bookRepository.findAllBookStock();
         return new ApiResponse<>(200, "Thành công", result);
     }
+
+    @Override
+    public ApiResponse<List<ProcessingOrderResponse>> getProcessingOrdersByBookId(Integer bookId) {
+        try {
+            // Kiểm tra sách tồn tại
+            Book book = bookRepository.findById(bookId).orElse(null);
+            if (book == null) {
+                return new ApiResponse<>(404, "Không tìm thấy sách với ID: " + bookId, new ArrayList<>());
+            }
+
+            // Định nghĩa các trạng thái đang xử lý
+            List<org.datn.bookstation.entity.enums.OrderStatus> processingStatuses = List.of(
+                org.datn.bookstation.entity.enums.OrderStatus.PENDING,
+                org.datn.bookstation.entity.enums.OrderStatus.CONFIRMED, 
+                org.datn.bookstation.entity.enums.OrderStatus.SHIPPED,
+                org.datn.bookstation.entity.enums.OrderStatus.REFUND_REQUESTED,
+                org.datn.bookstation.entity.enums.OrderStatus.AWAITING_GOODS_RETURN,
+                org.datn.bookstation.entity.enums.OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,
+                org.datn.bookstation.entity.enums.OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,
+                org.datn.bookstation.entity.enums.OrderStatus.REFUNDING
+            );
+
+            // Lấy thông tin chi tiết từ repository
+            List<Object[]> rawData = orderDetailRepository.findProcessingOrderDetailsByBookId(bookId, processingStatuses);
+            
+            List<ProcessingOrderResponse> processingOrders = rawData.stream()
+                .map(row -> ProcessingOrderResponse.builder()
+                    .orderId((Integer) row[0])
+                    .orderCode((String) row[1])
+                    .customerName((String) row[2])
+                    .customerPhone((String) row[3])
+                    .orderStatus(((org.datn.bookstation.entity.enums.OrderStatus) row[4]).name())
+                    .orderStatusDisplay(getOrderStatusDisplayName((org.datn.bookstation.entity.enums.OrderStatus) row[4]))
+                    .bookId(bookId)
+                    .bookName(book.getBookName())
+                    .bookCode(book.getBookCode())
+                    .processingQuantity((Integer) row[5])
+                    .unitPrice((BigDecimal) row[6])
+                    .totalAmount(((BigDecimal) row[6]).multiply(BigDecimal.valueOf((Integer) row[5])))
+                    .orderCreatedAt((Long) row[7])
+                    .orderCreatedAtDisplay(formatTimestamp((Long) row[7]))
+                    .orderType((String) row[8])
+                    .paymentMethod((String) row[9])
+                    .orderTotalAmount((BigDecimal) row[10])
+                    .refundReason((String) row[11])
+                    .refundStatus(row[12] != null ? row[12].toString() : null)
+                    .build())
+                .collect(Collectors.toList());
+            
+            if (processingOrders.isEmpty()) {
+                return new ApiResponse<>(200, "Không có đơn hàng nào đang xử lý cho sách này", new ArrayList<>());
+            }
+
+            return new ApiResponse<>(200, 
+                String.format("Tìm thấy %d đơn hàng đang xử lý sách '%s'", processingOrders.size(), book.getBookName()), 
+                processingOrders);
+                
+        } catch (Exception e) {
+            log.error("Error getting processing orders for bookId {}: {}", bookId, e.getMessage(), e);
+            return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), new ArrayList<>());
+        }
+    }
+    
+    private String getOrderStatusDisplayName(org.datn.bookstation.entity.enums.OrderStatus status) {
+        // Tương tự như trong OrderStatusUtil
+        switch (status) {
+            case PENDING: return "Chờ xử lý";
+            case CONFIRMED: return "Đã xác nhận";
+            case SHIPPED: return "Đang giao hàng";
+            case DELIVERED: return "Đã giao thành công";
+            case REFUND_REQUESTED: return "Yêu cầu hoàn hàng";
+            case AWAITING_GOODS_RETURN: return "Chờ lấy hàng hoàn trả";
+            case GOODS_RECEIVED_FROM_CUSTOMER: return "Đã nhận hàng hoàn trả";
+            case GOODS_RETURNED_TO_WAREHOUSE: return "Hàng đã về kho";
+            case REFUNDING: return "Đang hoàn tiền";
+            case REFUNDED: return "Đã hoàn tiền";
+            case PARTIALLY_REFUNDED: return "Hoàn tiền một phần";
+            case CANCELED: return "Đã hủy";
+            default: return status.name();
+        }
+    }
+    
+    private String formatTimestamp(Long timestamp) {
+        if (timestamp == null) return "";
+        return java.time.Instant.ofEpochMilli(timestamp)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+    }
 }

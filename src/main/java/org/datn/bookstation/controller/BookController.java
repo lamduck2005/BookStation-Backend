@@ -17,6 +17,7 @@ import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.dto.response.QuantityValidationResponse;
 import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
+import org.datn.bookstation.dto.response.ProcessingOrderResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
@@ -425,6 +426,23 @@ public class BookController {
                     .body(new ApiResponse<>(500, response.getMessage(), null));
         }
 
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * ✅ THÊM MỚI: API lấy danh sách đơn hàng đang xử lý theo bookId
+     * Mục đích: Frontend xem sách và thấy processingQuantity, muốn biết chi tiết những đơn nào đang xử lý
+     * GET /api/books/{bookId}/processing-orders
+     * 
+     * @param bookId ID của sách cần xem
+     * @return Danh sách các đơn hàng đang xử lý sách này với thông tin chi tiết
+     */
+    @GetMapping("/{bookId}/processing-orders")
+    public ResponseEntity<ApiResponse<List<ProcessingOrderResponse>>> getProcessingOrdersByBookId(
+            @PathVariable Integer bookId) {
+        
+        ApiResponse<List<ProcessingOrderResponse>> response = bookService.getProcessingOrdersByBookId(bookId);
+        
         return ResponseEntity.ok(response);
     }
 

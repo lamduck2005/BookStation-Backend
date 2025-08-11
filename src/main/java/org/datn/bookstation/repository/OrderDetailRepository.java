@@ -68,4 +68,19 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "WHERE ri.book.id = :bookId " +
            "AND ri.refundRequest.status IN ('PENDING', 'APPROVED')")
     Integer sumActiveRefundQuantityByBookId(@Param("bookId") Integer bookId);
+    
+    // ✅ THÊM MỚI: Lấy thông tin chi tiết đơn hàng đang xử lý theo bookId
+    @Query("SELECT " +
+           "o.id, o.code, u.fullName, u.phoneNumber, " +
+           "o.orderStatus, od.quantity, od.unitPrice, " +
+           "o.createdAt, o.orderType, o.paymentMethod, o.subtotal, " +
+           "rr.reason, rr.status " +
+           "FROM Order o " +
+           "JOIN o.orderDetails od " +
+           "JOIN o.user u " +
+           "LEFT JOIN RefundRequest rr ON rr.order.id = o.id " +
+           "WHERE od.book.id = :bookId " +
+           "AND o.orderStatus IN :processingStatuses " +
+           "ORDER BY o.createdAt DESC")
+    List<Object[]> findProcessingOrderDetailsByBookId(@Param("bookId") Integer bookId, @Param("processingStatuses") List<org.datn.bookstation.entity.enums.OrderStatus> processingStatuses);
 }

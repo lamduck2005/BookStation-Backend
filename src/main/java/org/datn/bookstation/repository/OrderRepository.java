@@ -40,10 +40,10 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
     @Query("SELECT COALESCE(SUM(o.subtotal), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
     BigDecimal sumRevenueByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
     
-    // ✅ THÊM MỚI: Tính tổng số tiền đã hoàn trả theo khoảng thời gian
+    // ✅ SỬA: Chỉ tính tiền đã hoàn trả THỰC SỰ (COMPLETED) - không tính APPROVED
     @Query("SELECT COALESCE(SUM(rr.totalRefundAmount), 0) FROM RefundRequest rr " +
            "WHERE rr.order.orderDate >= :startTime AND rr.order.orderDate <= :endTime " +
-           "AND rr.status IN ('APPROVED', 'COMPLETED')")
+           "AND rr.status = 'COMPLETED'")
     BigDecimal sumRefundedAmountByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
     // Tính tổng phí vận chuyển theo khoảng thời gian và trạng thái
@@ -58,14 +58,19 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
     @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.paymentMethod = 'COD' AND o.orderStatus IN :statuses")
     Long countFailedCodOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
 
-    // ✅ SỬA: Lấy dữ liệu doanh thu theo ngày (cho line chart) - chỉ tính subtotal trừ refund
-    @Query(value = "SELECT CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) as date, " +
-            "COALESCE(SUM(o.subtotal), 0) - COALESCE(SUM(CASE WHEN rr.status IN ('APPROVED', 'COMPLETED') THEN rr.total_refund_amount ELSE 0 END), 0) as revenue, " +
+    // ✅ FIXED: Tính refund bằng subquery để tránh duplicate từ LEFT JOIN
+    @Query(value = "SELECT " +
+            "CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) as date, " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
+                "(SELECT SUM(rr.total_refund_amount) " +
+                " FROM refund_request rr " +
+                " WHERE rr.status = 'COMPLETED' " +
+                " AND rr.order_id IN (SELECT o2.id FROM [order] o2 WHERE CAST(DATEADD(SECOND, o2.order_date/1000, '1970-01-01') AS DATE) = CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE)))" +
+            ", 0) as revenue, " +
             "COUNT(o.id) as orderCount " +
             "FROM [order] o " +
-            "LEFT JOIN refund_request rr ON o.id = rr.order_id " +
             "WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
-            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'REFUNDING') " +
             "GROUP BY CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) ORDER BY date",
             nativeQuery = true)
     List<Object[]> findDailyRevenueByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
@@ -85,19 +90,34 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
             nativeQuery = true)
     List<Object[]> findTopProductsByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-    // Thống kê phương thức thanh toán - SQL Server compatible
-    @Query(value = "SELECT o.order_type, COUNT(o.id), COALESCE(SUM(o.total_amount), 0) " +
+    // ✅ FIXED: Payment method stats với refund logic đúng
+    @Query(value = "SELECT o.order_type, COUNT(o.id), " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
+                "(SELECT SUM(rr.total_refund_amount) " +
+                " FROM refund_request rr " +
+                " WHERE rr.status = 'COMPLETED' " +
+                " AND rr.order_id IN (SELECT o2.id FROM [order] o2 WHERE o2.order_type = o.order_type AND o2.order_date >= :startTime AND o2.order_date <= :endTime))" +
+            ", 0) " +
             "FROM [order] o WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
-            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'REFUNDING') " +
             "GROUP BY o.order_type",
             nativeQuery = true)
     List<Object[]> findPaymentMethodStatsByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-    // Thống kê theo địa điểm (tỉnh/thành phố) - SQL Server compatible
-    @Query(value = "SELECT a.province_name, a.province_id, COUNT(o.id), COALESCE(SUM(o.total_amount), 0) " +
+    // ✅ FIXED: Location stats với refund logic đúng
+    @Query(value = "SELECT a.province_name, a.province_id, COUNT(o.id), " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
+                "(SELECT SUM(rr.total_refund_amount) " +
+                " FROM refund_request rr " +
+                " JOIN [order] o3 ON rr.order_id = o3.id " +
+                " JOIN address a3 ON o3.address_id = a3.id " +
+                " WHERE rr.status = 'COMPLETED' " +
+                " AND a3.province_id = a.province_id " +
+                " AND o3.order_date >= :startTime AND o3.order_date <= :endTime)" +
+            ", 0) " +
             "FROM [order] o JOIN address a ON o.address_id = a.id " +
             "WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
-            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'REFUNDING') " +
             "GROUP BY a.province_name, a.province_id ORDER BY COUNT(o.id) DESC",
             nativeQuery = true)
     List<Object[]> findLocationStatsByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
@@ -134,29 +154,44 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
             "AND EXISTS(SELECT 1 FROM Order o2 WHERE o2.user.id = u.id AND o2.orderDate < :startTime)")
     Long countReturningCustomersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-    // Lấy dữ liệu doanh thu theo tuần - SQL Server native query
+    // ✅ FIXED: Weekly revenue với refund logic đúng
     @Query(value = "SELECT " +
             "CONCAT(YEAR(DATEADD(SECOND, o.order_date/1000, '1970-01-01')), '-W', " +
             "FORMAT(DATEPART(WEEK, DATEADD(SECOND, o.order_date/1000, '1970-01-01')), '00')) as week_period, " +
-            "COALESCE(SUM(o.total_amount), 0) as revenue, COUNT(o.id) as orderCount, " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
+                "(SELECT SUM(rr.total_refund_amount) " +
+                " FROM refund_request rr " +
+                " WHERE rr.status = 'COMPLETED' " +
+                " AND rr.order_id IN (SELECT o2.id FROM [order] o2 WHERE " +
+                "   YEAR(DATEADD(SECOND, o2.order_date/1000, '1970-01-01')) = YEAR(DATEADD(SECOND, o.order_date/1000, '1970-01-01')) AND " +
+                "   DATEPART(WEEK, DATEADD(SECOND, o2.order_date/1000, '1970-01-01')) = DATEPART(WEEK, DATEADD(SECOND, o.order_date/1000, '1970-01-01'))))" +
+            ", 0) as revenue, " +
+            "COUNT(o.id) as orderCount, " +
             "MIN(CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE)) as week_start, " +
             "MAX(CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE)) as week_end " +
             "FROM [order] o WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
-            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'REFUNDING') " +
             "GROUP BY YEAR(DATEADD(SECOND, o.order_date/1000, '1970-01-01')), " +
             "DATEPART(WEEK, DATEADD(SECOND, o.order_date/1000, '1970-01-01')) " +
             "ORDER BY week_period",
             nativeQuery = true)
     List<Object[]> findWeeklyRevenueByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-    // Lấy dữ liệu doanh thu theo tháng - SQL Server native query
+    // ✅ FIXED: Monthly revenue với refund logic đúng
     @Query(value = "SELECT " +
             "FORMAT(DATEADD(SECOND, o.order_date/1000, '1970-01-01'), 'yyyy-MM') as month_period, " +
-            "COALESCE(SUM(o.total_amount), 0) as revenue, COUNT(o.id) as orderCount, " +
+            "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
+                "(SELECT SUM(rr.total_refund_amount) " +
+                " FROM refund_request rr " +
+                " WHERE rr.status = 'COMPLETED' " +
+                " AND rr.order_id IN (SELECT o2.id FROM [order] o2 WHERE " +
+                "   FORMAT(DATEADD(SECOND, o2.order_date/1000, '1970-01-01'), 'yyyy-MM') = FORMAT(DATEADD(SECOND, o.order_date/1000, '1970-01-01'), 'yyyy-MM')))" +
+            ", 0) as revenue, " +
+            "COUNT(o.id) as orderCount, " +
             "MIN(CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE)) as month_start, " +
             "MAX(CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE)) as month_end " +
             "FROM [order] o WHERE o.order_date >= :startTime AND o.order_date <= :endTime " +
-            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'REFUNDING') " +
             "GROUP BY FORMAT(DATEADD(SECOND, o.order_date/1000, '1970-01-01'), 'yyyy-MM') " +
             "ORDER BY month_period",
             nativeQuery = true)

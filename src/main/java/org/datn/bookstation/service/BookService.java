@@ -81,4 +81,11 @@ public interface BookService {
         ApiResponse<List<TopBookSoldResponse>> getTopBookSold(int limit);
 
         ApiResponse<List<BookStockResponse>> getAllBookStock();
+        
+        /**
+         * ✅ THÊM MỚI: Lấy danh sách đơn hàng đang xử lý theo bookId
+         * @param bookId ID của sách
+         * @return Danh sách đơn hàng đang xử lý sách này
+         */
+        ApiResponse<List<org.datn.bookstation.dto.response.ProcessingOrderResponse>> getProcessingOrdersByBookId(Integer bookId);
 }

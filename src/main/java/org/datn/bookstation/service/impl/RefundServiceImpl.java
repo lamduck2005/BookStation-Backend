@@ -367,6 +367,12 @@ public class RefundServiceImpl implements RefundService {
         response.setApprovedAt(request.getApprovedAt());
         response.setCompletedAt(request.getCompletedAt());
         
+        // ✅ THÊM: Thông tin voucher của order
+        Order order = request.getOrder();
+        response.setVoucherDiscountAmount(order.getDiscountAmount().add(order.getDiscountShipping()));
+        response.setRegularVoucherCount(order.getRegularVoucherCount());
+        response.setShippingVoucherCount(order.getShippingVoucherCount());
+        
         // ✅ THÊM MỚI: Thông tin từ chối
         response.setRejectReason(request.getRejectReason());
         response.setRejectReasonDisplay(request.getRejectReasonDisplay());
@@ -389,8 +395,7 @@ public class RefundServiceImpl implements RefundService {
                     itemResponse.setRefundQuantity(item.getRefundQuantity());
                     itemResponse.setUnitPrice(item.getUnitPrice());
                     itemResponse.setTotalAmount(item.getTotalAmount());
-                    itemResponse.setReason(item.getReason());
-                    itemResponse.setReasonDisplay(RefundReasonUtil.getReasonDisplayName(item.getReason())); // ✅ THÊM: Tiếng Việt
+                    // ❌ REMOVED: reason và reasonDisplay vì response đã có sẵn ở cấp RefundRequest
                     itemResponse.setCreatedAt(item.getCreatedAt());
                     return itemResponse;
                 })

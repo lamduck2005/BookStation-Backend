@@ -23,6 +23,10 @@ public class OrderStatisticsResponse {
     private BigDecimal netProfitToday;
     private BigDecimal netProfitThisMonth;
     
+    // ✅ THÊM: Doanh thu trung bình trên mỗi đơn 
+    private BigDecimal averageRevenuePerOrderToday;
+    private BigDecimal averageRevenuePerOrderThisMonth;
+    
     // Chi phí vận chuyển
     private BigDecimal totalShippingCostToday;
     private BigDecimal totalShippingCostThisMonth;
