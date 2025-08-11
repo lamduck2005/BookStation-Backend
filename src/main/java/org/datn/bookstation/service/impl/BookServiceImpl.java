@@ -5,6 +5,7 @@ import org.datn.bookstation.dto.request.*;
 import lombok.extern.slf4j.Slf4j;
 
 import org.datn.bookstation.dto.response.*;
+import org.datn.bookstation.dto.ProcessingStatusInfo;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.Category;
@@ -14,6 +15,7 @@ import org.datn.bookstation.entity.Author;
 import org.datn.bookstation.entity.AuthorBook;
 import org.datn.bookstation.entity.AuthorBookId;
 import org.datn.bookstation.entity.FlashSaleItem;
+import org.datn.bookstation.entity.RefundRequest;
 import org.datn.bookstation.mapper.*;
 import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.repository.BookRepository;
@@ -949,31 +951,41 @@ public class BookServiceImpl implements BookService {
                 org.datn.bookstation.entity.enums.OrderStatus.REFUNDING
             );
 
-            // Lấy thông tin chi tiết từ repository
+            // Lấy thông tin chi tiết từ repository (đã đơn giản hóa - temp không có refund info)
             List<Object[]> rawData = orderDetailRepository.findProcessingOrderDetailsByBookId(bookId, processingStatuses);
             
             List<ProcessingOrderResponse> processingOrders = rawData.stream()
-                .map(row -> ProcessingOrderResponse.builder()
-                    .orderId((Integer) row[0])
-                    .orderCode((String) row[1])
-                    .customerName((String) row[2])
-                    .customerPhone((String) row[3])
-                    .orderStatus(((org.datn.bookstation.entity.enums.OrderStatus) row[4]).name())
-                    .orderStatusDisplay(getOrderStatusDisplayName((org.datn.bookstation.entity.enums.OrderStatus) row[4]))
-                    .bookId(bookId)
-                    .bookName(book.getBookName())
-                    .bookCode(book.getBookCode())
-                    .processingQuantity((Integer) row[5])
-                    .unitPrice((BigDecimal) row[6])
-                    .totalAmount(((BigDecimal) row[6]).multiply(BigDecimal.valueOf((Integer) row[5])))
-                    .orderCreatedAt((Long) row[7])
-                    .orderCreatedAtDisplay(formatTimestamp((Long) row[7]))
-                    .orderType((String) row[8])
-                    .paymentMethod((String) row[9])
-                    .orderTotalAmount((BigDecimal) row[10])
-                    .refundReason((String) row[11])
-                    .refundStatus(row[12] != null ? row[12].toString() : null)
-                    .build())
+                .map(row -> {
+                    Integer orderId = (Integer) row[0];
+                    String orderCode = (String) row[1];
+                    Integer totalOrderQuantity = (Integer) row[2]; // Tổng số lượng đã đặt
+                    org.datn.bookstation.entity.enums.OrderStatus orderStatus = (org.datn.bookstation.entity.enums.OrderStatus) row[3];
+                    
+                    // ✅ TẠM THỜI: Chưa có refund info, sẽ load riêng sau
+                    Integer refundRequestId = null;
+                    // ✅ LẤY REFUND QUANTITY TỪ DATABASE NẾU CÓ
+                    Integer refundQuantity = orderDetailRepository.getRefundQuantityByOrderIdAndBookId(orderId, bookId);
+                    if (refundQuantity == 0) refundQuantity = null; // Convert 0 thành null để logic xử lý đúng
+                    
+                    // ✅ TÍNH SỐ LƯỢNG ĐANG XỬ LÝ CHÍNH XÁC
+                    Integer actualProcessingQuantity = calculateActualProcessingQuantity(
+                        orderStatus, totalOrderQuantity, refundQuantity
+                    );
+                    
+                    // ✅ TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
+                    String statusDisplay = createStatusDisplay(orderStatus, refundRequestId, refundQuantity, totalOrderQuantity);
+                    
+                    // ✅ DEBUG LOG để kiểm tra
+                    log.debug("Order {}: totalQty={}, refundQty={}, processingQty={}, status={}", 
+                        orderCode, totalOrderQuantity, refundQuantity, actualProcessingQuantity, statusDisplay);
+                    
+                    return ProcessingOrderResponse.builder()
+                        .orderId(orderId)
+                        .orderCode(orderCode)
+                        .processingQuantity(actualProcessingQuantity)
+                        .statusDisplay(statusDisplay)
+                        .build();
+                })
                 .collect(Collectors.toList());
             
             if (processingOrders.isEmpty()) {
@@ -1009,10 +1021,80 @@ public class BookServiceImpl implements BookService {
         }
     }
     
-    private String formatTimestamp(Long timestamp) {
-        if (timestamp == null) return "";
-        return java.time.Instant.ofEpochMilli(timestamp)
-            .atZone(java.time.ZoneId.systemDefault())
-            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+    /**
+     * ✅ TÍNH TOÁN SỐ LƯỢNG ĐANG XỬ LÝ THỰC TẾ
+     * Logic: 
+     * - Đơn bình thường (không hoàn trả): processingQuantity = totalQuantity
+     * - Đơn có hoàn trả: processingQuantity = refundQuantity (số lượng đang được hoàn trả)
+     * 
+     * VD: Đặt 3 quyển, hoàn trả 1 quyển => processingQuantity = 1 (chỉ 1 quyển đang xử lý hoàn trả)
+     */
+    private Integer calculateActualProcessingQuantity(
+            org.datn.bookstation.entity.enums.OrderStatus orderStatus,
+            Integer totalOrderQuantity, 
+            Integer refundQuantity) {
+        
+        // ✅ LOGIC CHÍNH XÁC: 
+        // Nếu đơn hàng có liên quan đến hoàn trả VÀ có refundQuantity
+        if (isRefundRelatedStatus(orderStatus) && refundQuantity != null && refundQuantity > 0) {
+            log.debug("Refund order: refundQty={}, totalQty={} => processing={}", 
+                refundQuantity, totalOrderQuantity, refundQuantity);
+            return refundQuantity; // Chỉ số lượng đang được hoàn trả là "đang xử lý"
+        }
+        
+        // Đơn hàng bình thường - toàn bộ số lượng đang được xử lý
+        log.debug("Normal order: totalQty={} => processing={}", totalOrderQuantity, totalOrderQuantity);
+        return totalOrderQuantity;
+    }
+    
+    /**
+     * ✅ TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
+     * Kết hợp orderStatus và refund info để tạo status message dễ hiểu
+     */
+    private String createStatusDisplay(
+            org.datn.bookstation.entity.enums.OrderStatus orderStatus,
+            Integer refundRequestId,
+            Integer refundQuantity,
+            Integer totalOrderQuantity) {
+        
+        // Không có refund request
+        if (refundRequestId == null) {
+            return getOrderStatusDisplayName(orderStatus);
+        }
+        
+        // Có refund request - tạo message chi tiết
+        String baseStatus = getOrderStatusDisplayName(orderStatus);
+        int actualRefundQty = refundQuantity != null ? refundQuantity : 0;
+        
+        switch (orderStatus) {
+            case REFUND_REQUESTED:
+                return String.format("Yêu cầu hoàn trả (%d/%d sản phẩm)", actualRefundQty, totalOrderQuantity);
+                
+            case AWAITING_GOODS_RETURN:
+                return String.format("Chờ lấy hàng hoàn trả (%d sản phẩm)", actualRefundQty);
+                
+            case GOODS_RECEIVED_FROM_CUSTOMER:
+                return String.format("Đã nhận hàng hoàn trả (%d sản phẩm)", actualRefundQty);
+                
+            case GOODS_RETURNED_TO_WAREHOUSE:
+                return String.format("Hàng đã về kho (%d sản phẩm)", actualRefundQty);
+                
+            case REFUNDING:
+                return String.format("Đang hoàn tiền (%d sản phẩm)", actualRefundQty);
+                
+            default:
+                return String.format("%s - Hoàn trả (%d sản phẩm)", baseStatus, actualRefundQty);
+        }
+    }
+    
+    /**
+     * ✅ KIỂM TRA TRẠNG THÁI CÓ LIÊN QUAN ĐẾN HOÀN TRẢ KHÔNG
+     */
+    private boolean isRefundRelatedStatus(org.datn.bookstation.entity.enums.OrderStatus status) {
+        return status == org.datn.bookstation.entity.enums.OrderStatus.REFUND_REQUESTED ||
+               status == org.datn.bookstation.entity.enums.OrderStatus.AWAITING_GOODS_RETURN ||
+               status == org.datn.bookstation.entity.enums.OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER ||
+               status == org.datn.bookstation.entity.enums.OrderStatus.GOODS_RETURNED_TO_WAREHOUSE ||
+               status == org.datn.bookstation.entity.enums.OrderStatus.REFUNDING;
     }
 }

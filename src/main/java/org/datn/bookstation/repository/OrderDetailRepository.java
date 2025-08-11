@@ -69,18 +69,19 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "AND ri.refundRequest.status IN ('PENDING', 'APPROVED')")
     Integer sumActiveRefundQuantityByBookId(@Param("bookId") Integer bookId);
     
-    // ✅ THÊM MỚI: Lấy thông tin chi tiết đơn hàng đang xử lý theo bookId
+    // ✅ QUERY ĐƠN GIẢN - CHỈ LẤY THÔNG TIN THIẾT YẾU CHO PROCESSING ORDERS (TEMP: KHÔNG REFUND INFO)
     @Query("SELECT " +
-           "o.id, o.code, u.fullName, u.phoneNumber, " +
-           "o.orderStatus, od.quantity, od.unitPrice, " +
-           "o.createdAt, o.orderType, o.paymentMethod, o.subtotal, " +
-           "rr.reason, rr.status " +
+           "o.id, o.code, od.quantity, o.orderStatus " +                       // 0-3: basic info only
            "FROM Order o " +
            "JOIN o.orderDetails od " +
-           "JOIN o.user u " +
-           "LEFT JOIN RefundRequest rr ON rr.order.id = o.id " +
            "WHERE od.book.id = :bookId " +
            "AND o.orderStatus IN :processingStatuses " +
            "ORDER BY o.createdAt DESC")
     List<Object[]> findProcessingOrderDetailsByBookId(@Param("bookId") Integer bookId, @Param("processingStatuses") List<org.datn.bookstation.entity.enums.OrderStatus> processingStatuses);
+    
+    // ✅ THÊM MỚI: Lấy refund quantity theo order ID và book ID
+    @Query("SELECT COALESCE(SUM(ri.refundQuantity), 0) FROM RefundItem ri " +
+           "WHERE ri.book.id = :bookId " +
+           "AND ri.refundRequest.order.id = :orderId")
+    Integer getRefundQuantityByOrderIdAndBookId(@Param("orderId") Integer orderId, @Param("bookId") Integer bookId);
 }
