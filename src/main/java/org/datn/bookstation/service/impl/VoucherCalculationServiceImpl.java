@@ -1,6 +1,7 @@
 package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.UserVoucher;
 import org.datn.bookstation.entity.Voucher;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 @Transactional
 public class VoucherCalculationServiceImpl implements VoucherCalculationService {
 
@@ -39,8 +41,17 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
 
         // Get vouchers
         List<Voucher> vouchers = voucherRepository.findAllById(voucherIds);
+        log.debug("🎫 Found {} vouchers in database", vouchers.size());
+        
         if (vouchers.size() != voucherIds.size()) {
             throw new RuntimeException("Một số voucher không tồn tại");
+        }
+
+        // Log each voucher details
+        for (Voucher voucher : vouchers) {
+            log.debug("🎫 Voucher {}: category={}, discountType={}, discountAmount={}, discountPercentage={}", 
+                voucher.getCode(), voucher.getVoucherCategory(), voucher.getDiscountType(), 
+                voucher.getDiscountAmount(), voucher.getDiscountPercentage());
         }
 
         // Validate voucher application
@@ -53,14 +64,18 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         int shippingCount = 0;
 
         for (Voucher voucher : vouchers) {
+            log.debug("🎫 Processing voucher {}: category={}", voucher.getCode(), voucher.getVoucherCategory());
+            
             if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                 shippingCount++;
                 BigDecimal shippingDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
+                log.debug("🎫 Shipping voucher {} discount: {}", voucher.getCode(), shippingDiscount);
                 result.setTotalShippingDiscount(result.getTotalShippingDiscount().add(shippingDiscount));
                 appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), shippingDiscount));
             } else {
                 regularCount++;
                 BigDecimal productDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
+                log.debug("🎫 Normal voucher {} discount: {}", voucher.getCode(), productDiscount);
                 result.setTotalProductDiscount(result.getTotalProductDiscount().add(productDiscount));
                 appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), productDiscount));
             }
@@ -69,6 +84,9 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         result.setRegularVoucherCount(regularCount);
         result.setShippingVoucherCount(shippingCount);
         result.setAppliedVouchers(appliedVouchers);
+
+        log.debug("🎫 Final result: productDiscount={}, shippingDiscount={}, totalVouchers={}", 
+            result.getTotalProductDiscount(), result.getTotalShippingDiscount(), appliedVouchers.size());
 
         return result;
     }
@@ -79,6 +97,9 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         
         int regularVoucherCount = 0;
         int shippingVoucherCount = 0;
+
+        // Calculate total potential discount to ensure it doesn't exceed order total
+        BigDecimal totalPotentialDiscount = BigDecimal.ZERO;
 
         for (Voucher voucher : vouchers) {
             // Check voucher validity
@@ -106,12 +127,25 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 throw new RuntimeException("Bạn đã sử dụng hết lượt cho voucher " + voucher.getCode());
             }
 
+            // Calculate potential discount for this voucher
+            BigDecimal potentialDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
+            totalPotentialDiscount = totalPotentialDiscount.add(potentialDiscount);
+
             // Count voucher types by category
             if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                 shippingVoucherCount++;
             } else {
                 regularVoucherCount++;
             }
+        }
+
+        // Check if total discount would make order total negative
+        BigDecimal orderTotal = order.getSubtotal().add(order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO);
+        if (totalPotentialDiscount.compareTo(orderTotal) > 0) {
+            log.warn("⚠️ Total voucher discount ({}) exceeds order total ({}) - will be capped at order total", 
+                totalPotentialDiscount, orderTotal);
+            // ✅ DON'T throw exception - just log warning and let calculation proceed
+            // The actual calculation will cap the discount appropriately
         }
 
         // ✅ NEW: Check if shipping voucher is used for counter sales
@@ -128,12 +162,16 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         }
     }    @Override
     public BigDecimal calculateSingleVoucherDiscount(Voucher voucher, BigDecimal orderSubtotal, BigDecimal shippingFee) {
+        log.info("🎫 CALCULATING SINGLE VOUCHER: code={}, category={}, discountType={}, discountAmount={}, discountPercentage={}, orderSubtotal={}", 
+            voucher.getCode(), voucher.getVoucherCategory(), voucher.getDiscountType(), 
+            voucher.getDiscountAmount(), voucher.getDiscountPercentage(), orderSubtotal);
+            
         BigDecimal discount = BigDecimal.ZERO;
         
         // ✅ NEW LOGIC: Use VoucherCategory to determine what to discount
         if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
             // Shipping voucher always discounts shipping fee
-            discount = shippingFee;
+            discount = shippingFee != null ? shippingFee : BigDecimal.ZERO;
             if (voucher.getMaxDiscountValue() != null && discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
                 discount = voucher.getMaxDiscountValue();
             }
@@ -146,22 +184,28 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                     break;
                     
                 case FIXED_AMOUNT:
-                    discount = voucher.getDiscountAmount();
-                    // Don't exceed order subtotal
-                    if (discount.compareTo(orderSubtotal) > 0) {
-                        discount = orderSubtotal;
-                    }
+                    discount = voucher.getDiscountAmount() != null ? voucher.getDiscountAmount() : BigDecimal.ZERO;
                     break;
             }
-        }
-        
-        // Apply max discount limit for normal vouchers
-        if (voucher.getVoucherCategory() != VoucherCategory.SHIPPING && 
-            voucher.getMaxDiscountValue() != null && 
-            discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
-            discount = voucher.getMaxDiscountValue();
+            
+            // ✅ FIX: Always cap normal voucher discount at order subtotal
+            if (discount.compareTo(orderSubtotal) > 0) {
+                log.info("🎫 Capping normal voucher {} discount from {} to {} (order subtotal)", 
+                    voucher.getCode(), discount, orderSubtotal);
+                discount = orderSubtotal;
+            }
+            
+            // ✅ FIX: Only apply max discount limit if it's actually set and > 0
+            if (voucher.getMaxDiscountValue() != null && 
+                voucher.getMaxDiscountValue().compareTo(BigDecimal.ZERO) > 0 && 
+                discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
+                log.info("🎫 Capping voucher {} discount from {} to {} (max discount limit)", 
+                    voucher.getCode(), discount, voucher.getMaxDiscountValue());
+                discount = voucher.getMaxDiscountValue();
+            }
         }
 
+        log.debug("🎫 Voucher {} final discount: {}", voucher.getCode(), discount);
         return discount;
     }
 

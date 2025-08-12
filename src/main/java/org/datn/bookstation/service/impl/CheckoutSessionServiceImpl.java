@@ -122,8 +122,17 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             // Update entity
             checkoutSessionMapper.updateEntity(existingSession, request);
             
-            // Recalculate pricing
-            calculateSessionPricing(existingSession, request);
+            // Recalculate pricing with vouchers if applicable
+            if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
+                try {
+                    calculateSessionPricingWithVouchers(existingSession, request, userId);
+                } catch (RuntimeException e) {
+                    // If voucher validation fails, return specific error message
+                    return new ApiResponse<>(400, e.getMessage(), null);
+                }
+            } else {
+                calculateSessionPricing(existingSession, request);
+            }
 
             // Save session
             CheckoutSession savedSession = checkoutSessionRepository.save(existingSession);
@@ -1070,10 +1079,14 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
             try {
+                log.info("🎫 Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
+                
                 // Create a temporary order for voucher calculation
                 Order tempOrder = new Order();
                 tempOrder.setSubtotal(calculatedSubtotal);
                 tempOrder.setShippingFee(shippingFee);
+                
+                log.debug("🎫 Temp order for voucher calc: subtotal={}, shipping={}", calculatedSubtotal, shippingFee);
                 
                 VoucherCalculationService.VoucherCalculationResult voucherResult = 
                     voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getSelectedVoucherIds(), userId);
@@ -1085,8 +1098,11 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     voucherResult.getTotalShippingDiscount(), 
                     totalVoucherDiscount);
                     
+            } catch (RuntimeException e) {
+                log.error("Error validating/calculating voucher discount: {}", e.getMessage());
+                throw new RuntimeException("Lỗi áp dụng voucher: " + e.getMessage(), e);
             } catch (Exception e) {
-                log.error("Error calculating voucher discount: {}", e.getMessage());
+                log.error("Unexpected error calculating voucher discount: {}", e.getMessage(), e);
                 // Continue without voucher discount if calculation fails
                 totalVoucherDiscount = BigDecimal.ZERO;
             }
