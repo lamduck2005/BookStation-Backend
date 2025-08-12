@@ -12,6 +12,7 @@ import org.datn.bookstation.dto.response.FlashSaleDisplayResponse;
 import org.datn.bookstation.dto.response.FlashSaleInfoResponse;
 import org.datn.bookstation.dto.response.FlashSaleResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.FlashSaleStatsResponse;
 import org.datn.bookstation.entity.FlashSale;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.FlashSaleCustomMapper;
@@ -601,5 +602,25 @@ public class FlashSaleServiceImpl implements FlashSaleService {
                     flashSaleItemId, userId, e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public ApiResponse<FlashSaleStatsResponse> getFlashSaleStats() {
+        long totalFlashSales = flashSaleRepository.count();
+        Long totalFlashSaleOrders = flashSaleRepository.countTotalFlashSaleOrders();
+        if (totalFlashSaleOrders == null)
+            totalFlashSaleOrders = 0L;
+        long activeFlashSales = flashSaleRepository.countActiveFlashSales(System.currentTimeMillis());
+        List<String> bestSellingBooks = flashSaleRepository.findBestSellingFlashSaleBookName(PageRequest.of(0, 1));
+        String bestSellingBook = bestSellingBooks.isEmpty() ? null : bestSellingBooks.get(0);
+
+        FlashSaleStatsResponse stats = FlashSaleStatsResponse.builder()
+                .totalFlashSales(totalFlashSales)
+                .totalFlashSaleOrders(totalFlashSaleOrders)
+                .activeFlashSales(activeFlashSales)
+                .bestSellingFlashSaleBookName(bestSellingBook)
+                .build();
+
+        return new ApiResponse<>(200, "Thành công", stats);
     }
 }

@@ -8,6 +8,7 @@ import org.datn.bookstation.dto.request.FlashSaleItemBookRequest;
 import org.datn.bookstation.dto.request.FlashSaleItemRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
+import org.datn.bookstation.dto.response.FlashSaleItemStatsResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSale;
@@ -236,5 +237,24 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
                 .collect(Collectors.toList());
 
         return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", dtoList);
+    }
+
+    @Override
+    public ApiResponse<FlashSaleItemStatsResponse> getFlashSaleStats() {
+        long totalBooksInFlashSale = flashSaleItemRepository.countTotalBooksInFlashSale();
+        long totalBooksSoldInFlashSale = flashSaleItemRepository.countTotalBooksSoldInFlashSale();
+        long totalFlashSaleStock = flashSaleItemRepository.countTotalFlashSaleStock();
+        List<String> topBooks = flashSaleItemRepository
+                .findTopSellingBookName(org.springframework.data.domain.PageRequest.of(0, 1));
+        String topSellingBookName = topBooks.isEmpty() ? null : topBooks.get(0);
+
+        FlashSaleItemStatsResponse stats = FlashSaleItemStatsResponse.builder()
+                .totalBooksInFlashSale(totalBooksInFlashSale)
+                .totalBooksSoldInFlashSale(totalBooksSoldInFlashSale)
+                .topSellingBookName(topSellingBookName)
+                .totalFlashSaleStock(totalFlashSaleStock)
+                .build();
+
+        return new ApiResponse<>(200, "Thành công", stats);
     }
 }

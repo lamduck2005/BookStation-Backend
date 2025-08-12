@@ -127,4 +127,6 @@ public interface FlashSaleService {
      * @return Danh sách FlashSaleResponse diễn ra trong ngày đó
      */
     ApiResponse<FlashSaleDisplayResponse> findFlashSalesByDate();
+    ApiResponse<FlashSaleStatsResponse> getFlashSaleStats();
+
 }

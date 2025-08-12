@@ -3,6 +3,7 @@ package org.datn.bookstation.controller;
 import org.datn.bookstation.dto.request.FlashSaleItemRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.FlashSaleItemResponse;
+import org.datn.bookstation.dto.response.FlashSaleItemStatsResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.service.FlashSaleItemService;
@@ -43,7 +44,8 @@ public class FlashSaleItemController {
     }
 
     @PutMapping("/{itemId}")
-    public ApiResponse<FlashSaleItemResponse> update(@PathVariable Integer itemId, @RequestBody FlashSaleItemRequest request) {
+    public ApiResponse<FlashSaleItemResponse> update(@PathVariable Integer itemId,
+            @RequestBody FlashSaleItemRequest request) {
         return flashSaleItemService.update(itemId, request);
     }
 
@@ -52,5 +54,9 @@ public class FlashSaleItemController {
         return flashSaleItemService.toggleStatus(itemId);
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<FlashSaleItemStatsResponse> getFlashSaleStats() {
+        return flashSaleItemService.getFlashSaleStats();
+    }
 
-} 
+}

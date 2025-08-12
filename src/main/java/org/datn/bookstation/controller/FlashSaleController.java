@@ -15,6 +15,7 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.FlashSaleResponse;
 import org.datn.bookstation.dto.response.FlashSaleDisplayResponse;
+import org.datn.bookstation.dto.response.FlashSaleStatsResponse;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import lombok.AllArgsConstructor;
@@ -63,5 +64,10 @@ public class FlashSaleController {
     @GetMapping("/today")
     public ApiResponse<FlashSaleDisplayResponse> getTodayFlashSale() {
         return flashSaleService.findFlashSalesByDate();
+    }
+
+    @GetMapping("/stats")
+    public ApiResponse<FlashSaleStatsResponse> getFlashSaleStats() {
+        return flashSaleService.getFlashSaleStats();
     }
 }
