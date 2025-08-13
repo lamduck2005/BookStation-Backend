@@ -927,4 +927,53 @@ public class BookServiceImpl implements BookService {
         List<BookStockResponse> result = bookRepository.findAllBookStock();
         return new ApiResponse<>(200, "Thành công", result);
     }
+
+    @Override
+    public ApiResponse<PosBookItemResponse> getBookByIsbn(String isbn) {
+        if (isbn == null || isbn.trim().isEmpty()) {
+            return new ApiResponse<>(400, "ISBN không được để trống", null);
+        }
+        return bookRepository.findByIsbnIgnoreCase(isbn.trim())
+                .map(book -> {
+                    // Giá gốc (price)
+                    BigDecimal originalPrice = book.getPrice();
+                    // Giá thường (sau discount nếu có)
+                    BigDecimal normalPrice = originalPrice;
+                    if (Boolean.TRUE.equals(book.getDiscountActive())) {
+                        if (book.getDiscountValue() != null && book.getDiscountValue().compareTo(BigDecimal.ZERO) > 0) {
+                            normalPrice = originalPrice.subtract(book.getDiscountValue());
+                            if (normalPrice.compareTo(BigDecimal.ZERO) < 0) normalPrice = BigDecimal.ZERO;
+                        } else if (book.getDiscountPercent() != null && book.getDiscountPercent() > 0) {
+                            BigDecimal discountAmount = originalPrice
+                                    .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
+                                    .divide(BigDecimal.valueOf(100));
+                            normalPrice = originalPrice.subtract(discountAmount);
+                            if (normalPrice.compareTo(BigDecimal.ZERO) < 0) normalPrice = BigDecimal.ZERO;
+                        }
+                    }
+                    // Kiểm tra flash sale
+                    FlashSaleItem flashSaleItem = null;
+                    try {
+                        flashSaleItem = flashSaleItemRepository.findActiveFlashSaleByBook(book.getId());
+                    } catch (Exception ignored) {}
+                    boolean isFlash = flashSaleItem != null;
+                    BigDecimal unitPrice = isFlash ? flashSaleItem.getDiscountPrice() : normalPrice;
+
+                    PosBookItemResponse resp = PosBookItemResponse.builder()
+                            .bookId(book.getId())
+                            .title(book.getBookName())
+                            .name(book.getBookName())
+                            .bookCode(book.getBookCode())
+                            .quantity(1)
+                            .unitPrice(unitPrice)
+                            .originalPrice(normalPrice)
+                            .coverImageUrl(book.getCoverImageUrl())
+                            .stockQuantity(book.getStockQuantity())
+                            .isFlashSale(isFlash)
+                            .flashSaleItemId(isFlash ? flashSaleItem.getId() : null)
+                            .build();
+                    return new ApiResponse<>(200, "Thành công", resp);
+                })
+                .orElseGet(() -> new ApiResponse<>(404, "Không tìm thấy sách với ISBN: " + isbn, null));
+    }
 }

@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Arrays;
+import org.datn.bookstation.dto.response.PosBookItemResponse;
 
 @RestController
 @AllArgsConstructor
@@ -428,5 +429,16 @@ public class BookController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/isbn/{isbn}")
+    public ResponseEntity<ApiResponse<PosBookItemResponse>> getByIsbn(@PathVariable String isbn) {
+        ApiResponse<PosBookItemResponse> resp = bookService.getBookByIsbn(isbn);
+        HttpStatus status = switch (resp.getStatus()) {
+            case 200 -> HttpStatus.OK;
+            case 404 -> HttpStatus.NOT_FOUND;
+            case 400 -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.OK;
+        };
+        return ResponseEntity.status(status).body(resp);
+    }
 
 }

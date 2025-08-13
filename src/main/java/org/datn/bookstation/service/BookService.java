@@ -5,6 +5,7 @@ import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
 import org.datn.bookstation.dto.response.BookStockResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
+import org.datn.bookstation.dto.response.PosBookItemResponse;
 import org.datn.bookstation.dto.response.TopBookSoldResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
@@ -81,4 +82,6 @@ public interface BookService {
         ApiResponse<List<TopBookSoldResponse>> getTopBookSold(int limit);
 
         ApiResponse<List<BookStockResponse>> getAllBookStock();
+
+        ApiResponse<PosBookItemResponse> getBookByIsbn(String isbn);
 }
