@@ -8,9 +8,11 @@ import org.datn.bookstation.dto.request.TrendingRequest;
 import org.datn.bookstation.dto.request.QuantityValidationRequest;
 import org.datn.bookstation.dto.request.*;
 import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
+import org.datn.bookstation.dto.request.BookStatsFilterRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
+import org.datn.bookstation.dto.response.BookStockResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
@@ -19,6 +21,8 @@ import org.datn.bookstation.dto.response.BookPriceCalculationResponse;
 import org.datn.bookstation.dto.response.ProcessingOrderResponse;
 import org.datn.bookstation.dto.response.BookStatsOverviewResponse;
 import org.datn.bookstation.dto.response.BookComparisonResponse;
+import org.datn.bookstation.dto.response.BookSalesChartResponse;
+import org.datn.bookstation.dto.response.BookSalesVelocityResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.mapper.BookResponseMapper;
@@ -42,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Arrays;
-import org.datn.bookstation.dto.response.PosBookItemResponse;
 
 @RestController
 @AllArgsConstructor
@@ -449,13 +452,13 @@ public class BookController {
     }
 
     // ================================================================
-    // BOOK STATISTICS APIs - CHI LIEN QUAN DEN SACH
+    // 🔥🔥🔥 BOOK STATISTICS APIs - CHỈ LIÊN QUAN ĐẾN SÁCH 🔥🔥🔥
     // ================================================================
 
     /**
-     * API TONG QUAN THONG KE SACH (CHI LIEN QUAN SACH)
+     * 📊 API TỔNG QUAN THỐNG KÊ SÁCH (CHỈ LIÊN QUAN SÁCH)
      * GET /api/books/stats/overview
-     * Thong ke so luong sach, ton kho, khuyen mai
+     * Thống kê số lượng sách, tồn kho, khuyến mãi
      */
     @GetMapping("/stats/overview")
     public ResponseEntity<ApiResponse<BookStatsOverviewResponse>> getBookStatsOverview() {
@@ -464,9 +467,9 @@ public class BookController {
     }
 
     /**
-     * API SO SANH SACH
+     * 📈 API SO SÁNH SÁCH
      * GET /api/books/stats/compare
-     * So sanh hieu suat giua 2 sach hoac 1 sach voi tat ca
+     * So sánh hiệu suất giữa 2 sách hoặc 1 sách với tất cả
      */
     @GetMapping("/stats/compare")
     public ResponseEntity<ApiResponse<BookComparisonResponse>> compareBooks(
@@ -477,96 +480,169 @@ public class BookController {
     }
 
     /**
-     * 📊 API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary)
-     * GET /api/admin/books/statistics/summary
-     * Trả về dữ liệu nhẹ cho chart overview - chỉ tổng số sách bán theo thời gian
-     * 
-     * @param period day/week/month/year/custom (mặc định day)
-     * @param fromDate timestamp bắt đầu (tùy chọn - bắt buộc nếu period=custom)
-     * @param toDate timestamp kết thúc (tùy chọn - bắt buộc nếu period=custom)
+     * 📊 API BIỂU ĐỒ SỐ LƯỢNG BÁN THEO THỜI GIAN
+     * GET /api/books/stats/sales-chart
+     * Dữ liệu cho biểu đồ số lượng bán theo ngày/tuần/tháng/năm
      */
-    @GetMapping("/statistics/summary")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getBookStatisticsSummary(
-            @RequestParam(defaultValue = "day") String period,
-            @RequestParam(required = false) Long fromDate,
-            @RequestParam(required = false) Long toDate) {
-        
-        ApiResponse<List<Map<String, Object>>> response = bookService.getBookStatisticsSummary(period, fromDate, toDate);
+    @GetMapping("/stats/sales-chart")
+    public ResponseEntity<ApiResponse<BookSalesChartResponse>> getBookSalesChart(
+            @RequestParam String chartType,
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate) {
+        ApiResponse<BookSalesChartResponse> response = 
+            bookService.getBookSalesChart(chartType, startDate, endDate);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details)  
-     * GET /api/admin/books/statistics/details
-     * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
-     * 
-     * @param period day/week/month/year (loại khoảng thời gian)
-     * @param date timestamp số đại diện cho khoảng thời gian cần xem
-     * @param limit số lượng sách muốn lấy (mặc định 10)
+     * 🚀 API BIỂU ĐỒ TỐC ĐỘ BÁN
+     * GET /api/books/stats/velocity-chart
+     * Dữ liệu tốc độ bán cho biểu đồ theo ngày/tuần/tháng/năm
      */
-    @GetMapping("/statistics/details")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getBookStatisticsDetails(
-            @RequestParam String period,
-            @RequestParam Long date,
-            @RequestParam(defaultValue = "10") Integer limit) {
-        
-        ApiResponse<List<Map<String, Object>>> response = bookService.getBookStatisticsDetails(period, date, limit);
+    @GetMapping("/stats/velocity-chart")
+    public ResponseEntity<ApiResponse<BookSalesVelocityResponse>> getBookSalesVelocity(
+            @RequestParam String chartType,
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate) {
+        ApiResponse<BookSalesVelocityResponse> response = 
+            bookService.getBookSalesVelocity(chartType, startDate, endDate);
         return ResponseEntity.ok(response);
     }
 
-
-
+}
+    // ================================================================
+    
     /**
-     * 📊 API Dropdown search cho việc chọn sách (dành cho comparison)
+     * 📊 API TỔNG QUAN THỐNG KÊ SÁCH - DASHBOARD CHÍNH (FOR CARDS)
+     * GET /api/books/stats/overview
+     * Trả về các chỉ số tổng quan quan trọng nhất để hiển thị trên dashboard cards
      */
-    @GetMapping("/search-dropdown")
-    public ResponseEntity<ApiResponse<List<org.datn.bookstation.dto.response.BookSearchResponse>>> searchBooksForDropdown(
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false, defaultValue = "50") Integer limit) {
-        ApiResponse<List<org.datn.bookstation.dto.response.BookSearchResponse>> response =
-            bookService.searchBooksForDropdown(q, limit);
+    @GetMapping("/stats/overview")
+    public ResponseEntity<ApiResponse<BookStatsOverviewResponse>> getBookStatsOverview() {
+        ApiResponse<BookStatsOverviewResponse> response = bookService.getBookStatsOverview();
         return ResponseEntity.ok(response);
     }
     
-    // 🔥 DEBUG: Test endpoint để kiểm tra raw data
-    @GetMapping("/debug/raw-data")
-    public ResponseEntity<?> debugRawData() {
-        try {
-            long currentTime = System.currentTimeMillis();
-            long startTime = currentTime - (7 * 24 * 60 * 60 * 1000L); // 7 days ago
-            
-            List<Object[]> rawData = orderDetailRepository.findBookPerformanceDataByDateRange(startTime, currentTime);
-            
-            // Lấy first 3 records để debug
-            List<Map<String, Object>> debugData = new ArrayList<>();
-            for (int i = 0; i < Math.min(3, rawData.size()); i++) {
-                Object[] row = rawData.get(i);
-                Map<String, Object> record = new HashMap<>();
-                record.put("bookId", row[0]);
-                record.put("bookTitle", row[1]);
-                record.put("bookCode", row[2]);
-                record.put("isbn", row[3]);
-                record.put("quantity", row[4]);
-                record.put("revenue", row[5]);
-                record.put("orderTime", row[6]);
-                debugData.add(record);
-            }
-            
-            return ResponseEntity.ok(debugData);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error: " + e.getMessage());
-        }
+    /**
+     * 🚀 API PHÂN TÍCH HIỆU SUẤT TỪNG CUỐN SÁCH (FOR CHARTS & TABLES)
+     * POST /api/books/stats/performance
+     * Phân tích chi tiết hiệu suất của từng cuốn sách với filters mạnh mẽ
+     */
+    @PostMapping("/stats/performance")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookPerformanceStatsResponse>>> getBookPerformanceStats(
+            @Valid @RequestBody BookStatsFilterRequest request) {
+        ApiResponse<PaginationResponse<BookPerformanceStatsResponse>> response = 
+            bookService.getBookPerformanceStats(request);
+        return ResponseEntity.ok(response);
     }
-    @GetMapping("/isbn/{isbn}")
-    public ResponseEntity<ApiResponse<PosBookItemResponse>> getByIsbn(@PathVariable String isbn) {
-        ApiResponse<PosBookItemResponse> resp = bookService.getBookByIsbn(isbn);
-        HttpStatus status = switch (resp.getStatus()) {
-            case 200 -> HttpStatus.OK;
-            case 404 -> HttpStatus.NOT_FOUND;
-            case 400 -> HttpStatus.BAD_REQUEST;
-            default -> HttpStatus.OK;
-        };
-        return ResponseEntity.status(status).body(resp);
+    
+    /**
+     * 📈 API PHÂN TÍCH XU HƯỚNG BÁN HÀNG THEO THỜI GIAN (FOR TIME CHARTS)
+     * POST /api/books/stats/trends
+     * Phân tích xu hướng bán sách theo các kỳ thời gian khác nhau
+     */
+    @PostMapping("/stats/trends")
+    public ResponseEntity<ApiResponse<List<BookTrendAnalysisResponse>>> getBookTrendAnalysis(
+            @Valid @RequestBody BookStatsFilterRequest request) {
+        ApiResponse<List<BookTrendAnalysisResponse>> response = 
+            bookService.getBookTrendAnalysis(request);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 📚 API THỐNG KÊ THEO DANH MỤC (FOR CATEGORY CHARTS)
+     * GET /api/books/stats/categories
+     * Phân tích hiệu suất bán hàng của từng danh mục sách
+     */
+    @GetMapping("/stats/categories")
+    public ResponseEntity<ApiResponse<List<BookCategoryStatsResponse>>> getBookCategoryStats(
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate) {
+        ApiResponse<List<BookCategoryStatsResponse>> response = 
+            bookService.getBookCategoryStats(startDate, endDate);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 👨‍💼 API THỐNG KÊ THEO TÁC GIẢ (FOR AUTHOR CHARTS)
+     * GET /api/books/stats/authors
+     * Phân tích hiệu suất bán hàng của từng tác giả
+     */
+    @GetMapping("/stats/authors")
+    public ResponseEntity<ApiResponse<List<BookAuthorStatsResponse>>> getBookAuthorStats(
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate,
+            @RequestParam(defaultValue = "20") int limit) {
+        ApiResponse<List<BookAuthorStatsResponse>> response = 
+            bookService.getBookAuthorStats(startDate, endDate, limit);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 📦 API PHÂN TÍCH TỒN KHO THÔNG MINH (FOR INVENTORY MANAGEMENT)
+     * POST /api/books/stats/inventory
+     * Phân tích tình trạng tồn kho với cảnh báo và đề xuất thông minh
+     */
+    @PostMapping("/stats/inventory")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookInventoryStatsResponse>>> getBookInventoryStats(
+            @Valid @RequestBody BookStatsFilterRequest request) {
+        ApiResponse<PaginationResponse<BookInventoryStatsResponse>> response = 
+            bookService.getBookInventoryStats(request);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 👥 API THỐNG KÊ KHÁCH HÀNG MUA SÁCH (FOR CUSTOMER INSIGHTS)
+     * GET /api/books/stats/customer-insights
+     * Phân tích hành vi và sở thích khách hàng khi mua sách
+     */
+    @GetMapping("/stats/customer-insights")
+    public ResponseEntity<ApiResponse<BookCustomerInsightResponse>> getBookCustomerInsights(
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate) {
+        ApiResponse<BookCustomerInsightResponse> response = 
+            bookService.getBookCustomerInsights(startDate, endDate);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 🔥 API TOP BOOKS THEO NHIỀU TIÊU CHÍ (FOR TOP PERFORMERS WIDGETS)
+     * GET /api/books/stats/top-books
+     * Lấy top books theo các tiêu chí: bán chạy, đánh giá cao, doanh thu, tăng trưởng
+     */
+    @GetMapping("/stats/top-books")
+    public ResponseEntity<ApiResponse<Map<String, List<BookPerformanceStatsResponse>>>> getTopBooks(
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long startDate,
+            @RequestParam(required = false) Long endDate) {
+        ApiResponse<Map<String, List<BookPerformanceStatsResponse>>> response = 
+            bookService.getTopBooks(limit, startDate, endDate);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * ⚠️ API SÁCH CẦN CHÚ Ý (FOR ALERTS & WARNINGS)
+     * GET /api/books/stats/alerts
+     * Các cảnh báo quan trọng: hết hàng, bán kém, cần marketing, v.v.
+     */
+    @GetMapping("/stats/alerts")
+    public ResponseEntity<ApiResponse<Map<String, List<BookInventoryStatsResponse>>>> getBookAlerts() {
+        ApiResponse<Map<String, List<BookInventoryStatsResponse>>> response = 
+            bookService.getBookAlerts();
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 🎯 API DỰ BÁO NÔNG CẦU SÁCH (FOR FORECASTING)
+     * POST /api/books/stats/forecast
+     * Dự báo nhu cầu bán sách trong tương lai dựa trên historical data
+     */
+    @PostMapping("/stats/forecast")
+    public ResponseEntity<ApiResponse<List<BookTrendAnalysisResponse>>> getBookForecast(
+            @Valid @RequestBody BookStatsFilterRequest request) {
+        ApiResponse<List<BookTrendAnalysisResponse>> response = 
+            bookService.getBookForecast(request);
+        return ResponseEntity.ok(response);
     }
 
 }

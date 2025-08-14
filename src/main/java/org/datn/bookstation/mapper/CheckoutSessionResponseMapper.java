@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.CheckoutSessionRequest;
 import org.datn.bookstation.dto.response.CheckoutSessionResponse;
 import org.datn.bookstation.entity.*;
+import org.datn.bookstation.entity.enums.DiscountType;
 import org.datn.bookstation.repository.*;
 import org.springframework.stereotype.Component;
 
@@ -121,12 +122,12 @@ public class CheckoutSessionResponseMapper {
                 // ✅ FIX: Sử dụng VoucherCategory mới thay vì VoucherType cũ
                 summary.setVoucherType(voucher.getVoucherCategory().toString());
                 
-                // Calculate discount value
+                // ✅ FIX: Calculate discount value based on discount type
                 BigDecimal discountValue = BigDecimal.ZERO;
-                if (voucher.getDiscountPercentage() != null) {
-                    discountValue = voucher.getDiscountPercentage();
-                } else if (voucher.getDiscountAmount() != null) {
-                    discountValue = voucher.getDiscountAmount();
+                if (voucher.getDiscountType() == DiscountType.PERCENTAGE) {
+                    discountValue = voucher.getDiscountPercentage() != null ? voucher.getDiscountPercentage() : BigDecimal.ZERO;
+                } else if (voucher.getDiscountType() == DiscountType.FIXED_AMOUNT) {
+                    discountValue = voucher.getDiscountAmount() != null ? voucher.getDiscountAmount() : BigDecimal.ZERO;
                 }
                 summary.setDiscountValue(discountValue);
                 

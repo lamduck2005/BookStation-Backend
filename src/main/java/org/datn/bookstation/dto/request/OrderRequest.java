@@ -37,6 +37,8 @@ public class OrderRequest {
     @NotNull(message = "Loại đơn hàng không được để trống")
     private String orderType;
     
+    private String paymentMethod; // ✅ THÊM MỚI: "COD", "ONLINE_PAYMENT", etc.
+    
     @NotEmpty(message = "Chi tiết đơn hàng không được để trống")
     private List<OrderDetailRequest> orderDetails;
     

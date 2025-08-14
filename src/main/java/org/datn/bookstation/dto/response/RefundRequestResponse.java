@@ -24,6 +24,12 @@ public class RefundRequestResponse {
     private List<String> evidenceImages;
     private List<String> evidenceVideos;
     private BigDecimal totalRefundAmount;
+    
+    // ✅ THÊM: Thông tin voucher đã áp dụng cho order
+    private BigDecimal voucherDiscountAmount; // Tổng giảm giá từ voucher
+    private Integer regularVoucherCount; // Số voucher thường đã sử dụng  
+    private Integer shippingVoucherCount; // Số voucher ship đã sử dụng
+    
     private Integer approvedById;
     private String approvedByName;
     private Long createdAt;
@@ -49,8 +55,7 @@ public class RefundRequestResponse {
         private Integer refundQuantity;
         private BigDecimal unitPrice;
         private BigDecimal totalAmount;
-        private String reason;
-        private String reasonDisplay; // ✅ THÊM: Hiển thị lý do bằng tiếng Việt
+        // ❌ REMOVED: reason và reasonDisplay vì đã có ở RefundRequest level
         private Long createdAt;
     }
 }

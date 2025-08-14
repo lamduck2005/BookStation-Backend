@@ -196,6 +196,9 @@ public class DataInitializationService implements CommandLineRunner {
         if (orderRepository.count() == 0) {
             initializeOrders();
             initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
+            
+            // ✅ THÊM: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C (chỉ khi chưa có đơn hàng nào)
+            initializeTestOrdersForLeVanC();
         } else {
             log.info("Orders already exist, skipping initialization.");
         }
@@ -1484,5 +1487,147 @@ public class DataInitializationService implements CommandLineRunner {
         }
         
         log.info("Created {} trending reviews", Arrays.stream(reviewPattern).sum());
+    }
+    
+    /**
+     * ✅ THÊM METHOD: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C 
+     * Mua sách "Đắc Nhân Tâm" từ 2023 đến nay với tần suất khác nhau
+     */
+    private void initializeTestOrdersForLeVanC() {
+        log.info("Initializing test orders for Lê Văn C with time-based data...");
+        
+        // Tìm user Lê Văn C
+        User leVanC = userRepository.findByEmail("customer1@gmail.com").orElse(null);
+        if (leVanC == null) {
+            log.warn("Lê Văn C not found, skipping test order creation");
+            return;
+        }
+        
+        // Tìm sách "Đắc Nhân Tâm"
+        Book dacNhanTam = bookRepository.findAll().stream()
+                .filter(book -> book.getBookName().contains("Đắc Nhân Tâm"))
+                .findFirst().orElse(null);
+        if (dacNhanTam == null) {
+            log.warn("Book 'Đắc Nhân Tâm' not found, skipping test order creation");
+            return;
+        }
+        
+        // Tìm địa chỉ của Lê Văn C
+        Address address = addressRepository.findAll().stream()
+                .filter(addr -> addr.getUser().equals(leVanC))
+                .findFirst().orElse(null);
+        if (address == null) {
+            log.warn("Address for Lê Văn C not found, skipping test order creation");
+            return;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        long oneDay = 24L * 60 * 60 * 1000;
+        long oneWeek = 7L * oneDay;
+        long oneMonth = 30L * oneDay;
+        long oneYear = 365L * oneDay;
+        
+        // Pattern: Tạo đơn hàng theo các mốc thời gian khác nhau
+        List<OrderTestData> orderPattern = Arrays.asList(
+            // === 2023 - Ít đơn hàng ===
+            new OrderTestData(currentTime - oneYear - 6 * oneMonth, 1), // Tháng 2/2023
+            new OrderTestData(currentTime - oneYear - 3 * oneMonth, 1), // Tháng 5/2023  
+            new OrderTestData(currentTime - oneYear - oneMonth, 2),     // Tháng 7/2023
+            new OrderTestData(currentTime - oneYear, 1),               // Tháng 8/2023
+            
+            // === Q4/2023 - Tăng dần ===
+            new OrderTestData(currentTime - oneYear + oneMonth, 2),    // Tháng 9/2023
+            new OrderTestData(currentTime - oneYear + 2 * oneMonth, 3), // Tháng 10/2023
+            new OrderTestData(currentTime - oneYear + 3 * oneMonth, 2), // Tháng 11/2023
+            new OrderTestData(currentTime - oneYear + 4 * oneMonth, 4), // Tháng 12/2023
+            
+            // === Q1/2024 - Khá tốt ===
+            new OrderTestData(currentTime - 7 * oneMonth, 3),          // Tháng 1/2024
+            new OrderTestData(currentTime - 6 * oneMonth, 4),          // Tháng 2/2024  
+            new OrderTestData(currentTime - 5 * oneMonth, 5),          // Tháng 3/2024
+            
+            // === Q2/2024 - Giảm ===
+            new OrderTestData(currentTime - 4 * oneMonth, 2),          // Tháng 4/2024
+            new OrderTestData(currentTime - 3 * oneMonth, 1),          // Tháng 5/2024
+            new OrderTestData(currentTime - 2 * oneMonth, 3),          // Tháng 6/2024
+            
+            // === Q3/2024 (Tháng 7) - Tăng mạnh ===
+            new OrderTestData(currentTime - oneMonth, 8),              // Tháng 7/2024
+            
+            // === 1 tuần gần đây - Mua rất nhiều ===
+            new OrderTestData(currentTime - 6 * oneDay, 3),           // 6 ngày trước
+            new OrderTestData(currentTime - 5 * oneDay, 2),           // 5 ngày trước
+            new OrderTestData(currentTime - 4 * oneDay, 4),           // 4 ngày trước  
+            new OrderTestData(currentTime - 3 * oneDay, 1),           // 3 ngày trước
+            new OrderTestData(currentTime - 2 * oneDay, 5),           // 2 ngày trước
+            new OrderTestData(currentTime - oneDay, 3),               // 1 ngày trước
+            new OrderTestData(currentTime, 2)                        // Hôm nay
+        );
+        
+        int totalOrders = 0;
+        
+        // Tạo đơn hàng theo pattern
+        for (OrderTestData testData : orderPattern) {
+            for (int i = 0; i < testData.orderCount; i++) {
+                // Thêm random offset để đơn hàng không bị trùng timestamp
+                long randomOffset = (long) (Math.random() * 2 * 60 * 60 * 1000); // Random 0-2 giờ
+                long orderTime = testData.timestamp + randomOffset;
+                
+                // Tạo đơn hàng
+                Order order = createTestOrder(leVanC, address, OrderStatus.DELIVERED, "ONLINE", orderTime);
+                orderRepository.save(order);
+                
+                // Tạo order detail cho sách Đắc Nhân Tâm
+                int quantity = 1 + (int) (Math.random() * 2); // Mua 1-2 cuốn
+                OrderDetail detail = createOrderDetail(order, dacNhanTam, quantity, dacNhanTam.getPrice());
+                orderDetailRepository.save(detail);
+                
+                // Cập nhật tổng tiền đơn hàng
+                BigDecimal subtotal = dacNhanTam.getPrice().multiply(BigDecimal.valueOf(quantity));
+                order.setSubtotal(subtotal);
+                order.setTotalAmount(subtotal.add(order.getShippingFee()));
+                orderRepository.save(order);
+                
+                totalOrders++;
+            }
+        }
+        
+        log.info("Created {} test orders for Lê Văn C spanning from 2023 to present", totalOrders);
+        log.info("Orders distributed across different quarters and months for testing");
+        log.info("Recent week has the most orders, previous month has good amount");
+    }
+    
+    /**
+     * Tạo Order với thời gian tùy chỉnh cho test data
+     */
+    private Order createTestOrder(User customer, Address address, OrderStatus status, String orderType, long orderTime) {
+        Order order = new Order();
+        order.setUser(customer);
+        order.setAddress(address);
+        order.setOrderDate(orderTime); // Sử dụng thời gian tùy chỉnh
+        order.setSubtotal(BigDecimal.ZERO);
+        order.setShippingFee(new BigDecimal("30000"));
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setDiscountShipping(BigDecimal.ZERO);
+        order.setTotalAmount(BigDecimal.ZERO);
+        order.setOrderStatus(status);
+        order.setOrderType(orderType);
+        order.setCode("TEST" + System.currentTimeMillis() + "_" + Math.random());
+        order.setCreatedBy(customer.getId());
+        order.setStatus((byte) 1);
+        return order;
+    }
+    
+    /**
+     * Helper class cho test data pattern
+     */
+    private static class OrderTestData {
+        long timestamp;
+        int orderCount;
+        
+        OrderTestData(long timestamp, int orderCount) {
+            this.timestamp = timestamp;
+            this.orderCount = orderCount;
+        }
     }
 }
