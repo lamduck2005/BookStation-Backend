@@ -40,8 +40,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1096,5 +1099,629 @@ public class BookServiceImpl implements BookService {
                status == org.datn.bookstation.entity.enums.OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER ||
                status == org.datn.bookstation.entity.enums.OrderStatus.GOODS_RETURNED_TO_WAREHOUSE ||
                status == org.datn.bookstation.entity.enums.OrderStatus.REFUNDING;
+    }
+    
+    /**
+     * 📊 API BOOK STATS ĐƠN GIẢN - THEO USER YÊU CẦU
+     * Trả về list sách với thông tin cơ bản + doanh thu + tăng trưởng
+     */
+    @Override
+    public BookStatsResponse getBookStats(String chartType, Long fromDate, Long toDate) {
+        try {
+            log.info("📊 BOOK STATS: chartType={}, fromDate={}, toDate={}", chartType, fromDate, toDate);
+            
+            // Stub implementation - trả về empty data để test
+            List<BookStatsResponse.BookStats> bookStatsList = new ArrayList<>();
+            
+            // Lấy vài sách mẫu để test
+            List<Book> books = bookRepository.findAll(PageRequest.of(0, 5)).getContent();
+            
+            for (Book book : books) {
+                BookStatsResponse.BookStats bookStats = BookStatsResponse.BookStats.builder()
+                        .code(book.getBookCode())
+                        .name(book.getBookName())
+                        .isbn(book.getIsbn())
+                        .currentPrice(book.getPrice())
+                        .revenue(BigDecimal.valueOf(Math.random() * 1000000))  // Mock data
+                        .revenueGrowthPercent(Math.random() * 50 - 25)        // Mock growth
+                        .revenueGrowthValue(BigDecimal.valueOf(Math.random() * 100000 - 50000))
+                        .quantitySold((int)(Math.random() * 100))             // Mock quantity
+                        .quantityGrowthPercent(Math.random() * 30 - 15)       // Mock growth
+                        .quantityGrowthValue((int)(Math.random() * 20 - 10))
+                        .build();
+                        
+                bookStatsList.add(bookStats);
+            }
+            
+            return BookStatsResponse.builder()
+                    .status("success")
+                    .message("Book statistics retrieved successfully for " + chartType + " period")
+                    .data(bookStatsList)
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("❌ Error getting book stats", e);
+            return BookStatsResponse.builder()
+                    .status("error")
+                    .message("Error retrieving book statistics: " + e.getMessage())
+                    .data(new ArrayList<>())
+                    .build();
+        }
+    }
+    
+    /**
+     * 📊 BOOK STATS OVERVIEW - STUB IMPLEMENTATION
+     */
+    @Override
+    public ApiResponse<BookStatsOverviewResponse> getBookStatsOverview() {
+        try {
+            long totalBooks = bookRepository.count();
+            // Mock data for now
+            BookStatsOverviewResponse response = BookStatsOverviewResponse.builder()
+                    .totalBooks(totalBooks)  // Already Long
+                    .totalBooksInStock(totalBooks - 1L) // Mock
+                    .totalOutOfStock(1L) // Mock
+                    .totalBooksWithDiscount(2L) // Mock  
+                    .totalBooksInFlashSale(3L) // Mock
+                    .build();
+            return new ApiResponse<>(200, "Book statistics overview retrieved successfully", response);
+        } catch (Exception e) {
+            log.error("Error getting book stats overview", e);
+            return new ApiResponse<>(500, "Error retrieving overview", null);
+        }
+    }
+    
+    /**
+     * 🔍 SEARCH BOOKS FOR DROPDOWN - STUB IMPLEMENTATION  
+     */
+    @Override
+    public ApiResponse<List<BookSearchResponse>> searchBooksForDropdown(String query, Integer limit) {
+        try {
+            List<Book> books = bookRepository.findAll(PageRequest.of(0, limit != null ? limit : 10)).getContent();
+            List<BookSearchResponse> searchResults = books.stream()
+                    .filter(book -> query == null || book.getBookName().toLowerCase().contains(query.toLowerCase()))
+                    .map(book -> BookSearchResponse.builder()
+                            .bookId(book.getId())
+                            .bookName(book.getBookName())  
+                            .isbn(book.getIsbn())
+                            .imageUrl(book.getCoverImageUrl())
+                            .build())
+                    .collect(Collectors.toList());
+            return new ApiResponse<>(200, "Books search successful", searchResults);
+        } catch (Exception e) {
+            log.error("Error searching books", e);
+            return new ApiResponse<>(500, "Search error", new ArrayList<>());
+        }
+    }
+    
+    /**
+     * 📈 COMPARE BOOKS - STUB IMPLEMENTATION
+     */
+    @Override 
+    public ApiResponse<BookComparisonResponse> compareBooks(Integer book1Id, Integer book2Id) {
+        try {
+            // Mock comparison data
+            BookComparisonResponse response = BookComparisonResponse.builder()
+                    .comparisonType("BOOK_VS_BOOK")
+                    .build();
+            return new ApiResponse<>(200, "Book comparison retrieved successfully", response);
+        } catch (Exception e) {
+            log.error("Error comparing books", e);
+            return new ApiResponse<>(500, "Comparison error", null);
+        }
+    }
+
+    /**
+     * 📊 API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary)
+     * Trả về dữ liệu nhẹ cho chart overview - chỉ tổng số sách bán theo thời gian
+     */
+    @Override
+    public ApiResponse<List<Map<String, Object>>> getBookStatisticsSummary(String period, Long fromDate, Long toDate) {
+        try {
+            log.info("📊 Getting book statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
+            
+            List<Map<String, Object>> summaryData = new ArrayList<>();
+            Long startTime, endTime;
+            String groupByType;
+            
+            // 1. Xử lý period logic
+            if ("custom".equalsIgnoreCase(period)) {
+                if (fromDate == null || toDate == null) {
+                    return new ApiResponse<>(400, "fromDate and toDate are required for custom period", null);
+                }
+                
+                startTime = fromDate;
+                endTime = toDate;
+                
+                // Tính số ngày để quyết định group by
+                long daysDiff = (toDate - fromDate) / (24 * 60 * 60 * 1000L);
+                if (daysDiff <= 31) {
+                    groupByType = "daily";
+                } else if (daysDiff <= 180) {
+                    groupByType = "weekly";
+                } else {
+                    groupByType = "monthly";
+                }
+                
+                log.info("📊 Custom period: {} days, groupBy: {}", daysDiff, groupByType);
+                
+            } else {
+                // Mặc định: 30 ngày gần nhất
+                groupByType = "daily";
+                endTime = System.currentTimeMillis();
+                startTime = endTime - (30L * 24 * 60 * 60 * 1000); // 30 days ago
+                
+                log.info("📊 Default period: 30 days, groupBy: daily");
+            }
+            
+            // 2. Query dữ liệu từ database
+            List<Object[]> rawData = orderDetailRepository.findBookSalesSummaryByDateRange(startTime, endTime);
+            
+            // 3. Convert raw data thành Map
+            Map<String, Integer> dataMap = new HashMap<>();
+            for (Object[] row : rawData) {
+                String date = row[0].toString(); // Date string từ DB
+                Integer totalSold = ((Number) row[1]).intValue();
+                dataMap.put(date, totalSold);
+            }
+            
+            // 4. Generate full date range với 0 cho ngày không có data
+            if ("daily".equals(groupByType)) {
+                summaryData = generateDailySummary(startTime, endTime, dataMap);
+            } else if ("weekly".equals(groupByType)) {
+                summaryData = generateWeeklySummary(startTime, endTime, dataMap);
+            } else {
+                summaryData = generateMonthlySummary(startTime, endTime, dataMap);
+            }
+            
+            log.info("📊 Generated {} data points for period: {}", summaryData.size(), period);
+            
+            return new ApiResponse<>(200, "Summary statistics retrieved successfully", summaryData);
+            
+        } catch (Exception e) {
+            log.error("❌ Error getting book statistics summary", e);
+            return new ApiResponse<>(500, "Error: " + e.getMessage(), new ArrayList<>());
+        }
+    }
+
+    /**
+     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details)
+     * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
+     */
+    @Override
+    public ApiResponse<List<Map<String, Object>>> getBookStatisticsDetails(String period, Long date, Integer limit) {
+        try {
+            log.info("📊 Getting book statistics details - period: {}, date: {}, limit: {}", period, date, limit);
+            
+            // Parse timestamp và tính toán khoảng thời gian cụ thể
+            TimeRangeInfo timeRange = calculateTimeRangeFromTimestamp(period, date);
+            
+            // Query top books trong khoảng thời gian đó
+            List<Object[]> currentData = orderDetailRepository.findTopBooksByDateRange(
+                    timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
+            
+            // Query data kỳ trước để tính growth
+            TimeRangeInfo previousRange = calculatePreviousTimeRange(timeRange, period);
+            List<Object[]> previousData = orderDetailRepository.findTopBooksByDateRange(
+                    previousRange.getStartTime(), previousRange.getEndTime(), limit != null ? limit : 10);
+            
+            // Build response với growth comparison
+            List<Map<String, Object>> detailsData = buildDetailsWithGrowth(currentData, previousData);
+            
+            String message = String.format("Book details retrieved successfully for %s on %s", period, date);
+            return new ApiResponse<>(200, message, detailsData);
+            
+        } catch (Exception e) {
+            log.error("❌ Error getting book statistics details", e);
+            return new ApiResponse<>(500, "Error retrieving book details", new ArrayList<>());
+        }
+    }
+
+    // ============================================================================
+    // HELPER METHODS FOR NEW STATISTICS APIs
+    // ============================================================================
+    
+    /**
+     * Tính toán thông tin period dựa trên tham số input
+     */
+    private PeriodInfo calculatePeriodInfo(String period, Long fromDate, Long toDate) {
+        long currentTime = System.currentTimeMillis();
+        long startTime, endTime;
+        
+        if ("custom".equalsIgnoreCase(period) && fromDate != null && toDate != null) {
+            startTime = fromDate;
+            endTime = toDate;
+        } else {
+            // Tính toán default period
+            switch (period.toLowerCase()) {
+                case "day":
+                    startTime = currentTime - (7 * 24 * 60 * 60 * 1000L); // 7 days
+                    break;
+                case "week":
+                    startTime = currentTime - (4 * 7 * 24 * 60 * 60 * 1000L); // 4 weeks
+                    break;
+                case "month":
+                    startTime = currentTime - (6 * 30 * 24 * 60 * 60 * 1000L); // 6 months
+                    break;
+                case "year":
+                    startTime = currentTime - (2 * 365 * 24 * 60 * 60 * 1000L); // 2 years
+                    break;
+                default:
+                    startTime = currentTime - (7 * 24 * 60 * 60 * 1000L); // default 7 days
+            }
+            endTime = currentTime;
+        }
+        
+        // Auto group logic based on range
+        String groupType = determineGroupType(endTime - startTime);
+        
+        return new PeriodInfo(startTime, endTime, period, groupType);
+    }
+    
+    /**
+     * Xác định kiểu group dựa trên độ dài khoảng thời gian
+     */
+    private String determineGroupType(long rangeDuration) {
+        long days = rangeDuration / (24 * 60 * 60 * 1000L);
+        
+        if (days <= 31) {
+            return "day";
+        } else if (days <= 180) {
+            return "week";
+        } else {
+            return "month";
+        }
+    }
+    
+    /**
+     * Group raw data theo period
+     */
+    private List<Map<String, Object>> groupDataByPeriod(List<Object[]> rawData, PeriodInfo periodInfo) {
+        // Simplified mock implementation - cần customize thêm
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Mock data response format
+        Map<String, Object> dataPoint = new java.util.HashMap<>();
+        dataPoint.put("date", "2025-08-13");
+        dataPoint.put("totalBooksSold", 95);
+        result.add(dataPoint);
+        
+        return result;
+    }
+    
+    /**
+     * Tính toán khoảng thời gian dựa trên timestamp và period
+     */
+    private TimeRangeInfo calculateTimeRangeFromTimestamp(String period, Long timestamp) {
+        long targetTime = timestamp;
+        
+        switch (period.toLowerCase()) {
+            case "day":
+                // Lấy từ 00:00:00 đến 23:59:59 của ngày đó
+                long dayStart = getStartOfDay(targetTime);
+                long dayEnd = dayStart + (24 * 60 * 60 * 1000L) - 1;
+                return new TimeRangeInfo(dayStart, dayEnd);
+                
+            case "week":
+                // Lấy tuần chứa timestamp đó
+                long weekStart = getStartOfWeek(targetTime);
+                long weekEnd = weekStart + (7 * 24 * 60 * 60 * 1000L) - 1;
+                return new TimeRangeInfo(weekStart, weekEnd);
+                
+            case "month":
+                // Lấy tháng chứa timestamp đó
+                long monthStart = getStartOfMonth(targetTime);
+                long monthEnd = getEndOfMonth(targetTime);
+                return new TimeRangeInfo(monthStart, monthEnd);
+                
+            case "year":
+                // Lấy năm chứa timestamp đó
+                long yearStart = getStartOfYear(targetTime);
+                long yearEnd = getEndOfYear(targetTime);
+                return new TimeRangeInfo(yearStart, yearEnd);
+                
+            default:
+                // Default: lấy ngày
+                long defaultStart = getStartOfDay(targetTime);
+                long defaultEnd = defaultStart + (24 * 60 * 60 * 1000L) - 1;
+                return new TimeRangeInfo(defaultStart, defaultEnd);
+        }
+    }
+    
+    /**
+     * Tính toán time range từ date string và period
+     */
+    private TimeRangeInfo calculateTimeRangeFromDate(String period, String date) {
+        // Simplified implementation - cần parse date string
+        long currentTime = System.currentTimeMillis();
+        long startTime = currentTime - (24 * 60 * 60 * 1000L);
+        long endTime = currentTime;
+        
+        return new TimeRangeInfo(startTime, endTime);
+    }
+    
+    /**
+     * Tính toán khoảng thời gian trước đó để compare growth
+     */
+    private TimeRangeInfo calculatePreviousTimeRange(TimeRangeInfo current, String period) {
+        long duration = current.getEndTime() - current.getStartTime();
+        return new TimeRangeInfo(current.getStartTime() - duration, current.getStartTime());
+    }
+    
+    /**
+     * Build response data với growth comparison (ĐÚNG DỮ LIỆU THỰC TỪ DATABASE)
+     */
+    private List<Map<String, Object>> buildDetailsWithGrowth(List<Object[]> currentData, List<Object[]> previousData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Tạo map để tìm data trước đó theo bookId
+        Map<Integer, Object[]> previousMap = new HashMap<>();
+        if (previousData != null) {
+            for (Object[] prev : previousData) {
+                Integer bookId = (Integer) prev[0];
+                previousMap.put(bookId, prev);
+            }
+        }
+        
+        // Xử lý từng book trong currentData
+        for (Object[] current : currentData) {
+            Integer bookId = (Integer) current[0];
+            String bookCode = (String) current[1];
+            String bookName = (String) current[2]; 
+            String isbn = (String) current[3];
+            BigDecimal price = (BigDecimal) current[4];
+            Long currentQuantity = ((Number) current[5]).longValue();
+            BigDecimal currentRevenue = (BigDecimal) current[6];
+            
+            Map<String, Object> bookDetail = new HashMap<>();
+            bookDetail.put("code", bookCode);
+            bookDetail.put("name", bookName);
+            bookDetail.put("isbn", isbn);
+            bookDetail.put("currentPrice", price);
+            bookDetail.put("revenue", currentRevenue);
+            bookDetail.put("quantitySold", currentQuantity);
+            
+            // Tính growth so với kỳ trước
+            Object[] previous = previousMap.get(bookId);
+            if (previous != null) {
+                Long previousQuantity = ((Number) previous[5]).longValue();
+                BigDecimal previousRevenue = (BigDecimal) previous[6];
+                
+                // Revenue growth
+                if (previousRevenue.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal revenueGrowth = currentRevenue.subtract(previousRevenue);
+                    double revenueGrowthPercent = revenueGrowth.divide(previousRevenue, 4, java.math.RoundingMode.HALF_UP)
+                            .multiply(BigDecimal.valueOf(100)).doubleValue();
+                    
+                    bookDetail.put("revenueGrowthPercent", Math.round(revenueGrowthPercent * 100.0) / 100.0);
+                    bookDetail.put("revenueGrowthValue", revenueGrowth);
+                } else {
+                    bookDetail.put("revenueGrowthPercent", currentRevenue.compareTo(BigDecimal.ZERO) > 0 ? 100.0 : 0.0);
+                    bookDetail.put("revenueGrowthValue", currentRevenue);
+                }
+                
+                // Quantity growth
+                if (previousQuantity > 0) {
+                    long quantityGrowth = currentQuantity - previousQuantity;
+                    double quantityGrowthPercent = ((double) quantityGrowth / previousQuantity) * 100.0;
+                    
+                    bookDetail.put("quantityGrowthPercent", Math.round(quantityGrowthPercent * 100.0) / 100.0);
+                    bookDetail.put("quantityGrowthValue", quantityGrowth);
+                } else {
+                    bookDetail.put("quantityGrowthPercent", currentQuantity > 0 ? 100.0 : 0.0);
+                    bookDetail.put("quantityGrowthValue", currentQuantity);
+                }
+            } else {
+                // Không có data kỳ trước - 100% growth
+                bookDetail.put("revenueGrowthPercent", 100.0);
+                bookDetail.put("revenueGrowthValue", currentRevenue);
+                bookDetail.put("quantityGrowthPercent", 100.0);
+                bookDetail.put("quantityGrowthValue", currentQuantity);
+            }
+            
+            result.add(bookDetail);
+        }
+        
+        return result;
+    }
+    
+    // Helper classes
+    private static class PeriodInfo {
+        private final long startTime;
+        private final long endTime;
+        private final String period;
+        private final String groupType;
+        
+        public PeriodInfo(long startTime, long endTime, String period, String groupType) {
+            this.startTime = startTime;
+            this.endTime = endTime;
+            this.period = period;
+            this.groupType = groupType;
+        }
+        
+        public long getStartTime() { return startTime; }
+        public long getEndTime() { return endTime; }
+        public String getPeriod() { return period; }
+        public String getGroupType() { return groupType; }
+    }
+
+    /**
+     * Helper methods for timestamp calculation
+     */
+    private long getStartOfDay(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+    
+    private long getStartOfWeek(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.DAY_OF_WEEK, cal.getFirstDayOfWeek());
+        return getStartOfDay(cal.getTimeInMillis());
+    }
+    
+    private long getStartOfMonth(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.DAY_OF_MONTH, 1);
+        return getStartOfDay(cal.getTimeInMillis());
+    }
+    
+    private long getEndOfMonth(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.DAY_OF_MONTH, cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH));
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 23);
+        cal.set(java.util.Calendar.MINUTE, 59);
+        cal.set(java.util.Calendar.SECOND, 59);
+        cal.set(java.util.Calendar.MILLISECOND, 999);
+        return cal.getTimeInMillis();
+    }
+    
+    private long getStartOfYear(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.MONTH, 0);
+        cal.set(java.util.Calendar.DAY_OF_MONTH, 1);
+        return getStartOfDay(cal.getTimeInMillis());
+    }
+    
+    private long getEndOfYear(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.MONTH, 11);
+        cal.set(java.util.Calendar.DAY_OF_MONTH, 31);
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 23);
+        cal.set(java.util.Calendar.MINUTE, 59);
+        cal.set(java.util.Calendar.SECOND, 59);
+        cal.set(java.util.Calendar.MILLISECOND, 999);
+        return cal.getTimeInMillis();
+    }
+    
+    // ============================================================================
+    // HELPER METHODS FOR SUMMARY STATISTICS
+    // ============================================================================
+    
+    /**
+     * Generate daily summary với 0 cho ngày không có data
+     */
+    private List<Map<String, Object>> generateDailySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Convert timestamps to LocalDate
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Iterate through each day
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            String dateStr = currentDate.toString(); // Format: YYYY-MM-DD
+            Integer totalSold = dataMap.getOrDefault(dateStr, 0);
+            
+            Map<String, Object> dayData = new HashMap<>();
+            dayData.put("date", dateStr);
+            dayData.put("totalBooksSold", totalSold);
+            dayData.put("period", "daily");
+            
+            result.add(dayData);
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate weekly summary
+     */
+    private List<Map<String, Object>> generateWeeklySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Group data by weeks - simplified implementation
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from Monday of the week containing startDate
+        LocalDate weekStart = startDate.with(java.time.DayOfWeek.MONDAY);
+        
+        while (!weekStart.isAfter(endDate)) {
+            LocalDate weekEnd = weekStart.plusDays(6);
+            String weekLabel = weekStart.toString() + " to " + weekEnd.toString();
+            
+            // Sum all days in this week from dataMap
+            int weekTotal = 0;
+            LocalDate currentDay = weekStart;
+            while (!currentDay.isAfter(weekEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                weekTotal += dataMap.getOrDefault(dayStr, 0);
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            Map<String, Object> weekData = new HashMap<>();
+            weekData.put("date", weekStart.toString()); // Use week start as date
+            weekData.put("totalBooksSold", weekTotal);
+            weekData.put("period", "weekly");
+            weekData.put("dateRange", weekLabel);
+            
+            result.add(weekData);
+            weekStart = weekStart.plusWeeks(1);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate monthly summary
+     */
+    private List<Map<String, Object>> generateMonthlySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from first day of the month containing startDate
+        LocalDate monthStart = startDate.withDayOfMonth(1);
+        
+        while (!monthStart.isAfter(endDate)) {
+            LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+            String monthLabel = monthStart.getMonth().toString() + " " + monthStart.getYear();
+            
+            // Sum all days in this month from dataMap
+            int monthTotal = 0;
+            LocalDate currentDay = monthStart;
+            while (!currentDay.isAfter(monthEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                monthTotal += dataMap.getOrDefault(dayStr, 0);
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            Map<String, Object> monthData = new HashMap<>();
+            monthData.put("date", monthStart.toString()); // Use month start as date
+            monthData.put("totalBooksSold", monthTotal);
+            monthData.put("period", "monthly");
+            monthData.put("dateRange", monthLabel);
+            
+            result.add(monthData);
+            monthStart = monthStart.plusMonths(1);
+        }
+        
+        return result;
+    }
+
+    private static class TimeRangeInfo {
+        private final long startTime;
+        private final long endTime;
+        
+        public TimeRangeInfo(long startTime, long endTime) {
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+        
+        public long getStartTime() { return startTime; }
+        public long getEndTime() { return endTime; }
     }
 }
