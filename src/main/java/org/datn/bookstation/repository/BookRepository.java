@@ -399,5 +399,5 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             """)
     List<BookStockResponse> findAllBookStock();
 
-    Optional<Book> findByIsbnIgnoreCase(String isbn);
+    Optional<Book> findByBookCodeIgnoreCase(String bookCode);
 }

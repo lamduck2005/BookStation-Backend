@@ -17,7 +17,6 @@ import org.datn.bookstation.entity.AuthorBookId;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.entity.RefundRequest;
 import org.datn.bookstation.mapper.*;
-import org.datn.bookstation.mapper.BookMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.CategoryRepository;
 import org.datn.bookstation.repository.SupplierRepository;
@@ -938,7 +937,7 @@ public class BookServiceImpl implements BookService {
         if (isbn == null || isbn.trim().isEmpty()) {
             return new ApiResponse<>(400, "ISBN không được để trống", null);
         }
-        return bookRepository.findByIsbnIgnoreCase(isbn.trim())
+        return bookRepository.findByBookCodeIgnoreCase(isbn.trim())
                 .map(book -> {
                     // Giá gốc (price)
                     BigDecimal originalPrice = book.getPrice();
@@ -980,6 +979,7 @@ public class BookServiceImpl implements BookService {
                     return new ApiResponse<>(200, "Thành công", resp);
                 })
                 .orElseGet(() -> new ApiResponse<>(404, "Không tìm thấy sách với ISBN: " + isbn, null));
+    }
     public ApiResponse<List<ProcessingOrderResponse>> getProcessingOrdersByBookId(Integer bookId) {
         try {
             // Kiểm tra sách tồn tại
