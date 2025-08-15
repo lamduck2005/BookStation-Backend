@@ -133,6 +133,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
                         "WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime " +
                         "AND EXISTS(SELECT 1 FROM Order o2 WHERE o2.user.id = u.id AND o2.orderDate < :startTime)")
         Long countReturningCustomersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
+        //phong
         @Query(value = """
                             SELECT YEAR(DATEADD(SECOND, order_date / 1000, '1970-01-01')) as year,
                                    MONTH(DATEADD(SECOND, order_date / 1000, '1970-01-01')) as month,
@@ -215,7 +216,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
                         )
                         ORDER BY week_key
                         """, nativeQuery = true)
-        List<Object[]> findWeeklyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
+        List<Object[]> findAllWeeklyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
 
         // Doanh thu theo THÁNG trong khoảng ngày [start, end] - SQL Server
         @Query(value = """
@@ -241,7 +242,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
                         )
                         ORDER BY month_key
                         """, nativeQuery = true)
-        List<Object[]> findMonthlyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
+        List<Object[]> findAllMonthlyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
 
         // Doanh thu theo NĂM trong khoảng ngày [start, end] - SQL Server
         @Query(value = """

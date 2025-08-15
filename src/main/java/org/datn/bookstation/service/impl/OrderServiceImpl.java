@@ -1132,7 +1132,7 @@ public class OrderServiceImpl implements OrderService {
 
             long startMillis = toStartOfDayMillis(s);
             long endMillis = toEndOfDayMillis(e);
-            List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
+            List<Object[]> raw = orderRepository.findAllWeeklyRevenueByDateRange(startMillis, endMillis);
             List<RevenueStatsResponse> result = new ArrayList<>();
             for (Object[] row : raw) {
                 String weekPeriod = (String) row[0]; // "YYYY-Wxx"
@@ -1158,7 +1158,7 @@ public class OrderServiceImpl implements OrderService {
         long startMillis = toStartOfDayMillis(startOfTargetWeek);
         long endMillis = toEndOfDayMillis(endOfThisWeek);
 
-        List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
+        List<Object[]> raw = orderRepository.findAllWeeklyRevenueByDateRange(startMillis, endMillis);
         List<RevenueStatsResponse> result = new ArrayList<>();
         for (Object[] row : raw) {
             String weekPeriod = (String) row[0];
@@ -1194,7 +1194,7 @@ public class OrderServiceImpl implements OrderService {
             long startMillis = toStartOfDayMillis(s);
             long endMillis = toEndOfDayMillis(e);
 
-            List<Object[]> raw = orderRepository.findMonthlyRevenueByDateRange(startMillis, endMillis);
+            List<Object[]> raw = orderRepository.findAllMonthlyRevenueByDateRange(startMillis, endMillis);
 
             // Map month_key -> revenue
             DateTimeFormatter ymFmt = DateTimeFormatter.ofPattern("yyyy-MM");
