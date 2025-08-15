@@ -63,4 +63,33 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
 
     @Query("SELECT COUNT(u) FROM User u WHERE u.status = 1")
     long countActiveUsers();
+
+    // ✅ THÊM MỚI: Đếm user mới trong khoảng thời gian
+    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :startTime AND :endTime")
+    long countByCreatedAtBetween(@Param("startTime") long startTime, @Param("endTime") long endTime);
+
+    // ✅ THÊM MỚI: Đếm user đã mua hàng
+    @Query("SELECT COUNT(DISTINCT o.createdBy) FROM Order o WHERE o.createdBy IS NOT NULL")
+    long countUsersWithOrders();
+
+    // ✅ THÊM MỚI: Điểm trung bình mỗi user
+    @Query("SELECT AVG(u.totalPoint) FROM User u WHERE u.totalPoint IS NOT NULL")
+    Double getAveragePointsPerUser();
+
+    // ✅ THÊM MỚI: Tổng điểm toàn hệ thống
+    @Query("SELECT COALESCE(SUM(u.totalPoint), 0) FROM User u")
+    Long getTotalSystemPoints();
+
+    // ✅ THÊM MỚI: Top user theo điểm
+    @Query(value = """
+            SELECT TOP 10 u.full_name, u.email, u.total_point, 
+                   (SELECT TOP 1 r.rank_name FROM user_rank ur 
+                    JOIN rank r ON r.id = ur.rank_id 
+                    WHERE ur.user_id = u.id AND ur.status = 1 
+                    ORDER BY r.min_spent DESC)
+            FROM [user] u 
+            WHERE u.total_point IS NOT NULL 
+            ORDER BY u.total_point DESC
+            """, nativeQuery = true)
+    List<Object[]> getTopUsersByPoint();
 }
