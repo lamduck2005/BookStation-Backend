@@ -378,7 +378,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     @Query("SELECT COALESCE(SUM(b.stockQuantity), 0) FROM Book b WHERE b.status = 1")
     Long getTotalStockBooks();
 
-    @Query("SELECT COALESCE(SUM(od.unitPrice * od.quantity), 0) FROM OrderDetail od WHERE od.order.orderStatus = 'DELIVERED'")
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderStatus = 'DELIVERED'")
     BigDecimal getTotalRevenue();
 
     @Query("SELECT new org.datn.bookstation.dto.response.TopBookSoldResponse(b.bookName, SUM(od.quantity)) " +
