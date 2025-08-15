@@ -57,8 +57,12 @@ public class DashboardController {
     public ResponseEntity<ApiResponse<List<RevenueStatsResponse>>> getRevenueStats(
             @RequestParam String type,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month) {
-        ApiResponse<List<RevenueStatsResponse>> response = orderService.getRevenueStats(type, year, month);
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) String startDate, // yyyy-MM-dd
+            @RequestParam(required = false) String endDate // yyyy-MM-dd
+    ) {
+        ApiResponse<List<RevenueStatsResponse>> response = orderService.getRevenueStats(type, year, month, startDate,
+                endDate);
         return ResponseEntity.ok(response);
     }
 

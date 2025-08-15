@@ -34,7 +34,9 @@ import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -1024,71 +1026,271 @@ public class OrderServiceImpl implements OrderService {
         return response;
     }
 
+    // ========= Common date helpers =========
+    private static final long MIN_WEEK_DAYS = 7L;
+    private static final long MIN_MONTH_DAYS = 28L;
+    private static final long MIN_YEAR_DAYS = 365L;
+
+    private long toStartOfDayMillis(LocalDate d) {
+        return d.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    private long toEndOfDayMillis(LocalDate d) {
+        return d.atTime(23, 59, 59, 999_999_999).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    private long daysInclusive(LocalDate s, LocalDate e) {
+        return java.time.temporal.ChronoUnit.DAYS.between(s, e) + 1;
+    }
+
+    // ========= Public API =========
     @Override
-    public ApiResponse<List<RevenueStatsResponse>> getRevenueStats(String type, Integer year, Integer month) {
-        // Nếu year null thì lấy năm hiện tại
-        if (year == null) {
-            year = LocalDate.now().getYear();
+    public ApiResponse<List<RevenueStatsResponse>> getRevenueStats(
+            String type, Integer year, Integer month, String startDate, String endDate) {
+
+        if (type == null)
+            return new ApiResponse<>(400, "type không được null", null);
+
+        switch (type.toLowerCase()) {
+            case "day":
+                return getRevenueStatsByDay(startDate, endDate);
+            case "week":
+                return getRevenueStatsByWeek(startDate, endDate);
+            case "month":
+                return getRevenueStatsByMonth(year, startDate, endDate);
+            case "year":
+                return getRevenueStatsByYear(startDate, endDate);
+            default:
+                return new ApiResponse<>(400, "Loại thống kê không hợp lệ", null);
         }
-        // Nếu month null thì lấy tháng hiện tại (nếu cần)
-        if (month == null) {
-            month = LocalDate.now().getMonthValue();
+    }
+
+    // ========= Extracted handlers =========
+
+    private ApiResponse<List<RevenueStatsResponse>> getRevenueStatsByDay(String startDate, String endDate) {
+        if (startDate == null || endDate == null) {
+            return new ApiResponse<>(400, "Cần truyền startDate và endDate (yyyy-MM-dd) cho type=day", null);
         }
 
-        if ("month".equalsIgnoreCase(type)) {
+        LocalDate s, e;
+        try {
+            s = LocalDate.parse(startDate);
+            e = LocalDate.parse(endDate);
+        } catch (Exception ex) {
+            return new ApiResponse<>(400, "Định dạng ngày không hợp lệ (yyyy-MM-dd)", null);
+        }
+        if (s.isAfter(e))
+            return new ApiResponse<>(400, "startDate phải <= endDate", null);
+
+        long startMillis = toStartOfDayMillis(s);
+        long endMillis = toEndOfDayMillis(e);
+
+        // Query chỉ trả về các ngày có doanh thu
+        List<Object[]> raw = orderRepository.findDailyRevenueByDateRange(startMillis, endMillis);
+
+        // Map day -> revenue
+        java.util.Map<LocalDate, BigDecimal> revenueByDay = new java.util.HashMap<>();
+        for (Object[] row : raw) {
+            String dayKey = String.valueOf(row[0]); // "YYYY-MM-DD"
+            BigDecimal revenue = row[1] == null ? BigDecimal.ZERO : (BigDecimal) row[1];
+            try {
+                LocalDate d = LocalDate.parse(dayKey);
+                revenueByDay.put(d, revenue);
+            } catch (Exception ignored) {
+            }
+        }
+
+        // Điền đầy đủ từng ngày trong khoảng, ngày nào không có thì revenue = 0
+        List<RevenueStatsResponse> result = new ArrayList<>();
+        for (LocalDate d = s; !d.isAfter(e); d = d.plusDays(1)) {
+            BigDecimal revenue = revenueByDay.getOrDefault(d, BigDecimal.ZERO);
+            RevenueStatsResponse item = new RevenueStatsResponse(d.getYear(), d.getMonthValue(), null, revenue);
+            item.setDay(d.toString()); // "2025-08-01"
+            result.add(item);
+        }
+
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    private ApiResponse<List<RevenueStatsResponse>> getRevenueStatsByWeek(String startDate, String endDate) {
+        // Có truyền khoảng ngày → validate >= 7 ngày và group theo tuần
+        if (startDate != null || endDate != null) {
+            if (startDate == null || endDate == null)
+                return new ApiResponse<>(400, "Cần truyền đủ startDate và endDate (yyyy-MM-dd)", null);
+
+            LocalDate s, e;
+            try {
+                s = LocalDate.parse(startDate);
+                e = LocalDate.parse(endDate);
+            } catch (Exception ex) {
+                return new ApiResponse<>(400, "Định dạng ngày không hợp lệ (yyyy-MM-dd)", null);
+            }
+            if (s.isAfter(e))
+                return new ApiResponse<>(400, "startDate phải <= endDate", null);
+            if (daysInclusive(s, e) < MIN_WEEK_DAYS)
+                return new ApiResponse<>(400, "Khoảng ngày phải đủ ít nhất 7 ngày cho thống kê theo tuần", null);
+
+            long startMillis = toStartOfDayMillis(s);
+            long endMillis = toEndOfDayMillis(e);
+            List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
             List<RevenueStatsResponse> result = new ArrayList<>();
-            for (int m = 1; m <= 12; m++) {
-                LocalDateTime start = LocalDateTime.of(year, m, 1, 0, 0);
-                LocalDateTime end = start.plusMonths(1).minusSeconds(1);
-                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                List<Object[]> raw = orderRepository.getMonthlyRevenue(startMillis, endMillis);
-                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[2];
-                result.add(new RevenueStatsResponse(year, m, null, revenue));
+            for (Object[] row : raw) {
+                String weekPeriod = (String) row[0]; // "YYYY-Wxx"
+                BigDecimal revenue = (BigDecimal) row[1];
+                Integer weekNum = null;
+                if (weekPeriod != null && weekPeriod.contains("-W")) {
+                    try {
+                        weekNum = Integer.parseInt(weekPeriod.split("-W")[1]);
+                    } catch (Exception ignored) {
+                    }
+                }
+                result.add(new RevenueStatsResponse(LocalDate.now().getYear(), null, weekNum, revenue));
             }
             return new ApiResponse<>(200, "Thành công", result);
-        } else if ("year".equalsIgnoreCase(type)) {
-            int currentYear = LocalDate.now().getYear();
+        }
+
+        // Không truyền → 5 tuần gần nhất
+        int numWeeks = 5;
+        LocalDate now = LocalDate.now();
+        LocalDate startOfTargetWeek = now.with(java.time.DayOfWeek.MONDAY).minusWeeks(numWeeks - 1);
+        LocalDate endOfThisWeek = now.with(java.time.DayOfWeek.SUNDAY);
+
+        long startMillis = toStartOfDayMillis(startOfTargetWeek);
+        long endMillis = toEndOfDayMillis(endOfThisWeek);
+
+        List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
+        List<RevenueStatsResponse> result = new ArrayList<>();
+        for (Object[] row : raw) {
+            String weekPeriod = (String) row[0];
+            BigDecimal revenue = (BigDecimal) row[1];
+            Integer weekNum = null;
+            if (weekPeriod != null && weekPeriod.contains("-W")) {
+                try {
+                    weekNum = Integer.parseInt(weekPeriod.split("-W")[1]);
+                } catch (Exception ignored) {
+                }
+            }
+            result.add(new RevenueStatsResponse(now.getYear(), null, weekNum, revenue));
+        }
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    private ApiResponse<List<RevenueStatsResponse>> getRevenueStatsByMonth(Integer year, String startDate,
+            String endDate) {
+        // Có truyền khoảng ngày → validate >= 28 ngày và group theo tháng
+        if (startDate != null && endDate != null) {
+            LocalDate s, e;
+            try {
+                s = LocalDate.parse(startDate);
+                e = LocalDate.parse(endDate);
+            } catch (Exception ex) {
+                return new ApiResponse<>(400, "Định dạng ngày không hợp lệ (yyyy-MM-dd)", null);
+            }
+            if (s.isAfter(e))
+                return new ApiResponse<>(400, "startDate phải <= endDate", null);
+            if (daysInclusive(s, e) < MIN_MONTH_DAYS)
+                return new ApiResponse<>(400, "Khoảng ngày phải đủ ít nhất 28 ngày cho thống kê theo tháng", null);
+
+            long startMillis = toStartOfDayMillis(s);
+            long endMillis = toEndOfDayMillis(e);
+
+            List<Object[]> raw = orderRepository.findMonthlyRevenueByDateRange(startMillis, endMillis);
+
+            // Map month_key -> revenue
+            DateTimeFormatter ymFmt = DateTimeFormatter.ofPattern("yyyy-MM");
+            java.util.Map<YearMonth, BigDecimal> revenueByMonth = new java.util.HashMap<>();
+            for (Object[] row : raw) {
+                String monthKey = (String) row[0]; // "YYYY-MM"
+                BigDecimal revenue = row[1] == null ? BigDecimal.ZERO : (BigDecimal) row[1];
+                try {
+                    YearMonth ym = YearMonth.parse(monthKey, ymFmt);
+                    revenueByMonth.put(ym, revenue);
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Điền đủ từng tháng trong khoảng [s..e] (theo first day của tháng)
+            YearMonth startYM = YearMonth.from(s);
+            YearMonth endYM = YearMonth.from(e);
             List<RevenueStatsResponse> result = new ArrayList<>();
-            for (int y = currentYear - 2; y <= currentYear; y++) {
-                LocalDateTime start = LocalDateTime.of(y, 1, 1, 0, 0);
-                LocalDateTime end = start.plusYears(1).minusSeconds(1);
-                long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                List<Object[]> raw = orderRepository.getYearlyRevenue(startMillis, endMillis);
-                BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[1];
+            for (YearMonth ym = startYM; !ym.isAfter(endYM); ym = ym.plusMonths(1)) {
+                BigDecimal revenue = revenueByMonth.getOrDefault(ym, BigDecimal.ZERO);
+                result.add(new RevenueStatsResponse(ym.getYear(), ym.getMonthValue(), null, revenue));
+            }
+            return new ApiResponse<>(200, "Thành công", result);
+        }
+
+        // Không truyền → 12 tháng của năm chỉ định (mặc định năm hiện tại)
+        if (year == null)
+            year = LocalDate.now().getYear();
+        List<RevenueStatsResponse> result = new ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            LocalDateTime start = LocalDateTime.of(year, m, 1, 0, 0);
+            LocalDateTime end = start.plusMonths(1).minusSeconds(1);
+            long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            List<Object[]> raw = orderRepository.getMonthlyRevenue(startMillis, endMillis);
+            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) rowValue(raw.get(0), 2);
+            result.add(new RevenueStatsResponse(year, m, null, revenue));
+        }
+        return new ApiResponse<>(200, "Thành công", result);
+    }
+
+    private ApiResponse<List<RevenueStatsResponse>> getRevenueStatsByYear(String startDate, String endDate) {
+        // Có truyền khoảng ngày → validate >= 365 ngày, group theo năm và FILL 0 cho
+        // năm thiếu
+        if (startDate != null && endDate != null) {
+            LocalDate s, e;
+            try {
+                s = LocalDate.parse(startDate);
+                e = LocalDate.parse(endDate);
+            } catch (Exception ex) {
+                return new ApiResponse<>(400, "Định dạng ngày không hợp lệ (yyyy-MM-dd)", null);
+            }
+            if (s.isAfter(e))
+                return new ApiResponse<>(400, "startDate phải <= endDate", null);
+            if (daysInclusive(s, e) < MIN_YEAR_DAYS)
+                return new ApiResponse<>(400, "Khoảng ngày phải đủ ít nhất 365 ngày cho thống kê theo năm", null);
+
+            long startMillis = toStartOfDayMillis(s);
+            long endMillis = toEndOfDayMillis(e);
+
+            List<Object[]> raw = orderRepository.findYearlyRevenueByDateRange(startMillis, endMillis);
+
+            // Map year -> revenue
+            java.util.Map<Integer, BigDecimal> revenueByYear = new java.util.HashMap<>();
+            for (Object[] row : raw) {
+                String yearKey = String.valueOf(row[0]); // "YYYY"
+                BigDecimal revenue = row[1] == null ? BigDecimal.ZERO : (BigDecimal) row[1];
+                try {
+                    Integer yy = Integer.parseInt(yearKey);
+                    revenueByYear.put(yy, revenue);
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Fill đủ từng năm trong khoảng [s..e], năm không có đơn => revenue = 0
+            List<RevenueStatsResponse> result = new ArrayList<>();
+            for (int y = s.getYear(); y <= e.getYear(); y++) {
+                BigDecimal revenue = revenueByYear.getOrDefault(y, BigDecimal.ZERO);
                 result.add(new RevenueStatsResponse(y, null, null, revenue));
             }
             return new ApiResponse<>(200, "Thành công", result);
-        } else if ("week".equalsIgnoreCase(type)) {
-            int numWeeks = 5; // Số tuần gần nhất bạn muốn lấy, có thể truyền từ request nếu muốn động
-            LocalDate now = LocalDate.now();
-            LocalDate startOfTargetWeek = now.with(java.time.DayOfWeek.MONDAY).minusWeeks(numWeeks - 1);
-            LocalDate endOfThisWeek = now.with(java.time.DayOfWeek.SUNDAY);
-
-            long startMillis = startOfTargetWeek.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
-            long endMillis = endOfThisWeek.atTime(23, 59, 59, 999_999_999).atZone(ZoneId.systemDefault()).toInstant()
-                    .toEpochMilli();
-
-            List<Object[]> raw = orderRepository.findWeeklyRevenueByDateRange(startMillis, endMillis);
-
-            List<RevenueStatsResponse> result = new ArrayList<>();
-            for (Object[] row : raw) {
-                String weekPeriod = (String) row[0]; // "2025-W28"
-                BigDecimal revenue = (BigDecimal) row[1];
-                Long orderCount = ((Number) row[2]).longValue();
-                // Parse week number
-                Integer weekNum = null;
-                if (weekPeriod != null && weekPeriod.contains("-W")) {
-                    weekNum = Integer.parseInt(weekPeriod.split("-W")[1]);
-                }
-                result.add(new RevenueStatsResponse(now.getYear(), null, weekNum, revenue));
-                // Nếu muốn trả về thêm orderCount, startDate, endDate thì mở rộng DTO
-            }
-            return new ApiResponse<>(200, "Thành công", result);
-        } else {
-            return new ApiResponse<>(400, "Loại thống kê không hợp lệ", null);
         }
+
+        // Không truyền → 3 năm gần nhất (đã có fill 0 theo từng năm)
+        int currentYear = LocalDate.now().getYear();
+        List<RevenueStatsResponse> result = new ArrayList<>();
+        for (int y = currentYear - 2; y <= currentYear; y++) {
+            LocalDateTime start = LocalDateTime.of(y, 1, 1, 0, 0);
+            LocalDateTime end = start.plusYears(1).minusSeconds(1);
+            long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            List<Object[]> raw = orderRepository.getYearlyRevenue(startMillis, endMillis);
+            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[1];
+            result.add(new RevenueStatsResponse(y, null, null, revenue));
+        }
+        return new ApiResponse<>(200, "Thành công", result);
     }
 
     @Override
@@ -1178,5 +1380,10 @@ public class OrderServiceImpl implements OrderService {
                 .atTime(23, 59, 59, 999_999_999)
                 .atZone(ZoneId.systemDefault())
                 .toInstant().toEpochMilli();
+    }
+
+    // helper để an toàn kiểu Number -> BigDecimal
+    private Object rowValue(Object[] row, int idx) {
+        return row[idx];
     }
 }
