@@ -276,10 +276,10 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             ) flashSaleSold ON b.id = flashSaleSold.bookId
             WHERE b.status = 1
                   AND b.stockQuantity > 0
-                  AND (flashSale.id IS NOT NULL OR b.discountActive = true)
+                  AND (flashSale.id IS NOT NULL OR (b.discountActive = true AND (b.discountValue > 0 OR b.discountPercent > 0)))
             ORDER BY (
                 (CASE WHEN flashSale.id IS NOT NULL THEN 20 ELSE 0 END) +
-                (CASE WHEN b.discountActive = true THEN 15 ELSE 0 END) +
+                (CASE WHEN (b.discountActive = true AND (b.discountValue > 0 OR b.discountPercent > 0)) THEN 15 ELSE 0 END) +
                 COALESCE(reviewData.avgRating, 0)
             ) DESC
             """)
