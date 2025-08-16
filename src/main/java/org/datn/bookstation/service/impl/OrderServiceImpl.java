@@ -143,10 +143,10 @@ public class OrderServiceImpl implements OrderService {
 
         // Sử dụng mapper với details
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
-        
+
         // ✅ THÊM MỚI: Set thông tin hoàn trả
         setRefundInfoToOrderResponse(response, order);
-        
+
         return response;
     }
 
@@ -488,10 +488,11 @@ public class OrderServiceImpl implements OrderService {
                     // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
                     List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
                     List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
-                    
-                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+
+                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails,
+                            orderVouchers);
                     setRefundInfoToOrderResponse(response, order);
-                    
+
                     return response;
                 })
                 .toList();
@@ -514,10 +515,11 @@ public class OrderServiceImpl implements OrderService {
                     // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
                     List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
                     List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
-                    
-                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
+
+                    OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails,
+                            orderVouchers);
                     setRefundInfoToOrderResponse(response, order);
-                    
+
                     return response;
                 })
                 .toList();
@@ -1049,13 +1051,13 @@ public class OrderServiceImpl implements OrderService {
         List<org.datn.bookstation.entity.OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(id);
         // Map sang DTO
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
-        
+
         // ✅ THÊM MỚI: Set thông tin hoàn trả
         setRefundInfoToOrderResponse(response, order);
-        
+
         return response;
     }
-    
+
     /**
      * ✅ THÊM MỚI: Set thông tin hoàn trả cho OrderResponse
      */
@@ -1066,27 +1068,28 @@ public class OrderServiceImpl implements OrderService {
         } else if (order.getOrderStatus() == OrderStatus.REFUNDED) {
             orderResponse.setRefundType("FULL");
         }
-        
+
         // Lấy thông tin hoàn trả từ RefundRequest entity
         List<RefundRequest> refundRequests = refundRequestRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
-        
+
         // Lọc những request đã approved
         List<RefundRequest> approvedRefunds = refundRequests.stream()
-            .filter(r -> r.getStatus() == RefundStatus.APPROVED || r.getStatus() == RefundStatus.COMPLETED)
-            .toList();
-        
+                .filter(r -> r.getStatus() == RefundStatus.APPROVED || r.getStatus() == RefundStatus.COMPLETED)
+                .toList();
+
         if (!approvedRefunds.isEmpty()) {
             RefundRequest latestRefund = approvedRefunds.get(approvedRefunds.size() - 1);
             orderResponse.setTotalRefundedAmount(latestRefund.getTotalRefundAmount());
             orderResponse.setRefundReason(latestRefund.getReason());
-            orderResponse.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(latestRefund.getReason())); // ✅ THÊM
+            orderResponse.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(latestRefund.getReason())); // ✅
+                                                                                                                   // THÊM
             orderResponse.setRefundDate(latestRefund.getApprovedAt());
             if (latestRefund.getApprovedBy() != null) {
                 orderResponse.setRefundedByStaff(latestRefund.getApprovedBy().getId());
                 orderResponse.setRefundedByStaffName(latestRefund.getApprovedBy().getFullName());
             }
         }
-        
+
         // ✅ Set thông tin hoàn trả cho từng order detail
         if (orderResponse.getOrderDetails() != null) {
             for (OrderDetailResponse detail : orderResponse.getOrderDetails()) {
@@ -1094,40 +1097,41 @@ public class OrderServiceImpl implements OrderService {
             }
         }
     }
-    
+
     /**
      * ✅ SỬA: Set thông tin hoàn trả cho OrderDetailResponse
      */
     private void setRefundInfoToOrderDetail(OrderDetailResponse detail, Integer orderId) {
         // Lấy tất cả RefundItem cho sản phẩm này trong đơn hàng
         List<RefundItem> refundItems = refundItemRepository.findByOrderIdAndBookId(orderId, detail.getBookId());
-        
+
         if (!refundItems.isEmpty()) {
             // Tính tổng số lượng và số tiền đã hoàn
             int totalRefundedQuantity = refundItems.stream()
-                .mapToInt(RefundItem::getRefundQuantity)
-                .sum();
-            
+                    .mapToInt(RefundItem::getRefundQuantity)
+                    .sum();
+
             BigDecimal totalRefundedAmount = refundItems.stream()
-                .map(RefundItem::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
+                    .map(RefundItem::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
             detail.setRefundedQuantity(totalRefundedQuantity);
             detail.setRefundedAmount(totalRefundedAmount);
-            
-            // ✅ SỬA: Lấy lý do từ RefundRequest (dropdown user chọn), không phải từ RefundItem
+
+            // ✅ SỬA: Lấy lý do từ RefundRequest (dropdown user chọn), không phải từ
+            // RefundItem
             RefundItem latestItem = refundItems.get(refundItems.size() - 1);
             RefundRequest refundRequest = latestItem.getRefundRequest();
-            
+
             // Lý do chính từ dropdown user chọn
-            detail.setRefundReason(refundRequest.getReason()); 
+            detail.setRefundReason(refundRequest.getReason());
             detail.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(refundRequest.getReason())); // ✅ THÊM
             detail.setRefundDate(refundRequest.getCreatedAt());
-            
+
             // ✅ THÊM MỚI: Set trạng thái hoàn trả của sản phẩm
             detail.setRefundStatus(refundRequest.getStatus().name());
             detail.setRefundStatusDisplay(getRefundStatusDisplay(refundRequest.getStatus()));
-            
+
         } else {
             detail.setRefundedQuantity(0);
             detail.setRefundedAmount(BigDecimal.ZERO);
@@ -1135,7 +1139,7 @@ public class OrderServiceImpl implements OrderService {
             detail.setRefundStatusDisplay("Không hoàn trả");
         }
     }
-    
+
     /**
      * ✅ THÊM MỚI: Helper method để convert trạng thái hoàn trả sang display name
      */
@@ -1357,8 +1361,10 @@ public class OrderServiceImpl implements OrderService {
             LocalDateTime end = start.plusMonths(1).minusSeconds(1);
             long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
             long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-            List<Object[]> raw = orderRepository.getMonthlyRevenue(startMillis, endMillis);
-            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) rowValue(raw.get(0), 2);
+            List<Object[]> raw = orderRepository.findAllMonthlyRevenueByDateRange(startMillis, endMillis);
+
+            // ✅ SỬA: Thay index 2 thành index 1 (vì chỉ có 2 cột)
+            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) rowValue(raw.get(0), 1);
             result.add(new RevenueStatsResponse(year, m, null, revenue));
         }
         return new ApiResponse<>(200, "Thành công", result);
@@ -1414,8 +1420,9 @@ public class OrderServiceImpl implements OrderService {
             LocalDateTime end = start.plusYears(1).minusSeconds(1);
             long startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
             long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-            List<Object[]> raw = orderRepository.getYearlyRevenue(startMillis, endMillis);
-            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) raw.get(0)[1];
+            List<Object[]> raw = orderRepository.findYearlyRevenueByDateRange(startMillis, endMillis);
+            BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) rowValue(raw.get(0), 1);
+
             result.add(new RevenueStatsResponse(y, null, null, revenue));
         }
         return new ApiResponse<>(200, "Thành công", result);
