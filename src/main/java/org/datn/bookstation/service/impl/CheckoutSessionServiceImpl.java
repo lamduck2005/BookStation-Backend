@@ -360,28 +360,38 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 return new ApiResponse<>(400, "Session validation failed: " + String.join(", ", validationErrors), null);
             }
 
-            // Validate vouchers and recalculate pricing with voucher discounts
+            // Always recalculate pricing to ensure accuracy
             List<Integer> voucherIds = checkoutSessionMapper.parseVoucherIds(session.getSelectedVoucherIds());
+            
+            // Validate vouchers if any
             if (voucherIds != null && !voucherIds.isEmpty()) {
                 List<String> voucherErrors = validateSessionVouchers(voucherIds, userId);
                 if (!voucherErrors.isEmpty()) {
                     return new ApiResponse<>(400, "Voucher validation failed: " + String.join(", ", voucherErrors), null);
                 }
+            }
+            
+            // Always recalculate pricing (with or without vouchers)
+            log.info("🔄 Recalculating session pricing for session: {}", sessionId);
+            List<CheckoutSessionRequest.BookQuantity> items = parseCheckoutItems(session.getCheckoutItems());
+            if (items != null && !items.isEmpty()) {
+                CheckoutSessionRequest request = new CheckoutSessionRequest();
+                request.setItems(items);
+                request.setSelectedVoucherIds(voucherIds);
+                request.setShippingFee(session.getShippingFee());
                 
-                // Recalculate pricing with voucher discounts
-                log.info("🔄 Recalculating session pricing with vouchers for session: {}", sessionId);
-                List<CheckoutSessionRequest.BookQuantity> items = parseCheckoutItems(session.getCheckoutItems());
-                if (items != null && !items.isEmpty()) {
-                    CheckoutSessionRequest request = new CheckoutSessionRequest();
-                    request.setItems(items);
-                    request.setSelectedVoucherIds(voucherIds);
-                    request.setShippingFee(session.getShippingFee());
-                    
+                if (voucherIds != null && !voucherIds.isEmpty()) {
+                    // Calculate with vouchers
                     calculateSessionPricingWithVouchers(session, request, userId);
-                    session = checkoutSessionRepository.save(session);
                     log.info("✅ Updated session pricing with voucher discounts: totalDiscount={}, totalAmount={}", 
                         session.getTotalDiscount(), session.getTotalAmount());
+                } else {
+                    // Calculate without vouchers
+                    calculateSessionPricing(session, request);
+                    log.info("✅ Updated session pricing without vouchers: subtotal={}, totalAmount={}", 
+                        session.getSubtotal(), session.getTotalAmount());
                 }
+                session = checkoutSessionRepository.save(session);
             }
 
             CheckoutSessionResponse response = checkoutSessionResponseMapper.toResponse(session);
