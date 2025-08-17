@@ -20,7 +20,8 @@ public class BookFlashSaleMapper {
     private final FlashSaleItemRepository flashSaleItemRepository;
 
     public static FlashSaleItemBookRequest mapToFlashSaleItemBookRequest(Object[] data,
-            FlashSaleItemRepository flashSaleItemRepository) {
+            FlashSaleItemRepository flashSaleItemRepository,
+            OrderDetailRepository orderDetailRepository) { // Thêm parameter
         FlashSaleItemBookRequest dto = new FlashSaleItemBookRequest();
         BigDecimal flashSalePrice = (BigDecimal) data[7];
         dto.setId(data[0] != null ? ((Number) data[0]).intValue() : null); // id
@@ -40,14 +41,26 @@ public class BookFlashSaleMapper {
         } else {
             dto.setImages(Collections.emptyList());
         }
-        // Calculate discount percentage if in flash sale
 
         dto.setCategoryName((String) data[5]); // categoryName
         dto.setIsInFlashSale(data[6] != null && (Boolean) data[6]); // isInFlashSale
         dto.setFlashSalePrice(data[7] != null ? (BigDecimal) data[7] : null); // flashSalePrice
         dto.setFlashSaleStockQuantity(data[8] != null ? ((Number) data[8]).intValue() : null); // flashSaleStockQuantity
         dto.setFlashSaleSoldCount(data[9] != null ? ((Number) data[9]).intValue() : null); // flashSaleSoldCount
-        dto.setSoldCount(data[10] != null ? ((Number) data[10]).intValue() : null); // soldCount
+
+        // ❌ CÁCH CŨ: Lấy từ query
+        // dto.setSoldCount(data[10] != null ? ((Number) data[10]).intValue() : null);
+        // // soldCount
+
+        // ✅ CÁCH MỚI: FORCE OVERRIDE giống TrendingBookMapper
+        Integer bookId = dto.getId();
+        if (bookId != null) {
+            Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(bookId);
+            dto.setSoldCount(realSoldCount != null ? realSoldCount : 0);
+        } else {
+            dto.setSoldCount(0);
+        }
+
         if (dto.getIsInFlashSale()) {
             FlashSaleItem currentFlashSale = flashSaleItemRepository.findActiveFlashSaleByBook(dto.getId());
             if (currentFlashSale != null) {
@@ -56,6 +69,7 @@ public class BookFlashSaleMapper {
                 dto.setFlashSaleSoldCount(realFlashSaleSoldCount);
             }
         }
+
         if (dto.getIsInFlashSale() && flashSalePrice != null && dto.getPrice() != null) {
             BigDecimal discount = dto.getPrice().subtract(flashSalePrice);
             BigDecimal discountPercentage = discount.divide(dto.getPrice(), 4, RoundingMode.HALF_UP)

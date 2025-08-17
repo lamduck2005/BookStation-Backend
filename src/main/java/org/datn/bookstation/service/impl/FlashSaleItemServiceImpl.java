@@ -18,6 +18,7 @@ import org.datn.bookstation.mapper.FlashSaleItemMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.FlashSaleRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.service.CartItemService;
 import org.datn.bookstation.specification.FlashSaleItemSpecification;
@@ -35,12 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlashSaleItemServiceImpl implements FlashSaleItemService {
 
-    @Override
-    public FlashSaleItem findActiveFlashSaleByBook(Integer bookId) {
-        // Giả sử có phương thức findActiveFlashSaleByBook trong repository
-        return flashSaleItemRepository.findActiveFlashSaleByBook(bookId);
-    }
-
     @Autowired
     private FlashSaleItemRepository flashSaleItemRepository;
 
@@ -56,6 +51,16 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
     @Autowired
     @Lazy
     private CartItemService cartItemService;
+
+    // ✅ THÊM dependency OrderDetailRepository
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
+
+    @Override
+    public FlashSaleItem findActiveFlashSaleByBook(Integer bookId) {
+        // Giả sử có phương thức findActiveFlashSaleByBook trong repository
+        return flashSaleItemRepository.findActiveFlashSaleByBook(bookId);
+    }
 
     @Override
     public ApiResponse<PaginationResponse<FlashSaleItemResponse>> getAllWithFilter(int page, int size,
@@ -103,7 +108,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
         }
 
-        // Các bước xử lý như cũ...
+        // Kiểm tra flash sale và book tồn tại
         FlashSale flashSale = flashSaleRepository.findById(request.getFlashSaleId()).orElse(null);
         if (flashSale == null) {
             return new ApiResponse<>(404, "Flash sale không tồn tại", null);
@@ -112,6 +117,16 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         if (book == null) {
             return new ApiResponse<>(404, "Sách không tồn tại", null);
         }
+
+        // ✅ VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
+        // sách
+        if (request.getStockQuantity() > book.getStockQuantity()) {
+            return new ApiResponse<>(400,
+                    String.format("Số lượng flash sale (%d) không được lớn hơn tồn kho sách (%d)",
+                            request.getStockQuantity(), book.getStockQuantity()),
+                    null);
+        }
+
         boolean exists = flashSaleItemRepository.existsByFlashSaleIdAndBookId(request.getFlashSaleId(),
                 request.getBookId());
         if (exists) {
@@ -158,6 +173,29 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
         }
 
+        // Lấy thông tin book hiện tại hoặc book mới (nếu thay đổi)
+        Book targetBook = existing.getBook(); // Book hiện tại
+        if (request.getBookId() != null) {
+            Book newBook = bookRepository.findById(request.getBookId()).orElse(null);
+            if (newBook == null) {
+                return new ApiResponse<>(404, "Sách không tồn tại", null);
+            }
+            targetBook = newBook; // Dùng book mới nếu thay đổi
+        }
+
+        // ✅ VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
+        // sách
+        Integer newStockQuantity = request.getStockQuantity() != null ? request.getStockQuantity()
+                : existing.getStockQuantity();
+
+        if (newStockQuantity > targetBook.getStockQuantity()) {
+            return new ApiResponse<>(400,
+                    String.format("Số lượng flash sale (%d) không được lớn hơn tồn kho sách '%s' (%d)",
+                            newStockQuantity, targetBook.getBookName(), targetBook.getStockQuantity()),
+                    null);
+        }
+
+        // Kiểm tra duplicate (nếu thay đổi flashSaleId hoặc bookId)
         Integer flashSaleId = request.getFlashSaleId() != null ? request.getFlashSaleId()
                 : existing.getFlashSale().getId();
         Integer bookId = request.getBookId() != null ? request.getBookId() : existing.getBook().getId();
@@ -233,7 +271,8 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         List<Object[]> books = flashSaleItemRepository.findAllBookFlashSaleDTO(now, thirtyDaysAgo);
 
         List<FlashSaleItemBookRequest> dtoList = books.stream()
-                .map(data -> BookFlashSaleMapper.mapToFlashSaleItemBookRequest(data, flashSaleItemRepository))
+                .map(data -> BookFlashSaleMapper.mapToFlashSaleItemBookRequest(data, flashSaleItemRepository,
+                        orderDetailRepository))
                 .collect(Collectors.toList());
 
         return new ApiResponse<>(200, "Lấy được list sản phẩm FlashSale", dtoList);
