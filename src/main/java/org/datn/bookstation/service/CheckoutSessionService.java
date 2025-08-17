@@ -91,4 +91,9 @@ public interface CheckoutSessionService {
      * Lấy entity cho internal use
      */
     CheckoutSession getSessionEntity(Integer sessionId, Integer userId);
+
+    /**
+     * ✅ NEW: Update payment method cho session
+     */
+    ApiResponse<String> updateSessionPaymentMethod(Integer sessionId, String paymentMethod);
 }

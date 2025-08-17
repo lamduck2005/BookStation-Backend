@@ -1,11 +1,14 @@
 package org.datn.bookstation.mapper;
 
+import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.response.AuthorResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
 import org.datn.bookstation.entity.AuthorBook;
+import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.entity.Review;
 import org.datn.bookstation.entity.enums.ReviewStatus;
+import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.repository.ReviewRepository;
@@ -19,6 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class TrendingBookMapper {
     
     @Autowired
@@ -29,6 +33,9 @@ public class TrendingBookMapper {
     
     @Autowired
     private ReviewRepository reviewRepository;
+    
+    @Autowired
+    private BookRepository bookRepository;
     
     /**
      * Chuyển đổi từ Object[] query result sang TrendingBookResponse
@@ -142,18 +149,64 @@ public class TrendingBookMapper {
             }
         }
         
-        // Calculate discount percentage if in flash sale
+        // Calculate discount percentage and final price if in flash sale
         if (response.getIsInFlashSale() && flashSalePrice != null && response.getPrice() != null) {
-            BigDecimal discount = response.getPrice().subtract(flashSalePrice);
-            BigDecimal discountPercentage = discount.divide(response.getPrice(), 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-            response.setDiscountPercentage(discountPercentage.intValue());
-            // Giá gốc vẫn giữ nguyên, price sẽ là giá sau discount
-            response.setPrice(flashSalePrice);
-            response.setDiscountActive(true);
+            // ✅ FIX: Ensure flash sale price is valid before calculating
+            if (flashSalePrice.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal originalPrice = response.getPrice();
+                BigDecimal discount = originalPrice.subtract(flashSalePrice);
+                BigDecimal discountPercentage = discount.divide(originalPrice, 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+                response.setDiscountPercentage(discountPercentage.intValue());
+                // Set final price to flash sale price
+                response.setPrice(flashSalePrice);
+                response.setDiscountActive(true);
+                log.info("✅ Applied flash sale pricing for book {}: original={}, final={}, discount={}%", 
+                    response.getId(), originalPrice, flashSalePrice, discountPercentage.intValue());
+            } else {
+                log.warn("⚠️ Invalid flash sale price {} for book {}, using original price", 
+                    flashSalePrice, response.getId());
+                response.setDiscountPercentage(0);
+                response.setDiscountActive(false);
+            }
         } else {
-            response.setDiscountPercentage(0);
-            response.setDiscountActive(false);
+            // ✅ CHECK FOR BOOK DISCOUNT if no flash sale
+            // Get Book entity to check for direct discounts
+            try {
+                Book book = bookRepository.findById(response.getId()).orElse(null);
+                if (book != null) {
+                    BigDecimal effectivePrice = book.getEffectivePrice();
+                    BigDecimal originalPrice = book.getPrice();
+                    
+                    // Check if effective price is different from original price
+                    if (effectivePrice.compareTo(originalPrice) < 0) {
+                        // There's a discount applied
+                        BigDecimal discount = originalPrice.subtract(effectivePrice);
+                        BigDecimal discountPercentage = discount.divide(originalPrice, 4, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100));
+                        
+                        response.setPrice(effectivePrice);
+                        response.setDiscountPercentage(discountPercentage.intValue());
+                        response.setDiscountActive(true);
+                        
+                        log.info("✅ Applied book discount for book {}: original={}, effective={}, discount={}%", 
+                            response.getId(), originalPrice, effectivePrice, discountPercentage.intValue());
+                    } else {
+                        response.setDiscountPercentage(0);
+                        response.setDiscountActive(false);
+                        log.info("No discount for book {}, using original price: {}", 
+                            response.getId(), originalPrice);
+                    }
+                } else {
+                    log.warn("⚠️ Book entity not found for ID {}", response.getId());
+                    response.setDiscountPercentage(0);
+                    response.setDiscountActive(false);
+                }
+            } catch (Exception e) {
+                log.error("❌ Error calculating book discount for ID {}: {}", response.getId(), e.getMessage());
+                response.setDiscountPercentage(0);
+                response.setDiscountActive(false);
+            }
         }
         
         // Trending info

@@ -63,7 +63,7 @@ public class CheckoutSession {
 
     // Tổng tiền sản phẩm (chưa tính ship, voucher)
     @ColumnDefault("0")
-    @Column(name = "subtotal", precision = 10, scale = 2)
+    @Column(name = "subtotal", precision = 20, scale = 2)
     private BigDecimal subtotal = BigDecimal.ZERO;
 
     // Tổng giảm giá voucher
@@ -73,7 +73,7 @@ public class CheckoutSession {
 
     // Tổng tiền cuối cùng
     @ColumnDefault("0")
-    @Column(name = "total_amount", precision = 10, scale = 2)
+    @Column(name = "total_amount", precision = 20, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
     // Trạng thái session

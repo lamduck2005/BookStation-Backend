@@ -359,6 +359,9 @@ public class BookServiceImpl implements BookService {
                 authorBookRepository.save(authorBook);
             }
 
+            // ✅ STORE ORIGINAL PRICE BEFORE UPDATE FOR FLASH SALE RECALCULATION
+            BigDecimal originalPrice = existing.getPrice();
+
             // Update basic fields
             existing.setBookName(request.getBookName());
             existing.setDescription(request.getDescription());
@@ -452,6 +455,13 @@ public class BookServiceImpl implements BookService {
             existing.setUpdatedAt(Instant.now().toEpochMilli());
 
             Book saved = bookRepository.save(existing);
+
+            // ✅ RECALCULATE FLASH SALE PRICES IF BOOK PRICE CHANGED
+            if (!originalPrice.equals(request.getPrice())) {
+                log.info("Book price changed from {} to {} for book ID {}, recalculating flash sale prices", 
+                    originalPrice, request.getPrice(), id);
+                recalculateFlashSalePrices(id, originalPrice, request.getPrice());
+            }
 
             // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
             trendingCacheService.invalidateAllTrendingCache();
@@ -2203,5 +2213,47 @@ public class BookServiceImpl implements BookService {
         public long getStartTime() { return startTime; }
         public long getEndTime() { return endTime; }
         public String getFinalPeriodType() { return finalPeriodType; }
+    }
+
+    /**
+     * ✅ RECALCULATE FLASH SALE PRICES WHEN BOOK PRICE CHANGES
+     * Maintains the same discount percentage but updates the discount price
+     */
+    private void recalculateFlashSalePrices(Integer bookId, BigDecimal oldPrice, BigDecimal newPrice) {
+        try {
+            List<FlashSaleItem> activeFlashSales = flashSaleItemRepository
+                .findActiveFlashSalesByBookId(bookId.longValue(), System.currentTimeMillis());
+            
+            if (activeFlashSales.isEmpty()) {
+                log.info("No active flash sales found for book ID {}, skipping recalculation", bookId);
+                return;
+            }
+            
+            for (FlashSaleItem flashSale : activeFlashSales) {
+                BigDecimal oldDiscountPrice = flashSale.getDiscountPrice();
+                BigDecimal discountPercentage = flashSale.getDiscountPercentage();
+                
+                // Calculate new discount price maintaining the same percentage
+                BigDecimal newDiscountPrice = newPrice.multiply(BigDecimal.ONE.subtract(
+                    discountPercentage.divide(BigDecimal.valueOf(100))));
+                
+                flashSale.setDiscountPrice(newDiscountPrice);
+                flashSale.setUpdatedAt(System.currentTimeMillis());
+                
+                flashSaleItemRepository.save(flashSale);
+                
+                log.info("✅ Updated flash sale item {}: oldPrice={}, newPrice={}, " +
+                    "oldDiscountPrice={}, newDiscountPrice={}, discountPercent={}%", 
+                    flashSale.getId(), oldPrice, newPrice, oldDiscountPrice, 
+                    newDiscountPrice, discountPercentage);
+            }
+            
+            log.info("Successfully recalculated {} flash sale prices for book ID {}", 
+                activeFlashSales.size(), bookId);
+                
+        } catch (Exception e) {
+            log.error("❌ Failed to recalculate flash sale prices for book ID {}: {}", 
+                bookId, e.getMessage(), e);
+        }
     }
 }

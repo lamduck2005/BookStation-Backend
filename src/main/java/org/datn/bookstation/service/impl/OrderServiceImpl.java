@@ -218,7 +218,14 @@ public class OrderServiceImpl implements OrderService {
         order.setAddress(address);
         order.setOrderType(request.getOrderType().toUpperCase());
         order.setPaymentMethod(request.getPaymentMethod()); // ✅ THÊM MỚI
-        order.setOrderStatus(request.getOrderStatus());
+        
+        // ✅ AUTO-SET CONFIRMED STATUS FOR VNPAY PAYMENTS
+        if ("VNPay".equals(request.getPaymentMethod())) {
+            order.setOrderStatus(OrderStatus.CONFIRMED);
+            log.info("Auto-setting order status to CONFIRMED for VNPay payment: {}", order.getCode());
+        } else {
+            order.setOrderStatus(request.getOrderStatus());
+        }
         order.setOrderDate(System.currentTimeMillis());
         order.setShippingFee(shippingFee);
         order.setDiscountAmount(discountAmount);

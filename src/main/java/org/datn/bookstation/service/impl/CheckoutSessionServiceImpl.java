@@ -1441,6 +1441,13 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
 
         orderRequest.setOrderType("ONLINE"); // Default order type for checkout sessions
         orderRequest.setNotes(session.getNotes());
+        
+        // ✅ SET PAYMENT METHOD FROM SESSION
+        if (session.getPaymentMethod() != null) {
+            orderRequest.setPaymentMethod(session.getPaymentMethod());
+        } else {
+            orderRequest.setPaymentMethod("COD"); // Default COD if not specified
+        }
 
         // Log session data for debugging
         log.debug("Building OrderRequest from session {}: subtotal={}, totalAmount={}, shippingFee={}", 
@@ -1525,6 +1532,31 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
             orderDetails.size(), session.getId());
 
         return orderRequest;
+    }
+
+    /**
+     * ✅ NEW: Update payment method cho session (VNPay, COD, etc.)
+     */
+    @Override
+    public ApiResponse<String> updateSessionPaymentMethod(Integer sessionId, String paymentMethod) {
+        try {
+            Optional<CheckoutSession> sessionOpt = checkoutSessionRepository.findById(sessionId);
+            if (sessionOpt.isEmpty()) {
+                return new ApiResponse<>(404, "Không tìm thấy checkout session", null);
+            }
+
+            CheckoutSession session = sessionOpt.get();
+            session.setPaymentMethod(paymentMethod);
+            session.setUpdatedAt(System.currentTimeMillis());
+
+            checkoutSessionRepository.save(session);
+            log.info("✅ Updated payment method for session {} to {}", sessionId, paymentMethod);
+
+            return new ApiResponse<>(200, "Cập nhật phương thức thanh toán thành công", null);
+        } catch (Exception e) {
+            log.error("❌ Error updating payment method for session {}: {}", sessionId, e.getMessage(), e);
+            return new ApiResponse<>(500, "Lỗi khi cập nhật phương thức thanh toán", null);
+        }
     }
 
     /**
