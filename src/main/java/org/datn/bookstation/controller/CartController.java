@@ -49,6 +49,20 @@ public class CartController {
                 .body(new ApiResponse<>(500, "Lỗi khi lấy tóm tắt: " + e.getMessage(), null));
         }
     }
+     
+    /**
+     * Đếm số lượng sách trong giỏ hàng của user
+     */
+    @GetMapping("/user/{userId}/count")
+    public ResponseEntity<ApiResponse<Integer>> getCartItemsCount(@PathVariable Integer userId) {
+        try {
+            Integer count = cartService.getCartItemsCount(userId);
+            return ResponseEntity.ok(new ApiResponse<>(200, "Đếm số lượng sách thành công", count));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, "Lỗi khi đếm số lượng sách: " + e.getMessage(), null));
+        }
+    }
 
     /**
      * Tạo giỏ hàng mới cho user
