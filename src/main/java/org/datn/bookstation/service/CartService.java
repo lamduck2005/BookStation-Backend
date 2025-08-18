@@ -44,4 +44,9 @@ public interface CartService {
      * Toggle trạng thái giỏ hàng
      */
     ApiResponse<Cart> toggleCartStatus(Integer cartId);
+    
+    /**
+     * Đếm số lượng sách trong giỏ hàng của user
+     */
+    Integer getCartItemsCount(Integer userId);
 }

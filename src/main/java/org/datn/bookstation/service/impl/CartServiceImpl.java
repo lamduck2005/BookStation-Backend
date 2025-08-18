@@ -313,4 +313,17 @@ public class CartServiceImpl implements CartService {
             response.setStatusMessage("Cần xem xét giỏ hàng");
         }
     }
+    
+    @Override
+    public Integer getCartItemsCount(Integer userId) {
+        try {
+            // Sử dụng method tối ưu từ CartRepository
+            Integer count = cartRepository.countItemsByUserId(userId);
+            return count != null ? count : 0;
+            
+        } catch (Exception e) {
+            // Log error nếu cần
+            return 0;
+        }
+    }
 }
