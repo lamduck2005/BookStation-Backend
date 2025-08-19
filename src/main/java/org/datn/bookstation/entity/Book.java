@@ -34,6 +34,7 @@ public class Book {
 
     @Nationalized
     @Column(name = "description")
+    @Size(max = 2000)
     private String description;
 
     @NotNull

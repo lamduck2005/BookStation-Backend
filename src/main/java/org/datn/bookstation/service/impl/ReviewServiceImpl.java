@@ -59,7 +59,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .totalPages(reviewPage.getTotalPages())
                 .build();
 
-        return new ApiResponse<>(200, "Lấy danh sách review thành công", pagination);
+        return new ApiResponse<>(200, "Lấy danh sách đánh giá thành công", pagination);
     }
 
     
@@ -75,18 +75,24 @@ public class ReviewServiceImpl implements ReviewService {
             return new ApiResponse<>(404, "Người dùng không tồn tại", null);
         }
 
+        // Check user đã đánh giá sách này chưa
+        boolean alreadyReviewed = reviewRepository.existsByBookIdAndUserId(request.getBookId(), request.getUserId());
+        if (alreadyReviewed) {
+            return new ApiResponse<>(400, "Người dùng đã có đánh giá cho sách này", null);
+        }
+
         Review review = reviewMapper.toReview(request);
         review.setBook(book);
         review.setUser(user);
         reviewRepository.save(review);
-        return new ApiResponse<>(201, "Tạo review thành công", reviewMapper.toResponse(review));
+        return new ApiResponse<>(201, "Tạo đánh giá thành công", reviewMapper.toResponse(review));
     }
 
     @Override
     public ApiResponse<ReviewResponse> updateReview(ReviewRequest request, Integer id) {
         Review existing = reviewRepository.findById(id).orElse(null);
         if (existing == null) {
-            return new ApiResponse<>(404, "Review không tồn tại", null);
+            return new ApiResponse<>(404, "Đánh giá không tồn tại", null);
         }
 
         if (request.getRating() != null) {
@@ -99,20 +105,20 @@ public class ReviewServiceImpl implements ReviewService {
             existing.setReviewStatus(ReviewStatus.valueOf(request.getReviewStatus()));
         }
         reviewRepository.save(existing);
-        return new ApiResponse<>(200, "Cập nhật review thành công", reviewMapper.toResponse(existing));
+        return new ApiResponse<>(200, "Cập nhật đánh giá thành công", reviewMapper.toResponse(existing));
     }
 
     @Override
     public ApiResponse<ReviewResponse> toggleStatus(Integer id) {
         Review review = reviewRepository.findById(id).orElse(null);
         if (review == null) {
-            return new ApiResponse<>(404, "Review không tồn tại", null);
+            return new ApiResponse<>(404, "Đánh giá không tồn tại", null);
         }
         ReviewStatus current = review.getReviewStatus();
         ReviewStatus next = current == ReviewStatus.APPROVED ? ReviewStatus.HIDDEN : ReviewStatus.APPROVED;
         review.setReviewStatus(next);
         reviewRepository.save(review);
-        return new ApiResponse<>(200, "Cập nhật trạng thái review thành công", reviewMapper.toResponse(review));
+        return new ApiResponse<>(200, "Cập nhật trạng thái đánh giá thành công", reviewMapper.toResponse(review));
     }
 
     @Override
@@ -128,7 +134,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .edited(edited)
                 .hidden(hidden)
                 .build();
-        return new ApiResponse<>(200, "Lấy thống kê review thành công", stats);
+        return new ApiResponse<>(200, "Lấy thống kê đánh giá thành công", stats);
     }
     
 }
