@@ -133,6 +133,9 @@ public class BookReviewServiceImpl implements BookReviewService {
         }
         review.setRating(request.getRating());
         review.setComment(request.getComment());
+        if (request.getIsPositive() != null) {
+            review.setIsPositive(request.getIsPositive());
+        }
         review.setReviewStatus(ReviewStatus.EDITED);
         review = reviewRepository.save(review);
         return new ApiResponse<>(200, "Cập nhật review thành công", reviewMapper.toResponse(review));

@@ -30,9 +30,20 @@ public class CartItemResponseMapper {
             response.setBookId(cartItem.getBook().getId());
             response.setBookName(cartItem.getBook().getBookName());
             response.setBookCode(cartItem.getBook().getBookCode());
-            response.setBookImageUrl(cartItem.getBook().getCoverImageUrl());
+            
+            // ✅ FIX: Lấy ảnh thường từ trường images, lấy ảnh đầu tiên
+            String images = cartItem.getBook().getImages();
+            if (images != null && !images.trim().isEmpty()) {
+                String[] imageArray = images.split(",");
+                response.setBookImageUrl(imageArray[0].trim());
+            } else {
+                response.setBookImageUrl(null);
+            }
+            
             response.setBookPrice(cartItem.getBook().getPrice());
-            response.setAvailableStock(cartItem.getBook().getStockQuantity());
+            
+            // ✅ FIX: Available stock sẽ được set ở phần flash sale/regular logic bên dưới
+            // Không set ở đây để tránh override
         }
         
         // Flash sale info - LUÔN trả về flashSaleItemId nếu có liên kết

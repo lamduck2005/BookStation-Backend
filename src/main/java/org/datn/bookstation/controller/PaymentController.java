@@ -113,6 +113,10 @@ public class PaymentController {
         }
 
         Integer userId = sessionOpt.get().getUser().getId();
+        
+        // ✅ UPDATE PAYMENT METHOD TO VNPAY BEFORE CREATING ORDER
+        checkoutSessionService.updateSessionPaymentMethod(sessionId, "VNPay");
+        
         ApiResponse<String> orderResp = checkoutSessionService.createOrderFromSession(sessionId, userId);
 
         if (orderResp == null || orderResp.getStatus() != 201) {
@@ -163,6 +167,9 @@ public class PaymentController {
         }
 
         if ("00".equals(responseCode)) {
+            // ✅ UPDATE PAYMENT METHOD TO VNPAY BEFORE CREATING ORDER
+            checkoutSessionService.updateSessionPaymentMethod(sessionId, "VNPay");
+            
             // Tạo order từ session
             checkoutSessionService.createOrderFromSession(sessionId, sessionOpt.get().getUser().getId());
         }

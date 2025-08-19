@@ -8,9 +8,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * 🔥 TRENDING CACHE SCHEDULER
- * Tự động rebuild cache và maintenance
+ * DISABLED - Cache đã được tắt theo yêu cầu
  */
-@Component
+// @Component // DISABLED
 @RequiredArgsConstructor
 @Slf4j
 public class TrendingCacheScheduler {
@@ -18,29 +18,20 @@ public class TrendingCacheScheduler {
     private final TrendingCacheService trendingCacheService;
     
     /**
-     * Rebuild cache mỗi 6 giờ
+     * Rebuild cache mỗi 6 giờ - DISABLED
      */
-    @Scheduled(fixedRate = 6 * 60 * 60 * 1000) // 6 giờ
+    // @Scheduled(fixedRate = 6 * 60 * 60 * 1000) // DISABLED
     public void rebuildTrendingCache() {
-        try {
-            log.info("🔥 SCHEDULED: Starting trending cache rebuild...");
-            trendingCacheService.checkAndRebuildCacheIfNeeded();
-            log.info("🔥 SCHEDULED: Trending cache rebuild completed");
-        } catch (Exception e) {
-            log.error("Error during scheduled cache rebuild", e);
-        }
+        // Cache đã được tắt - không làm gì cả
+        log.debug("Cache rebuild scheduler disabled");
     }
     
     /**
-     * Log cache statistics mỗi giờ
+     * Log cache statistics mỗi giờ - DISABLED
      */
-    @Scheduled(fixedRate = 60 * 60 * 1000) // 1 giờ
+    // @Scheduled(fixedRate = 60 * 60 * 1000) // DISABLED
     public void logCacheStatistics() {
-        try {
-            String stats = trendingCacheService.getCacheStatistics();
-            log.info("🔥 CACHE STATS:\n{}", stats);
-        } catch (Exception e) {
-            log.error("Error logging cache statistics", e);
-        }
+        // Cache đã được tắt - không làm gì cả
+        log.debug("Cache statistics logging disabled");
     }
 }

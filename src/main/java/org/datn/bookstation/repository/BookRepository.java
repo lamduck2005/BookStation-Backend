@@ -276,10 +276,14 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             ) flashSaleSold ON b.id = flashSaleSold.bookId
             WHERE b.status = 1
                   AND b.stockQuantity > 0
-                  AND (flashSale.id IS NOT NULL OR b.discountActive = true)
+                  AND (
+                      flashSale.id IS NOT NULL OR 
+                      (b.discountActive = true AND (b.discountValue > 0 OR b.discountPercent > 0)) OR
+                      (flashSale.id IS NOT NULL AND ((b.price - flashSale.discountPrice) / b.price * 100) >= 50)
+                  )
             ORDER BY (
                 (CASE WHEN flashSale.id IS NOT NULL THEN 20 ELSE 0 END) +
-                (CASE WHEN b.discountActive = true THEN 15 ELSE 0 END) +
+                (CASE WHEN (b.discountActive = true AND (b.discountValue > 0 OR b.discountPercent > 0)) THEN 15 ELSE 0 END) +
                 COALESCE(reviewData.avgRating, 0)
             ) DESC
             """)
@@ -315,15 +319,70 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             FROM Book b
             WHERE b.status = 1
                   AND b.stockQuantity > 0
-                  AND (:categoryId IS NULL OR b.category.id = :categoryId)
-                  AND (:minPrice IS NULL OR b.price >= :minPrice)
-                  AND (:maxPrice IS NULL OR b.price <= :maxPrice)
             ORDER BY
                 b.price ASC,
                 b.stockQuantity DESC,
                 b.createdAt DESC
             """)
     List<Object[]> findGoodPriceBooks(
+            Pageable pageable);
+
+    /**
+     * Tìm sách đang trong flash sale
+     */
+    @Query("""
+            SELECT b.id as bookId,
+                   b.bookName as bookName,
+                   b.description as description,
+                   fsi.discountPrice as price,
+                   fsi.stockQuantity as stockQuantity,
+                   b.bookCode as bookCode,
+                   b.publicationDate as publicationDate,
+                   b.createdAt as createdAt,
+                   b.updatedAt as updatedAt,
+                   b.category.id as categoryId,
+                   b.category.categoryName as categoryName,
+                   b.supplier.id as supplierId,
+                   b.supplier.supplierName as supplierName,
+                   COALESCE(sold.soldCount, 0) as soldCount,
+                   COALESCE(sales.orderCount, 0) as orderCount,
+                   COALESCE(reviews.avgRating, 0.0) as avgRating,
+                   COALESCE(reviews.reviewCount, 0) as reviewCount
+            FROM Book b
+            JOIN FlashSaleItem fsi ON b.id = fsi.book.id
+            JOIN FlashSale fs ON fsi.flashSale.id = fs.id
+            LEFT JOIN (
+                SELECT od.book.id as bookId, SUM(od.quantity) as soldCount
+                FROM OrderDetail od
+                WHERE od.order.orderStatus = 'COMPLETED'
+                GROUP BY od.book.id
+            ) sold ON b.id = sold.bookId
+            LEFT JOIN (
+                SELECT od.book.id as bookId, COUNT(DISTINCT od.order.id) as orderCount
+                FROM OrderDetail od
+                WHERE od.order.orderStatus = 'COMPLETED'
+                GROUP BY od.book.id
+            ) sales ON b.id = sales.bookId
+            LEFT JOIN (
+                SELECT r.book.id as bookId,
+                       AVG(CAST(r.rating as double)) as avgRating,
+                       COUNT(r.id) as reviewCount
+                FROM Review r
+                WHERE r.reviewStatus = 'APPROVED'
+                GROUP BY r.book.id
+            ) reviews ON b.id = reviews.bookId
+            WHERE b.status = 1
+                  AND fsi.status = 1
+                  AND fs.status = 1
+                  AND fs.startTime <= :currentTime
+                  AND fs.endTime >= :currentTime
+                  AND fsi.stockQuantity > 0
+            ORDER BY 
+                (COALESCE(reviews.avgRating, 0) * 2 + COALESCE(sold.soldCount, 0) * 0.1) DESC,
+                fsi.discountPrice ASC
+            """)
+    List<Object[]> findActiveFlashSaleBooks(
+            @Param("currentTime") Long currentTime,
             Pageable pageable);
 
     @Query("""

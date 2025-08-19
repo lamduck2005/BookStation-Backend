@@ -95,14 +95,8 @@ public class CartItemServiceImpl implements CartItemService {
             
             if (activeFlashSaleOpt.isPresent()) {
                 FlashSaleItem candidate = activeFlashSaleOpt.get();
-                
-                // Validate flash sale stock
-                if (request.getQuantity() <= candidate.getStockQuantity()) {
-                    flashSaleItem = candidate;
-                    flashSaleMessage = " 🔥 Đã áp dụng flash sale!";
-                } else {
-                    flashSaleMessage = " ⚠️ Flash sale không đủ hàng, đã áp dụng giá gốc";
-                }
+                flashSaleItem = candidate; // ✅ FIX: Luôn sử dụng flash sale nếu có, để validate đúng
+                flashSaleMessage = " 🔥 Đã áp dụng flash sale!";
             }
             
             // 4. ✅ ENHANCED: Validate stock và flash sale limit với userId

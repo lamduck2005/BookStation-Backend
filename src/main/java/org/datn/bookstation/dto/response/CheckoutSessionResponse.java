@@ -82,13 +82,14 @@ public class CheckoutSessionResponse {
     @Getter
     @Setter
     public static class VoucherSummary {
-        private Integer id;
-        private String code;
-        private String name;
-        private String voucherType;
-        private BigDecimal discountValue;
-        private Boolean isValid;
-        private String invalidReason;
+    private Integer id;
+    private String code;
+    private String name;
+    private String voucherType;
+    private String discountType; // Thêm kiểu giảm giá (PERCENTAGE, FIXED_AMOUNT)
+    private BigDecimal discountValue;
+    private Boolean isValid;
+    private String invalidReason;
     }
 
     // Helper methods

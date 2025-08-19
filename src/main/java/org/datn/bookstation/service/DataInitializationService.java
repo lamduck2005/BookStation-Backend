@@ -1179,24 +1179,76 @@ public class DataInitializationService implements CommandLineRunner {
         List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
         List<Book> books = bookRepository.findAll();
         
-        String[] comments = {
+        String[] positiveComments = {
             "Sách rất hay, nội dung hấp dẫn!",
             "Chất lượng tốt, giao hàng nhanh.",
             "Nội dung phong phú, đáng đọc.",
             "Sách in đẹp, giá cả hợp lý.",
-            "Rất hài lòng với sản phẩm này."
+            "Rất hài lòng với sản phẩm này.",
+            "Đọc xong thấy rất bổ ích!",
+            "Recommend cho mọi người!",
+            "Tác giả viết rất hay và dễ hiểu."
         };
         
-        for (int i = 0; i < Math.min(customers.size(), books.size()); i++) {
-            Review review = Review.builder()
-                    .book(books.get(i))
-                    .user(customers.get(i))
-                    .rating(4 + (i % 2)) // Rating 4 hoặc 5
-                    .comment(comments[i % comments.length])
-                    .reviewDate(System.currentTimeMillis())
-                    .reviewStatus(ReviewStatus.APPROVED)
-                    .build();
-            reviewRepository.save(review);
+        String[] negativeComments = {
+            "Nội dung không như mong đợi.",
+            "Giao hàng hơi chậm.",
+            "Chất lượng bình thường thôi.",
+            "Giá hơi cao so với chất lượng."
+        };
+        
+        // Tạo review cho từng sách với tỉ lệ tích cực khác nhau
+        for (int bookIndex = 0; bookIndex < books.size(); bookIndex++) {
+            Book book = books.get(bookIndex);
+            
+            // Tạo 3-6 review cho mỗi sách để có đủ dữ liệu test (không phụ thuộc số customers)
+            int reviewCount = 3 + (bookIndex % 4); // 3-6 reviews
+            
+            for (int i = 0; i < reviewCount; i++) {
+                // Sử dụng customers theo kiểu circular để đảm bảo mọi sách đều có review
+                User customer = customers.get(i % customers.size());
+                
+                // Tỉ lệ tích cực khác nhau cho từng sách để test API
+                boolean isPositive;
+                int rating;
+                String comment;
+                
+                // ✅ ĐẶC BIỆT: Marketing 4.0 có 100% đánh giá tích cực
+                if (book.getBookName().equals("Marketing 4.0")) {
+                    isPositive = true; // 100% tích cực
+                    rating = 5; // Tất cả đều 5 sao
+                    comment = positiveComments[i % positiveComments.length];
+                } else if (bookIndex < 7) {
+                    // 7 sách đầu có tỉ lệ tích cực cao (>= 75%)
+                    isPositive = (i < reviewCount * 0.85); // 85% tích cực
+                    rating = isPositive ? (4 + (i % 2)) : (2 + (i % 2)); // 4-5 hoặc 2-3
+                    comment = isPositive ? positiveComments[i % positiveComments.length] 
+                                        : negativeComments[i % negativeComments.length];
+                } else if (bookIndex < 10) {
+                    // 3 sách tiếp theo có tỉ lệ tích cực vừa phải (50-70%)
+                    isPositive = (i < reviewCount * 0.6); // 60% tích cực
+                    rating = isPositive ? (3 + (i % 2)) : (2 + (i % 2)); // 3-4 hoặc 2-3
+                    comment = isPositive ? positiveComments[i % positiveComments.length] 
+                                        : negativeComments[i % negativeComments.length];
+                } else {
+                    // Sách còn lại có tỉ lệ tích cực thấp (<50%)
+                    isPositive = (i < reviewCount * 0.3); // 30% tích cực
+                    rating = isPositive ? (3 + (i % 2)) : (1 + (i % 2)); // 3-4 hoặc 1-2
+                    comment = isPositive ? positiveComments[i % positiveComments.length] 
+                                        : negativeComments[i % negativeComments.length];
+                }
+                
+                Review review = Review.builder()
+                        .book(book)
+                        .user(customer)
+                        .rating(rating)
+                        .comment(comment)
+                        .isPositive(isPositive) // ✅ THÊM: Thiết lập isPositive
+                        .reviewDate(System.currentTimeMillis() - (i * 24 * 60 * 60 * 1000L)) // Tạo thời gian khác nhau
+                        .reviewStatus(ReviewStatus.APPROVED)
+                        .build();
+                reviewRepository.save(review);
+            }
         }
     }
 
@@ -1461,12 +1513,18 @@ public class DataInitializationService implements CommandLineRunner {
                     rating = (Math.random() < 0.3) ? 4 : ((Math.random() < 0.6) ? 3 : 2); // 30% rating 4, 30% rating 3, 40% rating 2
                 }
                 
-                // Chọn comment phù hợp với rating
+                // Chọn comment phù hợp với rating và xác định isPositive
                 String comment;
+                Boolean isPositive;
                 if (rating >= 4) {
                     comment = positiveComments[(int)(Math.random() * positiveComments.length)];
+                    isPositive = true; // Rating >= 4 được coi là tích cực
+                } else if (rating == 3) {
+                    comment = neutralComments[(int)(Math.random() * neutralComments.length)];
+                    isPositive = Math.random() < 0.5 ? true : false; // Rating 3 có thể tích cực hoặc tiêu cực
                 } else {
                     comment = neutralComments[(int)(Math.random() * neutralComments.length)];
+                    isPositive = false; // Rating <= 2 được coi là tiêu cực
                 }
                 
                 // Random thời gian review trong 30 ngày qua
@@ -1477,6 +1535,7 @@ public class DataInitializationService implements CommandLineRunner {
                         .user(customer)
                         .rating(rating)
                         .comment(comment)
+                        .isPositive(isPositive) // ✅ THÊM: Thiết lập isPositive
                         .reviewDate(reviewTime)
                         .reviewStatus(ReviewStatus.APPROVED)
                         .createdAt(reviewTime)

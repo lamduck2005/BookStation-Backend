@@ -48,6 +48,9 @@ public class Review {
     @Column(name = "review_status", length = 20)
     ReviewStatus reviewStatus;
 
+    @Column(name = "is_positive")
+    Boolean isPositive; // true = tích cực, false = tiêu cực, null = không xác định
+
     Long createdAt;
 
     Long updatedAt;

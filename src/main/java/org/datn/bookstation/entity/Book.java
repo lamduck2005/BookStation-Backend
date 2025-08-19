@@ -37,7 +37,7 @@ public class Book {
     private String description;
 
     @NotNull
-    @Column(name = "price", nullable = false, precision = 10, scale = 2)
+    @Column(name = "price", nullable = false, precision = 20, scale = 2)
     private BigDecimal price;
 
     // ✅ THÊM MỚI: Giảm giá trực tiếp cho book (không phải flash sale)

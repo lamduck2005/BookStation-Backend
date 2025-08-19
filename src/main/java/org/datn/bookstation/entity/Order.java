@@ -51,7 +51,7 @@ public class Order {
 
     // Tổng tiền sản phẩm (chưa tính phí ship, chưa giảm giá)
     @NotNull
-    @Column(name = "subtotal", nullable = false, precision = 10, scale = 2)
+    @Column(name = "subtotal", nullable = false, precision = 20, scale = 2)
     private BigDecimal subtotal;
 
     // Phí vận chuyển
@@ -71,7 +71,7 @@ public class Order {
 
     // Tổng tiền cuối cùng khách phải trả
     @NotNull
-    @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
+    @Column(name = "total_amount", nullable = false, precision = 20, scale = 2)
     private BigDecimal totalAmount;
 
     @ColumnDefault("1")

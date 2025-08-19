@@ -14,6 +14,7 @@ public class ReviewResponse {
     private String userEmail;
     private Integer rating;
     private String comment;
+    private Boolean isPositive; // true = tích cực, false = tiêu cực, null = không xác định
     private Long reviewDate;
     private String reviewStatus;
     private Long updatedAt;

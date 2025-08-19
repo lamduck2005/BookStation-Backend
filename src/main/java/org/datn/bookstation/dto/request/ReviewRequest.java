@@ -19,5 +19,7 @@ public class ReviewRequest {
 
     private String comment;
 
+    private Boolean isPositive; // true = tích cực, false = tiêu cực, null = không xác định
+
     private String reviewStatus; // giá trị của ReviewStatus (PENDING, APPROVED, ...). Có thể null khi tạo mới.
 } 

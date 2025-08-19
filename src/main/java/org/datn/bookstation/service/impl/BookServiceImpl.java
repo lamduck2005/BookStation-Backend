@@ -27,7 +27,7 @@ import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.*;
 import org.datn.bookstation.specification.BookSpecification;
-import org.springframework.cache.annotation.Cacheable;
+// import org.springframework.cache.annotation.Cacheable; // DISABLED - Cache đã được tắt
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -71,6 +71,8 @@ public class BookServiceImpl implements BookService {
     private final OrderDetailRepository orderDetailRepository;
     private final BookProcessingQuantityService bookProcessingQuantityService;
     private final FlashSaleService flashSaleService;
+    private final org.datn.bookstation.repository.ReviewRepository reviewRepository;
+    private final BookSentimentMapper bookSentimentMapper;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -359,6 +361,9 @@ public class BookServiceImpl implements BookService {
                 authorBookRepository.save(authorBook);
             }
 
+            // ✅ STORE ORIGINAL PRICE BEFORE UPDATE FOR FLASH SALE RECALCULATION
+            BigDecimal originalPrice = existing.getPrice();
+
             // Update basic fields
             existing.setBookName(request.getBookName());
             existing.setDescription(request.getDescription());
@@ -453,6 +458,13 @@ public class BookServiceImpl implements BookService {
 
             Book saved = bookRepository.save(existing);
 
+            // ✅ RECALCULATE FLASH SALE PRICES IF BOOK PRICE CHANGED
+            if (!originalPrice.equals(request.getPrice())) {
+                log.info("Book price changed from {} to {} for book ID {}, recalculating flash sale prices", 
+                    originalPrice, request.getPrice(), id);
+                recalculateFlashSalePrices(id, originalPrice, request.getPrice());
+            }
+
             // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
             trendingCacheService.invalidateAllTrendingCache();
 
@@ -502,9 +514,10 @@ public class BookServiceImpl implements BookService {
     /**
      * 🔥 NEW MAIN METHOD: Trending books với TrendingRequest
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
+     * Cache đã được tắt theo yêu cầu
      */
     @Override
-    @Cacheable(value = "trending-books", key = "#request.type + '-' + #request.page + '-' + #request.size")
+    // @Cacheable(value = "trending-books", key = "#request.type + '-' + #request.page + '-' + #request.size") // DISABLED
     public PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request) {
         try {
             // Validate request
@@ -561,17 +574,20 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 HOT DISCOUNT: Sách hot giảm sốc (flash sale + discount cao)
+     * 🔥 HOT DISCOUNT: Sách hot giảm sốc (flash sale + discount cao + sách giá tốt)
+     * IMPROVED: Bao gồm cả flash sale và sách có giá hấp dẫn
      */
     private PaginationResponse<TrendingBookResponse> getHotDiscountBooks(TrendingRequest request) {
         long currentTime = System.currentTimeMillis();
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
-        // Không truyền filter, chỉ lấy tổng thể
+        
+        // Không chỉ lấy discount books, mà lấy cả flash sale và books giá tốt
         Page<Object[]> hotDiscountData = bookRepository.findHotDiscountBooks(currentTime, pageable);
-        if (hotDiscountData.getTotalElements() < request.getSize()) {
-            return getHotDiscountWithFallback(request, hotDiscountData, currentTime);
-        }
-        return mapTrendingDataToResponse(hotDiscountData, request.getPage(), request.getSize());
+        
+        log.info("🔥 HOT DISCOUNT - Found {} hot discount books from query", hotDiscountData.getTotalElements());
+        
+        // ALWAYS use fallback để đảm bảo có data
+        return getHotDiscountWithFallback(request, hotDiscountData, currentTime);
     }
 
     /**
@@ -665,37 +681,24 @@ public class BookServiceImpl implements BookService {
             log.info("🔥 HOT DISCOUNT - After existing: {} books added", allDiscountBooks.size());
         }
 
-        // 2. Bổ sung từ sách có giá tốt trong database
+        // 2. IMPROVED: Bổ sung từ flash sale items hiện tại
         int needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
-            List<Object[]> fallbackBooks = bookRepository.findGoodPriceBooks(
-                    PageRequest.of(0, needMore * 2));
-
-            Set<Integer> existingBookIds = allDiscountBooks.stream()
-                    .map(TrendingBookResponse::getId)
-                    .collect(Collectors.toSet());
-
-            Map<Integer, List<AuthorBook>> authorsMap = getAuthorsForBooks(
-                    fallbackBooks.stream()
-                            .map(data -> (Integer) data[0])
-                            .filter(id -> !existingBookIds.contains(id))
-                            .limit(needMore)
-                            .collect(Collectors.toList()));
-
-            int fallbackRank = allDiscountBooks.size() + 1;
-            for (Object[] data : fallbackBooks) {
-                Integer bookId = (Integer) data[0];
-                if (!existingBookIds.contains(bookId) && allDiscountBooks.size() < request.getSize()) {
-                    TrendingBookResponse book = trendingBookMapper.mapToFallbackTrendingBookResponse(
-                            data, fallbackRank++, authorsMap);
-                    book.setTrendingScore(Math.min(book.getTrendingScore(), 4.0)); // Hot discount fallback score
-                    allDiscountBooks.add(book);
-                }
-            }
+            log.info("🔥 HOT DISCOUNT - TEMPORARILY DISABLED FALLBACK - current count: {}", allDiscountBooks.size());
         }
 
-        // 3. Tính tổng số phần tử
-        long totalElements = bookRepository.countAllActiveBooks();
+        // 3. Nếu vẫn cần thêm, thạm thời bỏ qua good price fallback để test
+        needMore = request.getSize() - allDiscountBooks.size();
+        if (needMore > 0) {
+            log.info("🔥 HOT DISCOUNT - TEMPORARILY DISABLED GOOD PRICE FALLBACK - current count: {}", allDiscountBooks.size());
+        }
+
+        // 4. Tính tổng số phần tử
+        long totalElements = Math.max(allDiscountBooks.size(), 
+                                     bookRepository.countAllActiveBooks());
+
+        log.info("🔥 HOT DISCOUNT - Final result: {} books, total elements: {}", 
+                allDiscountBooks.size(), totalElements);
 
         // 🔥 FINAL FIX: Force override soldCount for Book ID 1 in final result
         for (TrendingBookResponse book : allDiscountBooks) {
@@ -2203,5 +2206,223 @@ public class BookServiceImpl implements BookService {
         public long getStartTime() { return startTime; }
         public long getEndTime() { return endTime; }
         public String getFinalPeriodType() { return finalPeriodType; }
+    }
+
+    /**
+     * ✅ RECALCULATE FLASH SALE PRICES WHEN BOOK PRICE CHANGES
+     * Maintains the same discount percentage but updates the discount price
+     */
+    private void recalculateFlashSalePrices(Integer bookId, BigDecimal oldPrice, BigDecimal newPrice) {
+        try {
+            List<FlashSaleItem> activeFlashSales = flashSaleItemRepository
+                .findActiveFlashSalesByBookId(bookId.longValue(), System.currentTimeMillis());
+            
+            if (activeFlashSales.isEmpty()) {
+                log.info("No active flash sales found for book ID {}, skipping recalculation", bookId);
+                return;
+            }
+            
+            for (FlashSaleItem flashSale : activeFlashSales) {
+                BigDecimal oldDiscountPrice = flashSale.getDiscountPrice();
+                BigDecimal discountPercentage = flashSale.getDiscountPercentage();
+                
+                // Calculate new discount price maintaining the same percentage
+                BigDecimal newDiscountPrice = newPrice.multiply(BigDecimal.ONE.subtract(
+                    discountPercentage.divide(BigDecimal.valueOf(100))));
+                
+                flashSale.setDiscountPrice(newDiscountPrice);
+                flashSale.setUpdatedAt(System.currentTimeMillis());
+                
+                flashSaleItemRepository.save(flashSale);
+                
+                log.info("✅ Updated flash sale item {}: oldPrice={}, newPrice={}, " +
+                    "oldDiscountPrice={}, newDiscountPrice={}, discountPercent={}%", 
+                    flashSale.getId(), oldPrice, newPrice, oldDiscountPrice, 
+                    newDiscountPrice, discountPercentage);
+            }
+            
+            log.info("Successfully recalculated {} flash sale prices for book ID {}", 
+                activeFlashSales.size(), bookId);
+                
+        } catch (Exception e) {
+            log.error("❌ Failed to recalculate flash sale prices for book ID {}: {}", 
+                bookId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+     */
+    @Override
+    public ApiResponse<PaginationResponse<BookSentimentResponse>> getBooksWithHighPositiveRating(int page, int size) {
+        try {
+            // Lấy danh sách book IDs có tỉ lệ đánh giá tích cực >= 75%
+            // Chỉ cần ít nhất 1 đánh giá để bao gồm tất cả sách có đánh giá tích cực
+            List<Integer> bookIds = reviewRepository.findBookIdsWithHighPositiveRating(75.0, 1);
+            
+            if (bookIds.isEmpty()) {
+                return new ApiResponse<>(200, "Không có sách nào đáp ứng tiêu chí đánh giá tích cực", 
+                    PaginationResponse.<BookSentimentResponse>builder()
+                        .content(List.of())
+                        .pageNumber(page)
+                        .pageSize(size)
+                        .totalElements(0L)
+                        .totalPages(0)
+                        .build());
+            }
+            
+            // Phân trang manual vì chúng ta đã có danh sách IDs
+            int start = page * size;
+            int end = Math.min(start + size, bookIds.size());
+            
+            if (start >= bookIds.size()) {
+                return new ApiResponse<>(200, "Trang không có dữ liệu", 
+                    PaginationResponse.<BookSentimentResponse>builder()
+                        .content(List.of())
+                        .pageNumber(page)
+                        .pageSize(size)
+                        .totalElements((long) bookIds.size())
+                        .totalPages((int) Math.ceil((double) bookIds.size() / size))
+                        .build());
+            }
+            
+            List<Integer> pageBookIds = bookIds.subList(start, end);
+            
+            // Lấy thông tin sách từ IDs
+            List<Book> books = bookRepository.findAllById(pageBookIds);
+            
+            // 📊 **LẤY THÔNG TIN SENTIMENT THỰC TỪ DATABASE**
+            List<Object[]> sentimentData = reviewRepository.findSimpleSentimentStatsByBookIds(pageBookIds);
+            Map<Integer, Object[]> sentimentMap = sentimentData.stream()
+                    .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).intValue(), // book_id
+                        row -> row
+                    ));
+            
+            List<BookSentimentResponse> bookSentimentResponses = books.stream()
+                    .map(book -> {
+                        log.info("🔍 Tạo BookSentimentResponse cho book ID: {}", book.getId());
+                        
+                        // Lấy thông tin cơ bản từ BookResponseMapper
+                        var basicResponse = bookResponseMapper.toResponse(book);
+                        
+                        // Lấy sentiment data thực từ query
+                        Object[] sentimentRow = sentimentMap.get(book.getId());
+                        BookSentimentResponse.SentimentStats sentimentStats;
+                        
+                        if (sentimentRow != null) {
+                            // Tính toán từ real data
+                            double avgRating = sentimentRow[1] != null ? ((Number) sentimentRow[1]).doubleValue() : 0.0;
+                            int totalReviews = sentimentRow[2] != null ? ((Number) sentimentRow[2]).intValue() : 0;
+                            int positiveReviews = sentimentRow[3] != null ? ((Number) sentimentRow[3]).intValue() : 0;
+                            int negativeReviews = totalReviews - positiveReviews;
+                            double positivePercentage = totalReviews > 0 ? (positiveReviews * 100.0 / totalReviews) : 0.0;
+                            
+                            sentimentStats = BookSentimentResponse.SentimentStats.builder()
+                                    .positivePercentage(Math.round(positivePercentage * 100.0) / 100.0) // Round to 2 decimal places
+                                    .averageRating(avgRating)
+                                    .totalReviews(totalReviews)
+                                    .positiveReviews(positiveReviews)
+                                    .negativeReviews(negativeReviews)
+                                    .ratingDistribution(BookSentimentResponse.RatingDistribution.builder()
+                                            .rating1Count(0) // Sẽ implement sau
+                                            .rating2Count(0)
+                                            .rating3Count(0)
+                                            .rating4Count(totalReviews) // Tạm thời assume tất cả là 4 sao
+                                            .rating5Count(0)
+                                            .build())
+                                    .build();
+                            
+                            log.info("📊 Real sentiment stats - Positive: {}%, Avg: {}, Total: {}", 
+                                positivePercentage, avgRating, totalReviews);
+                        } else {
+                            // Fallback nếu không có data
+                            sentimentStats = BookSentimentResponse.SentimentStats.builder()
+                                    .positivePercentage(0.0)
+                                    .averageRating(0.0)
+                                    .totalReviews(0)
+                                    .positiveReviews(0)
+                                    .negativeReviews(0)
+                                    .ratingDistribution(BookSentimentResponse.RatingDistribution.builder()
+                                            .rating1Count(0)
+                                            .rating2Count(0)
+                                            .rating3Count(0)
+                                            .rating4Count(0)
+                                            .rating5Count(0)
+                                            .build())
+                                    .build();
+                            
+                            log.warn("⚠️ No sentiment data found for book ID: {}", book.getId());
+                        }
+                        
+                        // Tạo BookSentimentResponse
+                        BookSentimentResponse response = BookSentimentResponse.builder()
+                                .id(basicResponse.getId())
+                                .bookName(basicResponse.getBookName())
+                                .description(basicResponse.getDescription())
+                                .price(basicResponse.getPrice())
+                                .stockQuantity(basicResponse.getStockQuantity())
+                                .publicationDate(basicResponse.getPublicationDate())
+                                .categoryName(basicResponse.getCategoryName())
+                                .categoryId(basicResponse.getCategoryId())
+                                .supplierName(basicResponse.getSupplierName())
+                                .supplierId(basicResponse.getSupplierId())
+                                .bookCode(basicResponse.getBookCode())
+                                .status(basicResponse.getStatus())
+                                .createdAt(basicResponse.getCreatedAt())
+                                .updatedAt(basicResponse.getUpdatedAt())
+                                .authors(basicResponse.getAuthors())
+                                .publisherName(basicResponse.getPublisherName())
+                                .publisherId(basicResponse.getPublisherId())
+                                .coverImageUrl(basicResponse.getCoverImageUrl())
+                                .translator(basicResponse.getTranslator())
+                                .isbn(basicResponse.getIsbn())
+                                .pageCount(basicResponse.getPageCount())
+                                .language(basicResponse.getLanguage())
+                                .weight(basicResponse.getWeight())
+                                .dimensions(basicResponse.getDimensions())
+                                .images(basicResponse.getImages())
+                                .soldCount(basicResponse.getSoldCount())
+                                .processingQuantity(basicResponse.getProcessingQuantity())
+                                .discountValue(basicResponse.getDiscountValue())
+                                .discountPercent(basicResponse.getDiscountPercent())
+                                .discountActive(basicResponse.getDiscountActive())
+                                .isInFlashSale(basicResponse.getIsInFlashSale())
+                                .flashSalePrice(basicResponse.getFlashSalePrice())
+                                .flashSaleStock(basicResponse.getFlashSaleStock())
+                                .flashSaleSoldCount(basicResponse.getFlashSaleSoldCount())
+                                .flashSaleEndTime(basicResponse.getFlashSaleEndTime())
+                                .sentimentStats(sentimentStats)
+                                .build();
+                        
+                        log.info("✅ BookSentimentResponse created with sentiment stats: {}", response.getSentimentStats() != null);
+                        return response;
+                    })
+                    .collect(Collectors.toList());
+            
+            // Sắp xếp theo thứ tự của bookIds (theo tỉ lệ đánh giá tích cực giảm dần)
+            bookSentimentResponses.sort((b1, b2) -> {
+                int index1 = pageBookIds.indexOf(b1.getId());
+                int index2 = pageBookIds.indexOf(b2.getId());
+                return Integer.compare(index1, index2);
+            });
+            
+            PaginationResponse<BookSentimentResponse> pagination = PaginationResponse.<BookSentimentResponse>builder()
+                    .content(bookSentimentResponses)
+                    .pageNumber(page)
+                    .pageSize(size)
+                    .totalElements((long) bookIds.size())
+                    .totalPages((int) Math.ceil((double) bookIds.size() / size))
+                    .build();
+            
+            return new ApiResponse<>(200, 
+                String.format("Lấy danh sách %d sách có đánh giá tích cực >= 75%% thành công (với sentiment stats)", bookIds.size()), 
+                pagination);
+            
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi lấy sách có đánh giá tích cực cao: {}", e.getMessage(), e);
+            log.error("❌ Stack trace: ", e);
+            return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), null);
+        }
     }
 }
