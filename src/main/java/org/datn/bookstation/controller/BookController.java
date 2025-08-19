@@ -11,6 +11,7 @@ import org.datn.bookstation.dto.request.BookPriceCalculationRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.dto.response.BookResponse;
+import org.datn.bookstation.dto.response.BookSentimentResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.TrendingBookResponse;
@@ -28,6 +29,7 @@ import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
+import org.datn.bookstation.repository.ReviewRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,6 +58,7 @@ public class BookController {
     private final FlashSaleItemService flashSaleItemService;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final OrderDetailRepository orderDetailRepository;
+    private final ReviewRepository reviewRepository;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
@@ -529,15 +532,21 @@ public class BookController {
     }
     
     /**
-     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75% với thông tin sentiment chi tiết
      * GET /api/books/high-positive-rating
      */
     @GetMapping("/high-positive-rating")
-    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getBooksWithHighPositiveRating(
+    public ResponseEntity<ApiResponse<PaginationResponse<BookSentimentResponse>>> getBooksWithHighPositiveRating(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        ApiResponse<PaginationResponse<BookResponse>> response = bookService.getBooksWithHighPositiveRating(page, size);
+        ApiResponse<PaginationResponse<BookSentimentResponse>> response = bookService.getBooksWithHighPositiveRating(page, size);
         return ResponseEntity.ok(response);
+    }
+    
+    // 🔍 DEBUG: Test endpoint đơn giản  
+    @GetMapping("/debug/test")
+    public ResponseEntity<?> debugTest() {
+        return ResponseEntity.ok(Map.of("status", 200, "message", "Debug test works"));
     }
     
     // 🔥 DEBUG: Test endpoint để kiểm tra raw data

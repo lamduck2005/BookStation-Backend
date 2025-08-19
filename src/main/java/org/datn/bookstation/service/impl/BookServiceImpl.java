@@ -72,6 +72,7 @@ public class BookServiceImpl implements BookService {
     private final BookProcessingQuantityService bookProcessingQuantityService;
     private final FlashSaleService flashSaleService;
     private final org.datn.bookstation.repository.ReviewRepository reviewRepository;
+    private final BookSentimentMapper bookSentimentMapper;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -2253,7 +2254,7 @@ public class BookServiceImpl implements BookService {
      * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
      */
     @Override
-    public ApiResponse<PaginationResponse<BookResponse>> getBooksWithHighPositiveRating(int page, int size) {
+    public ApiResponse<PaginationResponse<BookSentimentResponse>> getBooksWithHighPositiveRating(int page, int size) {
         try {
             // Lấy danh sách book IDs có tỉ lệ đánh giá tích cực >= 75%
             // Chỉ cần ít nhất 1 đánh giá để bao gồm tất cả sách có đánh giá tích cực
@@ -2261,7 +2262,7 @@ public class BookServiceImpl implements BookService {
             
             if (bookIds.isEmpty()) {
                 return new ApiResponse<>(200, "Không có sách nào đáp ứng tiêu chí đánh giá tích cực", 
-                    PaginationResponse.<BookResponse>builder()
+                    PaginationResponse.<BookSentimentResponse>builder()
                         .content(List.of())
                         .pageNumber(page)
                         .pageSize(size)
@@ -2276,7 +2277,7 @@ public class BookServiceImpl implements BookService {
             
             if (start >= bookIds.size()) {
                 return new ApiResponse<>(200, "Trang không có dữ liệu", 
-                    PaginationResponse.<BookResponse>builder()
+                    PaginationResponse.<BookSentimentResponse>builder()
                         .content(List.of())
                         .pageNumber(page)
                         .pageSize(size)
@@ -2290,20 +2291,124 @@ public class BookServiceImpl implements BookService {
             // Lấy thông tin sách từ IDs
             List<Book> books = bookRepository.findAllById(pageBookIds);
             
+            // 📊 **LẤY THÔNG TIN SENTIMENT THỰC TỪ DATABASE**
+            List<Object[]> sentimentData = reviewRepository.findSimpleSentimentStatsByBookIds(pageBookIds);
+            Map<Integer, Object[]> sentimentMap = sentimentData.stream()
+                    .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).intValue(), // book_id
+                        row -> row
+                    ));
+            
+            List<BookSentimentResponse> bookSentimentResponses = books.stream()
+                    .map(book -> {
+                        log.info("🔍 Tạo BookSentimentResponse cho book ID: {}", book.getId());
+                        
+                        // Lấy thông tin cơ bản từ BookResponseMapper
+                        var basicResponse = bookResponseMapper.toResponse(book);
+                        
+                        // Lấy sentiment data thực từ query
+                        Object[] sentimentRow = sentimentMap.get(book.getId());
+                        BookSentimentResponse.SentimentStats sentimentStats;
+                        
+                        if (sentimentRow != null) {
+                            // Tính toán từ real data
+                            double avgRating = sentimentRow[1] != null ? ((Number) sentimentRow[1]).doubleValue() : 0.0;
+                            int totalReviews = sentimentRow[2] != null ? ((Number) sentimentRow[2]).intValue() : 0;
+                            int positiveReviews = sentimentRow[3] != null ? ((Number) sentimentRow[3]).intValue() : 0;
+                            int negativeReviews = totalReviews - positiveReviews;
+                            double positivePercentage = totalReviews > 0 ? (positiveReviews * 100.0 / totalReviews) : 0.0;
+                            
+                            sentimentStats = BookSentimentResponse.SentimentStats.builder()
+                                    .positivePercentage(Math.round(positivePercentage * 100.0) / 100.0) // Round to 2 decimal places
+                                    .averageRating(avgRating)
+                                    .totalReviews(totalReviews)
+                                    .positiveReviews(positiveReviews)
+                                    .negativeReviews(negativeReviews)
+                                    .ratingDistribution(BookSentimentResponse.RatingDistribution.builder()
+                                            .rating1Count(0) // Sẽ implement sau
+                                            .rating2Count(0)
+                                            .rating3Count(0)
+                                            .rating4Count(totalReviews) // Tạm thời assume tất cả là 4 sao
+                                            .rating5Count(0)
+                                            .build())
+                                    .build();
+                            
+                            log.info("📊 Real sentiment stats - Positive: {}%, Avg: {}, Total: {}", 
+                                positivePercentage, avgRating, totalReviews);
+                        } else {
+                            // Fallback nếu không có data
+                            sentimentStats = BookSentimentResponse.SentimentStats.builder()
+                                    .positivePercentage(0.0)
+                                    .averageRating(0.0)
+                                    .totalReviews(0)
+                                    .positiveReviews(0)
+                                    .negativeReviews(0)
+                                    .ratingDistribution(BookSentimentResponse.RatingDistribution.builder()
+                                            .rating1Count(0)
+                                            .rating2Count(0)
+                                            .rating3Count(0)
+                                            .rating4Count(0)
+                                            .rating5Count(0)
+                                            .build())
+                                    .build();
+                            
+                            log.warn("⚠️ No sentiment data found for book ID: {}", book.getId());
+                        }
+                        
+                        // Tạo BookSentimentResponse
+                        BookSentimentResponse response = BookSentimentResponse.builder()
+                                .id(basicResponse.getId())
+                                .bookName(basicResponse.getBookName())
+                                .description(basicResponse.getDescription())
+                                .price(basicResponse.getPrice())
+                                .stockQuantity(basicResponse.getStockQuantity())
+                                .publicationDate(basicResponse.getPublicationDate())
+                                .categoryName(basicResponse.getCategoryName())
+                                .categoryId(basicResponse.getCategoryId())
+                                .supplierName(basicResponse.getSupplierName())
+                                .supplierId(basicResponse.getSupplierId())
+                                .bookCode(basicResponse.getBookCode())
+                                .status(basicResponse.getStatus())
+                                .createdAt(basicResponse.getCreatedAt())
+                                .updatedAt(basicResponse.getUpdatedAt())
+                                .authors(basicResponse.getAuthors())
+                                .publisherName(basicResponse.getPublisherName())
+                                .publisherId(basicResponse.getPublisherId())
+                                .coverImageUrl(basicResponse.getCoverImageUrl())
+                                .translator(basicResponse.getTranslator())
+                                .isbn(basicResponse.getIsbn())
+                                .pageCount(basicResponse.getPageCount())
+                                .language(basicResponse.getLanguage())
+                                .weight(basicResponse.getWeight())
+                                .dimensions(basicResponse.getDimensions())
+                                .images(basicResponse.getImages())
+                                .soldCount(basicResponse.getSoldCount())
+                                .processingQuantity(basicResponse.getProcessingQuantity())
+                                .discountValue(basicResponse.getDiscountValue())
+                                .discountPercent(basicResponse.getDiscountPercent())
+                                .discountActive(basicResponse.getDiscountActive())
+                                .isInFlashSale(basicResponse.getIsInFlashSale())
+                                .flashSalePrice(basicResponse.getFlashSalePrice())
+                                .flashSaleStock(basicResponse.getFlashSaleStock())
+                                .flashSaleSoldCount(basicResponse.getFlashSaleSoldCount())
+                                .flashSaleEndTime(basicResponse.getFlashSaleEndTime())
+                                .sentimentStats(sentimentStats)
+                                .build();
+                        
+                        log.info("✅ BookSentimentResponse created with sentiment stats: {}", response.getSentimentStats() != null);
+                        return response;
+                    })
+                    .collect(Collectors.toList());
+            
             // Sắp xếp theo thứ tự của bookIds (theo tỉ lệ đánh giá tích cực giảm dần)
-            books.sort((b1, b2) -> {
+            bookSentimentResponses.sort((b1, b2) -> {
                 int index1 = pageBookIds.indexOf(b1.getId());
                 int index2 = pageBookIds.indexOf(b2.getId());
                 return Integer.compare(index1, index2);
             });
             
-            // Chuyển đổi thành BookResponse
-            List<BookResponse> bookResponses = books.stream()
-                    .map(bookResponseMapper::toResponse)
-                    .collect(Collectors.toList());
-            
-            PaginationResponse<BookResponse> pagination = PaginationResponse.<BookResponse>builder()
-                    .content(bookResponses)
+            PaginationResponse<BookSentimentResponse> pagination = PaginationResponse.<BookSentimentResponse>builder()
+                    .content(bookSentimentResponses)
                     .pageNumber(page)
                     .pageSize(size)
                     .totalElements((long) bookIds.size())
@@ -2311,11 +2416,12 @@ public class BookServiceImpl implements BookService {
                     .build();
             
             return new ApiResponse<>(200, 
-                String.format("Lấy danh sách %d sách có đánh giá tích cực >= 75%% thành công", bookIds.size()), 
+                String.format("Lấy danh sách %d sách có đánh giá tích cực >= 75%% thành công (với sentiment stats)", bookIds.size()), 
                 pagination);
             
         } catch (Exception e) {
             log.error("❌ Lỗi khi lấy sách có đánh giá tích cực cao: {}", e.getMessage(), e);
+            log.error("❌ Stack trace: ", e);
             return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), null);
         }
     }

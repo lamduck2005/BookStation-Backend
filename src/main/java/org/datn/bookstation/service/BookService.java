@@ -3,6 +3,7 @@ package org.datn.bookstation.service;
 import org.datn.bookstation.dto.request.*;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.BookResponse;
+import org.datn.bookstation.dto.response.BookSentimentResponse;
 import org.datn.bookstation.dto.response.BookStockResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.PosBookItemResponse;
@@ -141,10 +142,10 @@ public interface BookService {
         ApiResponse<List<java.util.Map<String, Object>>> getBookStatisticsDetails(String period, Long date, Integer limit);
         
         /**
-         * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+         * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75% với thông tin sentiment chi tiết
          * @param page trang (mặc định 0)
          * @param size kích thước trang (mặc định 10)
-         * @return Danh sách sách có đánh giá tích cực tốt
+         * @return Danh sách sách có đánh giá tích cực tốt kèm tỉ lệ chính xác và điểm sao trung bình
          */
-        ApiResponse<PaginationResponse<BookResponse>> getBooksWithHighPositiveRating(int page, int size);
+        ApiResponse<PaginationResponse<BookSentimentResponse>> getBooksWithHighPositiveRating(int page, int size);
 }

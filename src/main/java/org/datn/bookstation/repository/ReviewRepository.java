@@ -59,4 +59,31 @@ public interface ReviewRepository extends JpaRepository<Review, Integer>, JpaSpe
             """, nativeQuery = true)
     List<Integer> findBookIdsWithHighPositiveRating(@Param("threshold") double threshold, 
                                                    @Param("minReviews") int minReviews);
+
+    /**
+     * 📊 Lấy thông tin sentiment chi tiết cho danh sách sách (query đơn giản hóa)
+     */
+    @Query(value = """
+            SELECT 
+                book_id,
+                ROUND(AVG(CAST(rating as float)), 2) as average_rating,
+                COUNT(*) as total_reviews,
+                COUNT(CASE WHEN is_positive = 1 THEN 1 END) as positive_reviews
+            FROM review 
+            WHERE review_status IN ('APPROVED', 'EDITED')
+                AND is_positive IS NOT NULL
+                AND book_id IN :bookIds
+            GROUP BY book_id
+            """, nativeQuery = true)
+    List<Object[]> findSimpleSentimentStatsByBookIds(@Param("bookIds") List<Integer> bookIds);
+
+    /**
+     * 🔍 DEBUG: Query đơn giản để test dữ liệu review
+     */
+    @Query(value = """
+            SELECT book_id, rating, is_positive, review_status 
+            FROM review 
+            WHERE book_id = :bookId
+            """, nativeQuery = true)
+    List<Object[]> findBasicReviewDataByBookId(@Param("bookId") Integer bookId);
 }
