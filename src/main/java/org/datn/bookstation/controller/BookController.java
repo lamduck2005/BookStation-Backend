@@ -528,6 +528,18 @@ public class BookController {
         return ResponseEntity.ok(response);
     }
     
+    /**
+     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+     * GET /api/books/high-positive-rating
+     */
+    @GetMapping("/high-positive-rating")
+    public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getBooksWithHighPositiveRating(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        ApiResponse<PaginationResponse<BookResponse>> response = bookService.getBooksWithHighPositiveRating(page, size);
+        return ResponseEntity.ok(response);
+    }
+    
     // 🔥 DEBUG: Test endpoint để kiểm tra raw data
     @GetMapping("/debug/raw-data")
     public ResponseEntity<?> debugRawData() {

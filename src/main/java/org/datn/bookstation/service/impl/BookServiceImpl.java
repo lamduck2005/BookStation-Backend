@@ -71,6 +71,7 @@ public class BookServiceImpl implements BookService {
     private final OrderDetailRepository orderDetailRepository;
     private final BookProcessingQuantityService bookProcessingQuantityService;
     private final FlashSaleService flashSaleService;
+    private final org.datn.bookstation.repository.ReviewRepository reviewRepository;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -2245,6 +2246,77 @@ public class BookServiceImpl implements BookService {
         } catch (Exception e) {
             log.error("❌ Failed to recalculate flash sale prices for book ID {}: {}", 
                 bookId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+     */
+    @Override
+    public ApiResponse<PaginationResponse<BookResponse>> getBooksWithHighPositiveRating(int page, int size) {
+        try {
+            // Lấy danh sách book IDs có tỉ lệ đánh giá tích cực >= 75%
+            // Chỉ cần ít nhất 1 đánh giá để bao gồm tất cả sách có đánh giá tích cực
+            List<Integer> bookIds = reviewRepository.findBookIdsWithHighPositiveRating(75.0, 1);
+            
+            if (bookIds.isEmpty()) {
+                return new ApiResponse<>(200, "Không có sách nào đáp ứng tiêu chí đánh giá tích cực", 
+                    PaginationResponse.<BookResponse>builder()
+                        .content(List.of())
+                        .pageNumber(page)
+                        .pageSize(size)
+                        .totalElements(0L)
+                        .totalPages(0)
+                        .build());
+            }
+            
+            // Phân trang manual vì chúng ta đã có danh sách IDs
+            int start = page * size;
+            int end = Math.min(start + size, bookIds.size());
+            
+            if (start >= bookIds.size()) {
+                return new ApiResponse<>(200, "Trang không có dữ liệu", 
+                    PaginationResponse.<BookResponse>builder()
+                        .content(List.of())
+                        .pageNumber(page)
+                        .pageSize(size)
+                        .totalElements((long) bookIds.size())
+                        .totalPages((int) Math.ceil((double) bookIds.size() / size))
+                        .build());
+            }
+            
+            List<Integer> pageBookIds = bookIds.subList(start, end);
+            
+            // Lấy thông tin sách từ IDs
+            List<Book> books = bookRepository.findAllById(pageBookIds);
+            
+            // Sắp xếp theo thứ tự của bookIds (theo tỉ lệ đánh giá tích cực giảm dần)
+            books.sort((b1, b2) -> {
+                int index1 = pageBookIds.indexOf(b1.getId());
+                int index2 = pageBookIds.indexOf(b2.getId());
+                return Integer.compare(index1, index2);
+            });
+            
+            // Chuyển đổi thành BookResponse
+            List<BookResponse> bookResponses = books.stream()
+                    .map(bookResponseMapper::toResponse)
+                    .collect(Collectors.toList());
+            
+            PaginationResponse<BookResponse> pagination = PaginationResponse.<BookResponse>builder()
+                    .content(bookResponses)
+                    .pageNumber(page)
+                    .pageSize(size)
+                    .totalElements((long) bookIds.size())
+                    .totalPages((int) Math.ceil((double) bookIds.size() / size))
+                    .build();
+            
+            return new ApiResponse<>(200, 
+                String.format("Lấy danh sách %d sách có đánh giá tích cực >= 75%% thành công", bookIds.size()), 
+                pagination);
+            
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi lấy sách có đánh giá tích cực cao: {}", e.getMessage(), e);
+            return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), null);
         }
     }
 }

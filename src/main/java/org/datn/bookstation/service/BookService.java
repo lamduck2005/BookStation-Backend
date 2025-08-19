@@ -139,4 +139,12 @@ public interface BookService {
          * @return Top sách với thông tin chi tiết + growth comparison
          */
         ApiResponse<List<java.util.Map<String, Object>>> getBookStatisticsDetails(String period, Long date, Integer limit);
+        
+        /**
+         * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+         * @param page trang (mặc định 0)
+         * @param size kích thước trang (mặc định 10)
+         * @return Danh sách sách có đánh giá tích cực tốt
+         */
+        ApiResponse<PaginationResponse<BookResponse>> getBooksWithHighPositiveRating(int page, int size);
 }

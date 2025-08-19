@@ -95,6 +95,9 @@ public class ReviewServiceImpl implements ReviewService {
         if (request.getComment() != null) {
             existing.setComment(request.getComment());
         }
+        if (request.getIsPositive() != null) {
+            existing.setIsPositive(request.getIsPositive());
+        }
         if (request.getReviewStatus() != null) {
             existing.setReviewStatus(ReviewStatus.valueOf(request.getReviewStatus()));
         }

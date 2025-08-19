@@ -4,6 +4,8 @@ import org.datn.bookstation.entity.Review;
 import org.datn.bookstation.entity.enums.ReviewStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -33,4 +35,28 @@ public interface ReviewRepository extends JpaRepository<Review, Integer>, JpaSpe
     // Đếm tổng theo status
     long countByReviewStatus(ReviewStatus status);
     long countByReviewStatusIn(List<ReviewStatus> statuses);
+    
+    /**
+     * Lấy danh sách book ID có tỉ lệ đánh giá tích cực >= threshold
+     * Chỉ tính các review đã APPROVED và EDITED (không tính PENDING, REJECTED, HIDDEN)
+     */
+    @Query(value = """
+            SELECT book_id 
+            FROM (
+                SELECT 
+                    book_id,
+                    COUNT(*) as total_reviews,
+                    COUNT(CASE WHEN is_positive = 1 THEN 1 END) as positive_reviews,
+                    ROUND((COUNT(CASE WHEN is_positive = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as positive_percentage
+                FROM review 
+                WHERE review_status IN ('APPROVED', 'EDITED')
+                    AND is_positive IS NOT NULL
+                GROUP BY book_id
+                HAVING COUNT(*) >= :minReviews 
+                    AND (COUNT(CASE WHEN is_positive = 1 THEN 1 END) * 100.0 / COUNT(*)) >= :threshold
+            ) as book_stats
+            ORDER BY positive_percentage DESC
+            """, nativeQuery = true)
+    List<Integer> findBookIdsWithHighPositiveRating(@Param("threshold") double threshold, 
+                                                   @Param("minReviews") int minReviews);
 }
