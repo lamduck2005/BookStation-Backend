@@ -39,7 +39,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     @Override
     public PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email,
-            String phoneNumber, Integer roleId, String status) {
+            String phoneNumber, Integer roleId, String status,Integer userId) {
         Pageable pageable = PageRequest.of(page, size);
         
         // Tạo specification để filter
@@ -75,7 +75,12 @@ public class UserServiceImpl implements UserService {
             spec = spec.and((root, query, cb) -> 
                 cb.equal(root.get("status"), statusByte));
         }
-        
+        if (userId != null) {
+            spec = spec.and((root, query, cb) ->
+                    cb.notEqual(root.get("id"), userId)  // ≠ userId
+            );
+        }
+
         Page<User> userPage = userRepository.findAll(spec, pageable);
         List<UserResponse> content = userPage.getContent().stream().map(this::toResponse).collect(Collectors.toList());
         return PaginationResponse.<UserResponse>builder()
