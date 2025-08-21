@@ -7,7 +7,6 @@ import org.datn.bookstation.entity.enums.*;
 import org.datn.bookstation.repository.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -15,7 +14,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
-@Service
+// @Service - Temporarily disabled to avoid Session/EntityManager is closed error
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializationService implements CommandLineRunner {

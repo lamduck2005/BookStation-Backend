@@ -212,44 +212,56 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
     @Override
     public boolean canUserUseVoucher(Integer userId, Integer voucherId) {
         Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
-        if (voucher == null) return false;
+        if (voucher == null || voucher.getUsageLimitPerUser() == null) return false;
 
         UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucherId).orElse(null);
         
         if (userVoucher == null) {
-            // First time using this voucher
+            // First time using this voucher - check if user can receive more
             return true;
         }
 
-        // Check if user has reached usage limit for this voucher
-        return userVoucher.getUsedCount() < voucher.getUsageLimitPerUser();
+        // ✅ NEW: Check available quantity (not used yet) against usage limit
+        int availableQuantity = userVoucher.getQuantity() != null ? userVoucher.getQuantity() : 0;
+        int usedCount = userVoucher.getUsedCount() != null ? userVoucher.getUsedCount() : 0;
+        
+        log.debug("🎫 canUserUseVoucher: userId={}, voucherId={}, availableQuantity={}, usedCount={}, usageLimitPerUser={}", 
+            userId, voucherId, availableQuantity, usedCount, voucher.getUsageLimitPerUser());
+        
+        return availableQuantity > 0; // Can use if user has available vouchers
     }
 
     @Override
     public void updateVoucherUsage(List<Integer> voucherIds, Integer userId) {
         for (Integer voucherId : voucherIds) {
-            // Update voucher used count
+            // Update voucher global used count
             Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
             if (voucher != null) {
-                voucher.setUsedCount(voucher.getUsedCount() + 1);
+                voucher.setUsedCount((voucher.getUsedCount() != null ? voucher.getUsedCount() : 0) + 1);
                 voucherRepository.save(voucher);
             }
 
-            // Update user voucher usage
-            UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucherId)
-                .orElse(new UserVoucher());
+            // ✅ NEW: Update user voucher usage - decrease quantity, increase usedCount
+            UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucherId).orElse(null);
             
-            if (userVoucher.getId() == null) {
-                // Create new user voucher record
-                userVoucher.setUser(new org.datn.bookstation.entity.User() {{ setId(userId); }});
-                userVoucher.setVoucher(voucher);
-                userVoucher.setUsedCount(1);
+            if (userVoucher != null) {
+                // Decrease available quantity and increase used count
+                int currentQuantity = userVoucher.getQuantity() != null ? userVoucher.getQuantity() : 0;
+                int currentUsedCount = userVoucher.getUsedCount() != null ? userVoucher.getUsedCount() : 0;
+                
+                if (currentQuantity > 0) {
+                    userVoucher.setQuantity(currentQuantity - 1);
+                    userVoucher.setUsedCount(currentUsedCount + 1);
+                    userVoucherRepository.save(userVoucher);
+                    
+                    log.info("🎫 Updated voucher usage for user {} voucher {}: quantity {} -> {}, usedCount {} -> {}", 
+                        userId, voucherId, currentQuantity, currentQuantity - 1, currentUsedCount, currentUsedCount + 1);
+                } else {
+                    log.warn("⚠️ Attempted to use voucher {} but user {} has no available quantity", voucherId, userId);
+                }
             } else {
-                // Update existing record
-                userVoucher.setUsedCount(userVoucher.getUsedCount() + 1);
+                log.warn("⚠️ Attempted to use voucher {} but user {} has no voucher record", voucherId, userId);
             }
-            
-            userVoucherRepository.save(userVoucher);
         }
     }
 }

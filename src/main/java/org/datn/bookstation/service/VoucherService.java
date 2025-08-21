@@ -4,6 +4,7 @@ import org.datn.bookstation.dto.request.VoucherRepuest;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.dto.response.VoucherStatsResponse;
+import org.datn.bookstation.dto.response.VoucherDropdownResponse;
 import java.util.List;
 
 public interface VoucherService {
@@ -31,4 +32,10 @@ public interface VoucherService {
      * Lấy thống kê voucher cho dashboard admin
      */
     VoucherStatsResponse getVoucherStats();
+
+    /**
+     * API dropdown voucher cho minigame box system
+     * Tìm kiếm voucher theo mã hoặc tên và trả về thông tin đầy đủ
+     */
+    List<VoucherDropdownResponse> getVoucherDropdown(String search);
 }

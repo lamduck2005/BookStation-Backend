@@ -4,6 +4,7 @@ import org.datn.bookstation.dto.request.VoucherRepuest;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.dto.response.VoucherStatsResponse;
+import org.datn.bookstation.dto.response.VoucherDropdownResponse;
 import org.datn.bookstation.entity.Voucher;
 import org.datn.bookstation.repository.VoucherRepository;
 import org.datn.bookstation.service.VoucherService;
@@ -293,5 +294,50 @@ public class VoucherServiceImpl implements VoucherService {
                 unusedVouchers != null ? unusedVouchers : 0L,  // ← SỬA: dùng unusedVouchers
                 totalUsageCount != null ? totalUsageCount : 0L,
                 mostPopularVoucher);
+    }
+
+    @Override
+    public List<VoucherDropdownResponse> getVoucherDropdown(String search) {
+        Specification<Voucher> spec = Specification.where(
+            (root, query, cb) -> cb.equal(root.get("status"), (byte) 1)
+        );
+
+        if (search != null && !search.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> 
+                cb.or(
+                    cb.like(cb.lower(root.get("code")), "%" + search.toLowerCase() + "%"),
+                    cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%")
+                )
+            );
+        }
+
+        List<Voucher> vouchers = voucherRepository.findAll(spec);
+
+        return vouchers.stream()
+                .map(this::toVoucherDropdownResponse)
+                .collect(Collectors.toList());
+    }
+
+    private VoucherDropdownResponse toVoucherDropdownResponse(Voucher voucher) {
+        VoucherDropdownResponse response = new VoucherDropdownResponse();
+        response.setId(voucher.getId());
+        response.setCode(voucher.getCode());
+        response.setName(voucher.getName());
+        response.setDescription(voucher.getDescription());
+        response.setVoucherCategory(voucher.getVoucherCategory());
+        response.setDiscountType(voucher.getDiscountType());
+        response.setDiscountPercentage(voucher.getDiscountPercentage());
+        response.setDiscountAmount(voucher.getDiscountAmount());
+        response.setStartTime(voucher.getStartTime());
+        response.setEndTime(voucher.getEndTime());
+        response.setMinOrderValue(voucher.getMinOrderValue());
+        response.setMaxDiscountValue(voucher.getMaxDiscountValue());
+        response.setUsageLimit(voucher.getUsageLimit());
+        response.setUsedCount(voucher.getUsedCount());
+        response.setUsageLimitPerUser(voucher.getUsageLimitPerUser());
+        response.setStatus(voucher.getStatus());
+        response.setCreatedBy(voucher.getCreatedBy());
+        response.setUpdatedBy(voucher.getUpdatedBy());
+        return response;
     }
 }

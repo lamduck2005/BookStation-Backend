@@ -28,8 +28,6 @@ import org.datn.bookstation.service.BookService;
 import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
-import org.datn.bookstation.repository.OrderDetailRepository;
-import org.datn.bookstation.repository.ReviewRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -57,8 +55,7 @@ public class BookController {
     private final TrendingCacheService trendingCacheService;
     private final FlashSaleItemService flashSaleItemService;
     private final FlashSaleItemRepository flashSaleItemRepository;
-    private final OrderDetailRepository orderDetailRepository;
-    private final ReviewRepository reviewRepository;
+    private final org.datn.bookstation.service.BookProcessingQuantityService bookProcessingQuantityService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
@@ -543,41 +540,17 @@ public class BookController {
         return ResponseEntity.ok(response);
     }
     
-    // 🔍 DEBUG: Test endpoint đơn giản  
-    @GetMapping("/debug/test")
-    public ResponseEntity<?> debugTest() {
-        return ResponseEntity.ok(Map.of("status", 200, "message", "Debug test works"));
-    }
-    
-    // 🔥 DEBUG: Test endpoint để kiểm tra raw data
-    @GetMapping("/debug/raw-data")
-    public ResponseEntity<?> debugRawData() {
+    // ✅ API lấy processing quantity cho một sách
+    @GetMapping("/processing-quantity/{bookId}")
+    public ResponseEntity<ApiResponse<Integer>> getProcessingQuantity(@PathVariable Integer bookId) {
         try {
-            long currentTime = System.currentTimeMillis();
-            long startTime = currentTime - (7 * 24 * 60 * 60 * 1000L); // 7 days ago
-            
-            List<Object[]> rawData = orderDetailRepository.findBookPerformanceDataByDateRange(startTime, currentTime);
-            
-            // Lấy first 3 records để debug
-            List<Map<String, Object>> debugData = new ArrayList<>();
-            for (int i = 0; i < Math.min(3, rawData.size()); i++) {
-                Object[] row = rawData.get(i);
-                Map<String, Object> record = new HashMap<>();
-                record.put("bookId", row[0]);
-                record.put("bookTitle", row[1]);
-                record.put("bookCode", row[2]);
-                record.put("isbn", row[3]);
-                record.put("quantity", row[4]);
-                record.put("revenue", row[5]);
-                record.put("orderTime", row[6]);
-                debugData.add(record);
-            }
-            
-            return ResponseEntity.ok(debugData);
+            Integer processingQuantity = bookProcessingQuantityService.getProcessingQuantity(bookId);
+            return ResponseEntity.ok(new ApiResponse<>(200, "Lấy processing quantity thành công", processingQuantity));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+            return ResponseEntity.ok(new ApiResponse<>(500, "Lỗi khi lấy processing quantity: " + e.getMessage(), null));
         }
     }
+
     @GetMapping("/isbn/{isbn}")
     public ResponseEntity<ApiResponse<PosBookItemResponse>> getByIsbn(@PathVariable String isbn) {
         ApiResponse<PosBookItemResponse> resp = bookService.getBookByIsbn(isbn);
