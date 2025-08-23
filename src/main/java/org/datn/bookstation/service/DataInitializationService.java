@@ -171,23 +171,25 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Carts already exist, skipping initialization.");
         }
 
-        // Kiểm tra và khởi tạo Orders
-        if (orderRepository.count() == 0) {
-            initializeOrders();
-            initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
-            
-            // ✅ THÊM: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C (chỉ khi chưa có đơn hàng nào)
-            initializeTestOrdersForLeVanC();
-        } else {
-            log.info("Orders already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Orders - DISABLED
+        // if (orderRepository.count() == 0) {
+        //     initializeOrders();
+        //     initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
+        //     
+        //     // ✅ THÊM: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C (chỉ khi chưa có đơn hàng nào)
+        //     initializeTestOrdersForLeVanC();
+        // } else {
+        //     log.info("Orders already exist, skipping initialization.");
+        // }
+        log.info("Order initialization is disabled - no order data will be created.");
 
-        // Kiểm tra và khởi tạo Points
-        if (pointRepository.count() == 0) {
-            // initializePoints(); // Tạm thời skip để test phần khác trước
-        } else {
-            log.info("Points already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Points - DISABLED (vì không có order)
+        // if (pointRepository.count() == 0) {
+        //     initializePoints(); // Tạm thời skip để test phần khác trước
+        // } else {
+        //     log.info("Points already exist, skipping initialization.");
+        // }
+        log.info("Points initialization is disabled - requires orders to exist first.");
 
         // Kiểm tra và khởi tạo Reviews
         if (reviewRepository.count() == 0) {
@@ -904,6 +906,10 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    // ============== DISABLED ORDER INITIALIZATION METHODS ==============
+    // These methods are commented out to prevent automatic order data creation
+    
+    /*
     private void initializeOrders() {
         log.info("Initializing orders...");
         
@@ -998,6 +1004,7 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    /*
     private Order createOrder(User customer, Address address, OrderStatus status, String orderType) {
         Order order = new Order();
         order.setUser(customer);
@@ -1029,6 +1036,7 @@ public class DataInitializationService implements CommandLineRunner {
         detail.setCreatedBy(order.getCreatedBy());
         return detail;
     }
+    */
 
     @Transactional
     private void initializePoints() {
@@ -1220,10 +1228,14 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("========================");
     }
     
+    
+    // ============== DISABLED TRENDING ORDER METHODS ==============
+    /*
     /**
      * ✅ THÊM METHOD: Tạo thêm dữ liệu đơn hàng để có sản phẩm xu hướng
      * Tạo nhiều đơn hàng trong 30 ngày qua với số lượng khác nhau cho các sách
      */
+    /*
     private void initializeTrendingOrderData() {
         log.info("Initializing trending order data...");
         
@@ -1292,7 +1304,9 @@ public class DataInitializationService implements CommandLineRunner {
         
         log.info("Created {} trending orders", Arrays.stream(trendingPattern).sum());
     }
+    */
     
+    /*
     /**
      * Tạo Order với thời gian tùy chỉnh cho trending data
      */
@@ -1315,7 +1329,8 @@ public class DataInitializationService implements CommandLineRunner {
         order.setStatus((byte) 1);
         return order;
     }
-
+    // ============== END DISABLED ORDER METHODS ==============
+    
     /**
      * ✅ THÊM METHOD: Tạo thêm review để có đánh giá cho trending products
      */
@@ -1412,10 +1427,14 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Created {} trending reviews", Arrays.stream(reviewPattern).sum());
     }
     
+    
+    // ============== DISABLED TEST ORDER METHODS ==============
+    /*
     /**
      * ✅ THÊM METHOD: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C 
      * Mua sách "Đắc Nhân Tâm" từ 2023 đến nay với tần suất khác nhau
      */
+    /*
     private void initializeTestOrdersForLeVanC() {
         log.info("Initializing test orders for Lê Văn C with time-based data...");
         
@@ -1518,10 +1537,13 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Orders distributed across different quarters and months for testing");
         log.info("Recent week has the most orders, previous month has good amount");
     }
+    */
     
+    /*
     /**
      * Tạo Order với thời gian tùy chỉnh cho test data
      */
+    /*
     private Order createTestOrder(User customer, Address address, OrderStatus status, String orderType, long orderTime) {
         Order order = new Order();
         order.setUser(customer);
@@ -1539,6 +1561,7 @@ public class DataInitializationService implements CommandLineRunner {
         order.setStatus((byte) 1);
         return order;
     }
+    */
     
     // ===== 🎮 MINIGAME DATA INITIALIZATION =====
     
