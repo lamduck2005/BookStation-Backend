@@ -157,12 +157,13 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Flash sales already exist, skipping initialization.");
         }
 
-        // Kiểm tra và khởi tạo Addresses
-        if (addressRepository.count() == 0) {
-            initializeAddresses();
-        } else {
-            log.info("Addresses already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Addresses - DISABLED
+        // if (addressRepository.count() == 0) {
+        //     initializeAddresses();
+        // } else {
+        //     log.info("Addresses already exist, skipping initialization.");
+        // }
+        log.info("Address initialization is disabled - no address data will be created.");
 
         // Kiểm tra và khởi tạo Carts
         if (cartRepository.count() == 0) {
@@ -852,6 +853,10 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    // ============== DISABLED ADDRESS INITIALIZATION METHODS ==============
+    // These methods are commented out to prevent automatic address data creation
+    
+    /*
     private void initializeAddresses() {
         log.info("Initializing addresses...");
         
@@ -878,6 +883,7 @@ public class DataInitializationService implements CommandLineRunner {
         address.setStatus((byte) 1);
         return address;
     }
+    */
 
     private void initializeCarts() {
         log.info("Initializing carts...");
@@ -1218,12 +1224,12 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("User Vouchers: {}", userVoucherRepository.count());
         log.info("Flash Sales: {}", flashSaleRepository.count());
         log.info("Flash Sale Items: {}", flashSaleItemRepository.count());
-        log.info("Addresses: {}", addressRepository.count());
+        log.info("Addresses: {} (initialization disabled)", addressRepository.count());
         log.info("Carts: {}", cartRepository.count());
         log.info("Cart Items: {}", cartItemRepository.count());
-        log.info("Orders: {}", orderRepository.count());
-        log.info("Order Details: {}", orderDetailRepository.count());
-        log.info("Points: {}", pointRepository.count());
+        log.info("Orders: {} (initialization disabled)", orderRepository.count());
+        log.info("Order Details: {} (initialization disabled)", orderDetailRepository.count());
+        log.info("Points: {} (initialization disabled)", pointRepository.count());
         log.info("Reviews: {}", reviewRepository.count());
         log.info("========================");
     }
