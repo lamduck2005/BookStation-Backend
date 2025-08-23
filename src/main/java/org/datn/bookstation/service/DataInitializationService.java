@@ -7,6 +7,7 @@ import org.datn.bookstation.entity.enums.*;
 import org.datn.bookstation.repository.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -14,7 +15,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
-// @Service - Temporarily disabled to avoid Session/EntityManager is closed error
+@Service
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializationService implements CommandLineRunner {
@@ -40,10 +41,13 @@ public class DataInitializationService implements CommandLineRunner {
     private final OrderDetailRepository orderDetailRepository;
     private final PointRepository pointRepository;
     private final ReviewRepository reviewRepository;
+    private final CampaignRepository campaignRepository;
+    private final RewardRepository rewardRepository;
+    private final UserCampaignRepository userCampaignRepository;
+    private final BoxHistoryRepository boxHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Transactional
     public void run(String... args) {
         try {
             log.info("Starting data initialization...");
@@ -57,6 +61,7 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Data initialization completed successfully!");
         } catch (Exception e) {
             log.error("Error during data initialization: ", e);
+            // Don't rethrow to prevent application startup failure
         }
     }
 
@@ -179,7 +184,7 @@ public class DataInitializationService implements CommandLineRunner {
 
         // Kiểm tra và khởi tạo Points
         if (pointRepository.count() == 0) {
-            initializePoints();
+            // initializePoints(); // Tạm thời skip để test phần khác trước
         } else {
             log.info("Points already exist, skipping initialization.");
         }
@@ -190,6 +195,21 @@ public class DataInitializationService implements CommandLineRunner {
             initializeTrendingReviewData(); // ✅ THÊM: Tạo thêm review cho trending
         } else {
             log.info("Reviews already exist, skipping initialization.");
+        }
+        
+        // ===== 🎮 MINIGAME INITIALIZATION =====
+        // Kiểm tra và khởi tạo Campaigns
+        if (campaignRepository.count() == 0) {
+            initializeCampaigns();
+        } else {
+            log.info("Campaigns already exist, skipping initialization.");
+        }
+        
+        // Kiểm tra và khởi tạo Rewards
+        if (rewardRepository.count() == 0) {
+            initializeRewards();
+        } else {
+            log.info("Rewards already exist, skipping initialization.");
         }
     }
 
@@ -1010,6 +1030,7 @@ public class DataInitializationService implements CommandLineRunner {
         return detail;
     }
 
+    @Transactional
     private void initializePoints() {
         log.info("Initializing points...");
         
@@ -1020,7 +1041,9 @@ public class DataInitializationService implements CommandLineRunner {
                 Point point = new Point();
                 point.setUser(order.getUser());
                 point.setOrder(order);
-                point.setPointEarned((int) (order.getTotalAmount().doubleValue() / 1000)); // 1 điểm / 1000đ
+                // Giới hạn điểm tối đa 100 điểm mỗi đơn hàng để tránh overflow
+                int pointsToEarn = Math.min(100, (int) (order.getTotalAmount().doubleValue() / 1000)); 
+                point.setPointEarned(pointsToEarn);
                 point.setMinSpent(order.getTotalAmount());
                 point.setPointSpent(0);
                 point.setDescription("Tích điểm từ đơn hàng " + order.getCode());
@@ -1028,11 +1051,21 @@ public class DataInitializationService implements CommandLineRunner {
                 point.setStatus((byte) 1);
                 pointRepository.save(point);
                 
-                // Cập nhật tổng điểm cho user
-                User user = order.getUser();
-                user.setTotalPoint((user.getTotalPoint() != null ? user.getTotalPoint() : 0) + point.getPointEarned());
-                user.setTotalSpent((user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO).add(order.getTotalAmount()));
-                userRepository.save(user);
+                // Cập nhật tổng điểm cho user - fetch user explicitly to avoid lazy loading
+                User user = userRepository.findById(order.getUser().getId()).orElse(null);
+                if (user != null) {
+                    int currentTotalPoint = user.getTotalPoint() != null ? user.getTotalPoint() : 0;
+                    int newTotalPoint = Math.min(999999, currentTotalPoint + pointsToEarn); // Giới hạn tổng điểm < 1 triệu
+                    user.setTotalPoint(newTotalPoint);
+                    
+                    BigDecimal currentTotalSpent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
+                    BigDecimal newTotalSpent = currentTotalSpent.add(order.getTotalAmount());
+                    // Giới hạn tổng chi tiêu < 100 triệu để tránh overflow
+                    if (newTotalSpent.compareTo(new BigDecimal("99999999")) <= 0) {
+                        user.setTotalSpent(newTotalSpent);
+                    }
+                    userRepository.save(user);
+                }
             }
         }
     }
@@ -1505,6 +1538,122 @@ public class DataInitializationService implements CommandLineRunner {
         order.setCreatedBy(customer.getId());
         order.setStatus((byte) 1);
         return order;
+    }
+    
+    // ===== 🎮 MINIGAME DATA INITIALIZATION =====
+    
+    /**
+     * Khởi tạo dữ liệu chiến dịch minigame
+     */
+    private void initializeCampaigns() {
+        log.info("Initializing minigame campaigns...");
+        
+        long currentTime = System.currentTimeMillis();
+        long oneWeek = 7L * 24 * 60 * 60 * 1000;
+        long oneMonth = 30L * 24 * 60 * 60 * 1000;
+        
+        List<Campaign> campaigns = Arrays.asList(
+            createCampaign("🎁 Chiến dịch mở hộp thần bí", 
+                          currentTime - oneWeek, currentTime + oneMonth,
+                          3, 100, "Chiến dịch mở hộp với nhiều phần thưởng hấp dẫn!"),
+            createCampaign("🎮 Event cuối tuần", 
+                          currentTime, currentTime + (7 * 24 * 60 * 60 * 1000L),
+                          5, 50, "Event đặc biệt cuối tuần với phần thưởng khủng!"),
+            createCampaign("💰 Săn voucher tháng 8", 
+                          currentTime + oneWeek, currentTime + (2 * oneMonth),
+                          2, 200, "Chiến dịch săn voucher với tỷ lệ trúng cao!")
+        );
+        campaignRepository.saveAll(campaigns);
+        log.info("Created {} campaigns", campaigns.size());
+    }
+    
+    private Campaign createCampaign(String name, Long startDate, Long endDate, 
+                                   Integer freeLimit, Integer pointCost, String description) {
+        Campaign campaign = new Campaign();
+        campaign.setName(name);
+        campaign.setStartDate(startDate);
+        campaign.setEndDate(endDate);
+        campaign.setConfigFreeLimit(freeLimit);
+        campaign.setConfigPointCost(pointCost);
+        campaign.setDescription(description);
+        campaign.setStatus((byte) 1);
+        campaign.setCreatedAt(System.currentTimeMillis());
+        campaign.setCreatedBy(1); // Admin
+        return campaign;
+    }
+    
+    /**
+     * Khởi tạo dữ liệu phần thưởng cho các chiến dịch
+     */
+    private void initializeRewards() {
+        log.info("Initializing minigame rewards...");
+        
+        List<Campaign> campaigns = campaignRepository.findAll();
+        if (campaigns.isEmpty()) {
+            log.warn("No campaigns found, skipping reward initialization");
+            return;
+        }
+        
+        Campaign firstCampaign = campaigns.get(0); // Lấy campaign đầu tiên
+        List<Voucher> availableVouchers = voucherRepository.findAll();
+        
+        List<Reward> rewards = new java.util.ArrayList<>();
+        
+        // ✅ FIX: Cập nhật để tổng xác suất = 100%
+        // 1. Phần thưởng "Không trúng gì" (65%)
+        rewards.add(createReward(firstCampaign, "Chúc bạn may mắn lần sau", "Không có phần thưởng", 
+                               RewardType.NONE, new java.math.BigDecimal("65.0"), null, null, null, 1000));
+        
+        // 2. Phần thưởng điểm (25% tổng)
+        rewards.add(createReward(firstCampaign, "Thưởng 50 điểm", "Nhận 50 điểm miễn phí", 
+                               RewardType.POINTS, new java.math.BigDecimal("15.0"), 50, null, null, 100));
+        rewards.add(createReward(firstCampaign, "Thưởng 100 điểm", "Nhận 100 điểm miễn phí", 
+                               RewardType.POINTS, new java.math.BigDecimal("7.0"), 100, null, null, 50));
+        rewards.add(createReward(firstCampaign, "Thưởng 500 điểm", "Nhận 500 điểm siêu khủng!", 
+                               RewardType.POINTS, new java.math.BigDecimal("3.0"), 500, null, null, 20));
+        
+        // 3. Phần thưởng voucher (10% còn lại)
+        if (!availableVouchers.isEmpty()) {
+            // Chỉ tạo 2 loại voucher với xác suất cố định để đảm bảo tổng = 100%
+            if (availableVouchers.size() >= 1) {
+                Voucher voucher1 = availableVouchers.get(0);
+                rewards.add(createReward(firstCampaign, "Voucher " + voucher1.getName(), 
+                                       "Trúng voucher " + voucher1.getName(), 
+                                       RewardType.VOUCHER, new java.math.BigDecimal("7.0"), 
+                                       null, voucher1, null, 30));
+            }
+            if (availableVouchers.size() >= 2) {
+                Voucher voucher2 = availableVouchers.get(1);
+                rewards.add(createReward(firstCampaign, "Voucher " + voucher2.getName(), 
+                                       "Trúng voucher " + voucher2.getName(), 
+                                       RewardType.VOUCHER, new java.math.BigDecimal("3.0"), 
+                                       null, voucher2, null, 15));
+            }
+        }
+        // Tổng: 65% + 15% + 7% + 3% + 7% + 3% = 100% ✅
+        
+        rewardRepository.saveAll(rewards);
+        log.info("Created {} rewards for campaign {}", rewards.size(), firstCampaign.getName());
+    }
+    
+    private Reward createReward(Campaign campaign, String name, String description, 
+                               RewardType type, java.math.BigDecimal probability, 
+                               Integer pointValue, Voucher voucher, Integer voucherId, 
+                               Integer quantity) {
+        Reward reward = new Reward();
+        reward.setCampaign(campaign);
+        reward.setName(name);
+        reward.setDescription(description);
+        reward.setType(type);
+        reward.setProbability(probability);
+        reward.setPointValue(pointValue);
+        reward.setVoucher(voucher);
+        // Note: voucherId parameter not used because Reward entity doesn't have voucherId field
+        reward.setStock(quantity);
+        reward.setStatus((byte) 1);
+        reward.setCreatedAt(System.currentTimeMillis());
+        reward.setCreatedBy(1); // Admin
+        return reward;
     }
     
     /**

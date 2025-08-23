@@ -25,10 +25,9 @@ public class UserVoucher {
     @JoinColumn(name = "voucher_id", nullable = false)
     private Voucher voucher;
 
-    // Số lượng voucher đang sở hữu
-    @Column(name = "quantity", nullable = false)
-    private Integer quantity = 1;
-
+    // ✅ REMOVED: Xóa trường quantity vì không cần thiết nữa
+    // Mỗi lần nhận voucher sẽ tạo 1 record mới
+    
     // Số lần đã sử dụng voucher này
     @Column(name = "used_count", nullable = false)
     private Integer usedCount = 0;

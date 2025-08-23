@@ -50,11 +50,8 @@ public class Reward {
     @Column(name = "point_value")
     private Integer pointValue;
 
-    @Column(name = "quantity_total", nullable = false)
-    private Integer quantityTotal;
-
-    @Column(name = "quantity_remaining", nullable = false)
-    private Integer quantityRemaining;
+    @Column(name = "stock", nullable = false)
+    private Integer stock; // Số lượng còn lại có thể mở
 
     @Column(name = "probability", nullable = false)
     private BigDecimal probability; // Tỷ lệ trúng (0-100)
@@ -78,9 +75,7 @@ public class Reward {
     public void prePersist() {
         this.createdAt = System.currentTimeMillis();
         this.updatedAt = System.currentTimeMillis();
-        if (this.quantityRemaining == null) {
-            this.quantityRemaining = this.quantityTotal;
-        }
+        // stock sẽ được set trực tiếp khi tạo reward
     }
 
     @PreUpdate

@@ -141,22 +141,20 @@ public class CampaignController {
      * Cập nhật trạng thái chiến dịch (Admin)
      */
     @PatchMapping("/status")
-    public ResponseEntity<ApiResponse<String>> updateStatus(
-            @RequestParam Integer id,
-            @RequestParam Byte status) {
+    public ResponseEntity<ApiResponse<String>> updateStatus(@RequestParam Integer id) {
         try {
-            campaignService.updateStatus(id, status, 0);
+            campaignService.toggleStatus(id, 0);
             ApiResponse<String> response = new ApiResponse<>(
                     HttpStatus.OK.value(),
-                    "Cập nhật trạng thái chiến dịch thành công",
-                    "Campaign status updated successfully"
+                    "Đã chuyển trạng thái chiến dịch thành công",
+                    "Campaign status toggled successfully"
             );
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error updating campaign status: ", e);
+            log.error("Error toggling campaign status: ", e);
             ApiResponse<String> response = new ApiResponse<>(
                     HttpStatus.BAD_REQUEST.value(),
-                    "Lỗi khi cập nhật trạng thái chiến dịch: " + e.getMessage(),
+                    "Lỗi khi chuyển trạng thái chiến dịch: " + e.getMessage(),
                     null
             );
             return ResponseEntity.badRequest().body(response);

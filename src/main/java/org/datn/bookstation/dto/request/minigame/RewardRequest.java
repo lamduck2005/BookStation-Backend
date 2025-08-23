@@ -33,9 +33,9 @@ public class RewardRequest {
     @Min(value = 1, message = "Giá trị điểm phải >= 1")
     private Integer pointValue;
     
-    @NotNull(message = "Tổng số lượng không được để trống")
-    @Min(value = 1, message = "Tổng số lượng phải >= 1")
-    private Integer quantityTotal;
+    @NotNull(message = "Số lượng stock không được để trống")
+    @Min(value = 1, message = "Số lượng stock phải >= 1")
+    private Integer stock;
     
     @NotNull(message = "Tỷ lệ trúng không được để trống")
     @DecimalMin(value = "0.01", message = "Tỷ lệ trúng phải >= 0.01%")

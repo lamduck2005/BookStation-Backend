@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.datn.bookstation.dto.request.minigame.RewardRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.minigame.RewardResponse;
+import org.datn.bookstation.dto.response.minigame.CampaignProbabilityResponse;
 import org.datn.bookstation.service.RewardService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,30 @@ public class RewardController {
                     null
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * ✅ NEW: Lấy thông tin xác suất của chiến dịch (API riêng)
+     */
+    @GetMapping("/campaign/{campaignId}/probability-info")
+    public ResponseEntity<ApiResponse<CampaignProbabilityResponse>> getCampaignProbabilityInfo(@PathVariable Integer campaignId) {
+        try {
+            CampaignProbabilityResponse probabilityInfo = rewardService.getCampaignProbabilityInfo(campaignId);
+            ApiResponse<CampaignProbabilityResponse> response = new ApiResponse<>(
+                    HttpStatus.OK.value(),
+                    "Lấy thông tin xác suất chiến dịch thành công",
+                    probabilityInfo
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting campaign probability info: ", e);
+            ApiResponse<CampaignProbabilityResponse> response = new ApiResponse<>(
+                    HttpStatus.BAD_REQUEST.value(),
+                    e.getMessage(),
+                    null
+            );
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
@@ -124,22 +149,20 @@ public class RewardController {
      * Cập nhật trạng thái phần thưởng (Admin)
      */
     @PatchMapping("/status")
-    public ResponseEntity<ApiResponse<String>> updateStatus(
-            @RequestParam Integer id,
-            @RequestParam Byte status) {
+    public ResponseEntity<ApiResponse<String>> updateStatus(@RequestParam Integer id) {
         try {
-            rewardService.updateStatus(id, status, 0);
+            rewardService.toggleStatus(id, 0);
             ApiResponse<String> response = new ApiResponse<>(
                     HttpStatus.OK.value(),
-                    "Cập nhật trạng thái phần thưởng thành công",
-                    "Reward status updated successfully"
+                    "Đã chuyển trạng thái phần thưởng thành công",
+                    "Reward status toggled successfully"
             );
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error updating reward status: ", e);
+            log.error("Error toggling reward status: ", e);
             ApiResponse<String> response = new ApiResponse<>(
                     HttpStatus.BAD_REQUEST.value(),
-                    "Lỗi khi cập nhật trạng thái phần thưởng: " + e.getMessage(),
+                    "Lỗi khi chuyển trạng thái phần thưởng: " + e.getMessage(),
                     null
             );
             return ResponseEntity.badRequest().body(response);

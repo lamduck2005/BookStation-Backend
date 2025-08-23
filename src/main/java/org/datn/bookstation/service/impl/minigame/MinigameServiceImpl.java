@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -39,6 +38,14 @@ public class MinigameServiceImpl implements MinigameService {
     public OpenBoxResponse openBox(OpenBoxRequest request) {
         log.info("User {} attempting to open box in campaign {} with type {}", 
                  request.getUserId(), request.getCampaignId(), request.getOpenType());
+
+        // 0. VALIDATION - Kiểm tra dữ liệu frontend có khớp với backend không
+        List<String> validationErrors = validateFrontendData(request);
+        if (!validationErrors.isEmpty()) {
+            log.warn("Validation failed for user {}: {}", request.getUserId(), validationErrors);
+            return new OpenBoxResponse(false, "Dữ liệu không đồng bộ, vui lòng tải lại trang!", 
+                                     validationErrors, true);
+        }
 
         // 1. Validate campaign
         Campaign campaign = campaignRepository.findById(request.getCampaignId())
@@ -242,17 +249,31 @@ public class MinigameServiceImpl implements MinigameService {
             pointsSpent = campaign.getConfigPointCost();
             user.setTotalPoint(user.getTotalPoint() - pointsSpent);
             userRepository.save(user);
+            
+            // 🔄 KHÔNG tạo bản ghi Point riêng cho việc tiêu điểm ở đây
+            // Sẽ được gộp chung với phần thưởng điểm (nếu có) trong processReward()
+            log.info("User {} spent {} points to open box in campaign {}", user.getId(), pointsSpent, campaign.getName());
         }
         
         userCampaignRepository.save(userCampaign);
 
         // 2. Process reward if not NONE
-        if (selectedReward.getType() != RewardType.NONE && selectedReward.getQuantityRemaining() > 0) {
-            processReward(user, selectedReward);
+        if (selectedReward.getType() != RewardType.NONE && selectedReward.getStock() > 0) {
+            processReward(user, selectedReward, campaign.getName(), pointsSpent);
             
-            // Update reward quantity
-            selectedReward.setQuantityRemaining(selectedReward.getQuantityRemaining() - 1);
+            // Update reward stock
+            selectedReward.setStock(selectedReward.getStock() - 1);
             rewardRepository.save(selectedReward);
+        } else if (pointsSpent > 0) {
+            // ✅ FIX: Trường hợp không trúng gì (NONE) nhưng đã chi điểm
+            Point spentOnlyPoint = new Point();
+            spentOnlyPoint.setUser(user);
+            spentOnlyPoint.setPointSpent(pointsSpent);
+            spentOnlyPoint.setDescription("Mở hộp chiến dịch: " + campaign.getName() + " (chi " + pointsSpent + " điểm, không trúng thưởng)");
+            spentOnlyPoint.setCreatedAt(System.currentTimeMillis());
+            spentOnlyPoint.setStatus((byte) 1);
+            pointRepository.save(spentOnlyPoint);
+            log.info("Created point record for {} points spent with no reward", pointsSpent);
         }
 
         // 3. Save box history
@@ -262,7 +283,7 @@ public class MinigameServiceImpl implements MinigameService {
         history.setOpenType(openType);
         history.setPointsSpent(pointsSpent);
         
-        if (selectedReward.getType() != RewardType.NONE && selectedReward.getQuantityRemaining() >= 0) {
+        if (selectedReward.getType() != RewardType.NONE && selectedReward.getStock() >= 0) {
             history.setReward(selectedReward);
             history.setRewardValue(getRewardValue(selectedReward));
         }
@@ -310,53 +331,57 @@ public class MinigameServiceImpl implements MinigameService {
         return response;
     }
 
-    private void processReward(User user, Reward reward) {
+    private void processReward(User user, Reward reward, String campaignName, Integer pointsSpent) {
         switch (reward.getType()) {
             case POINTS:
                 // Add points to user
                 user.setTotalPoint(user.getTotalPoint() + reward.getPointValue());
                 userRepository.save(user);
                 
-                // Create point history record
-                Point point = new Point();
-                point.setUser(user);
-                point.setPointEarned(reward.getPointValue());
-                point.setDescription("Trúng thưởng " + reward.getPointValue() + " điểm từ " + reward.getCampaign().getName());
-                point.setCreatedAt(System.currentTimeMillis()); // ✅ FIX: Set createdAt
-                point.setStatus((byte) 1);
-                pointRepository.save(point);
+                // 🔥 FIX: Tạo 1 bản ghi Point duy nhất với cả pointSpent và pointEarned
+                Point combinedPoint = new Point();
+                combinedPoint.setUser(user);
+                combinedPoint.setPointEarned(reward.getPointValue());
                 
-                log.info("Awarded {} points to user {}", reward.getPointValue(), user.getId());
+                if (pointsSpent > 0) {
+                    // ✅ GỘP: Bao gồm cả điểm chi và điểm nhận trong 1 record
+                    combinedPoint.setPointSpent(pointsSpent);
+                    combinedPoint.setDescription("Trúng thưởng " + reward.getPointValue() + " điểm từ chiến dịch " + campaignName + 
+                                               " (đã chi " + pointsSpent + " điểm để mở hộp)");
+                } else {
+                    combinedPoint.setDescription("Trúng thưởng " + reward.getPointValue() + " điểm từ chiến dịch " + campaignName + 
+                                               " (mở miễn phí)");
+                }
+                combinedPoint.setCreatedAt(System.currentTimeMillis());
+                combinedPoint.setStatus((byte) 1);
+                pointRepository.save(combinedPoint);
+                
+                log.info("🔥 FIXED: Combined point record - Awarded {} points to user {} (spent {} points to open box)", 
+                         reward.getPointValue(), user.getId(), pointsSpent);
                 break;
                 
             case VOUCHER:
+                // ✅ Tạo bản ghi riêng cho việc tiêu điểm (nếu có) khi nhận voucher
+                if (pointsSpent > 0) {
+                    Point spentPoint = new Point();
+                    spentPoint.setUser(user);
+                    spentPoint.setPointSpent(pointsSpent);
+                    spentPoint.setDescription("Mở hộp chiến dịch: " + campaignName + " (chi " + pointsSpent + " điểm)");
+                    spentPoint.setCreatedAt(System.currentTimeMillis());
+                    spentPoint.setStatus((byte) 1);
+                    pointRepository.save(spentPoint);
+                    log.info("Created separate point record for spending {} points to get voucher", pointsSpent);
+                }
+                
                 if (reward.getVoucher() != null) {
-                    // ✅ Check if user can receive this voucher
-                    if (!canUserReceiveVoucher(user.getId(), reward.getVoucher())) {
-                        log.warn("User {} has reached maximum limit for voucher {}", 
-                                user.getId(), reward.getVoucher().getCode());
-                        break; // Skip giving voucher if user has reached limit
-                    }
-                    
-                    // ✅ Check if user already has this voucher, update quantity or create new
-                    Optional<UserVoucher> existingUserVoucher = userVoucherRepository.findByUserIdAndVoucherId(user.getId(), reward.getVoucher().getId());
-                    
-                    if (existingUserVoucher.isPresent()) {
-                        // User already has this voucher, increase quantity
-                        UserVoucher userVoucher = existingUserVoucher.get();
-                        userVoucher.setQuantity(userVoucher.getQuantity() + 1);
-                        userVoucherRepository.save(userVoucher);
-                        log.info("Updated voucher {} quantity to {} for user {}", 
-                                reward.getVoucher().getCode(), userVoucher.getQuantity(), user.getId());
-                    } else {
-                        // User doesn't have this voucher, create new record
-                        UserVoucher userVoucher = new UserVoucher();
-                        userVoucher.setUser(user);
-                        userVoucher.setVoucher(reward.getVoucher());
-                        userVoucher.setQuantity(1);
-                        userVoucherRepository.save(userVoucher);
-                        log.info("Awarded new voucher {} to user {}", reward.getVoucher().getCode(), user.getId());
-                    }
+                    // 🔥 FIXED: Always create new UserVoucher record, no limit checking
+                    // User requirement: "không có ngăn ngừa gì hết phải tạo thêm bản ghi"
+                    UserVoucher userVoucher = new UserVoucher();
+                    userVoucher.setUser(user);
+                    userVoucher.setVoucher(reward.getVoucher());
+                    userVoucherRepository.save(userVoucher);
+                    log.info("✅ FIXED: Always awarded voucher {} to user {} (new record created)", 
+                             reward.getVoucher().getCode(), user.getId());
                 }
                 break;
                 
@@ -413,25 +438,78 @@ public class MinigameServiceImpl implements MinigameService {
     }
 
     /**
-     * Kiểm tra user có thể nhận voucher này không
+     * 🔥 REMOVED: No longer checking voucher limits per user request
+     * User requirement: "không có ngăn ngừa gì hết phải tạo thêm bản ghi"
      */
+    /*
     private boolean canUserReceiveVoucher(Integer userId, Voucher voucher) {
         if (voucher.getUsageLimitPerUser() == null) {
             return true; // No user limit set
         }
         
-        // Count how many vouchers of this type the user currently owns
-        Optional<UserVoucher> existingUserVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucher.getId());
+        // ✅ UPDATED: Đếm số records UserVoucher của user cho voucher này
+        // Mỗi record = 1 lần nhận voucher (không dùng quantity nữa)
+        List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
+                .filter(uv -> uv.getUser().getId().equals(userId) && 
+                             uv.getVoucher().getId().equals(voucher.getId()))
+                .toList();
         
-        if (existingUserVoucher.isEmpty()) {
-            return true; // First time receiving this voucher
+        return userVouchers.size() < voucher.getUsageLimitPerUser();
+    }
+    */
+    
+    /**
+     * 🔍 VALIDATION - Kiểm tra dữ liệu frontend có khớp với backend không
+     * Mục đích: Tránh trường hợp user đang xem giao diện cũ nhưng admin đã thay đổi config
+     */
+    private List<String> validateFrontendData(OpenBoxRequest request) {
+        List<String> errors = new java.util.ArrayList<>();
+        
+        try {
+            // 1. Validate campaign config
+            Campaign campaign = campaignRepository.findById(request.getCampaignId()).orElse(null);
+            if (campaign == null) {
+                errors.add("Chiến dịch không tồn tại");
+                return errors;
+            }
+            
+            // 2. Validate free limit
+            if (!request.getFrontendFreeLimit().equals(campaign.getConfigFreeLimit())) {
+                errors.add(String.format("Số lượt mở miễn phí đã thay đổi: %d → %d", 
+                          request.getFrontendFreeLimit(), campaign.getConfigFreeLimit()));
+            }
+            
+            // 3. Validate point cost
+            if (!request.getFrontendPointCost().equals(campaign.getConfigPointCost())) {
+                errors.add(String.format("Điểm cần để mở hộp đã thay đổi: %d → %d", 
+                          request.getFrontendPointCost(), campaign.getConfigPointCost()));
+            }
+            
+            // 4. Validate campaign time
+            if (!request.getFrontendStartDate().equals(campaign.getStartDate()) ||
+                !request.getFrontendEndDate().equals(campaign.getEndDate())) {
+                errors.add("Thời gian chiến dịch đã được cập nhật");
+            }
+            
+            // 5. Validate user point
+            User user = userRepository.findById(request.getUserId()).orElse(null);
+            if (user != null && !request.getFrontendUserPoint().equals(user.getTotalPoint())) {
+                errors.add(String.format("Điểm của bạn đã thay đổi: %d → %d", 
+                          request.getFrontendUserPoint(), user.getTotalPoint()));
+            }
+            
+            // 6. Validate user free opened count  
+            UserCampaign userCampaign = userCampaignRepository.findByUserIdAndCampaignId(request.getUserId(), request.getCampaignId()).orElse(null);
+            if (userCampaign != null && !request.getFrontendFreeOpenedCount().equals(userCampaign.getFreeOpenedCount())) {
+                errors.add(String.format("Số lần đã mở miễn phí đã thay đổi: %d → %d", 
+                          request.getFrontendFreeOpenedCount(), userCampaign.getFreeOpenedCount()));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error validating frontend data: ", e);
+            errors.add("Lỗi khi kiểm tra dữ liệu: " + e.getMessage());
         }
         
-        UserVoucher userVoucher = existingUserVoucher.get();
-        
-        // Check total quantity user can have (available + used should not exceed limit)
-        int totalReceivedCount = userVoucher.getQuantity() + userVoucher.getUsedCount();
-        
-        return totalReceivedCount < voucher.getUsageLimitPerUser();
+        return errors;
     }
 }

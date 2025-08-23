@@ -214,21 +214,23 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
         if (voucher == null || voucher.getUsageLimitPerUser() == null) return false;
 
-        UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucherId).orElse(null);
+        // ✅ UPDATED: Đếm số lần user đã sử dụng voucher này
+        // Không dùng quantity nữa, dựa vào usedCount của các UserVoucher records
+        List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
+                .filter(uv -> uv.getUser().getId().equals(userId) && 
+                             uv.getVoucher().getId().equals(voucherId))
+                .toList();
         
-        if (userVoucher == null) {
-            // First time using this voucher - check if user can receive more
-            return true;
-        }
-
-        // ✅ NEW: Check available quantity (not used yet) against usage limit
-        int availableQuantity = userVoucher.getQuantity() != null ? userVoucher.getQuantity() : 0;
-        int usedCount = userVoucher.getUsedCount() != null ? userVoucher.getUsedCount() : 0;
+        int totalUsedCount = userVouchers.stream()
+                .mapToInt(uv -> uv.getUsedCount() != null ? uv.getUsedCount() : 0)
+                .sum();
         
-        log.debug("🎫 canUserUseVoucher: userId={}, voucherId={}, availableQuantity={}, usedCount={}, usageLimitPerUser={}", 
-            userId, voucherId, availableQuantity, usedCount, voucher.getUsageLimitPerUser());
+        int availableCount = userVouchers.size() - totalUsedCount; // Số record chưa sử dụng
         
-        return availableQuantity > 0; // Can use if user has available vouchers
+        log.debug("🎫 canUserUseVoucher: userId={}, voucherId={}, totalRecords={}, totalUsedCount={}, availableCount={}, usageLimitPerUser={}", 
+            userId, voucherId, userVouchers.size(), totalUsedCount, availableCount, voucher.getUsageLimitPerUser());
+        
+        return availableCount > 0; // Can use if user has available vouchers
     }
 
     @Override
@@ -241,26 +243,22 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 voucherRepository.save(voucher);
             }
 
-            // ✅ NEW: Update user voucher usage - decrease quantity, increase usedCount
-            UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherId(userId, voucherId).orElse(null);
+            // ✅ UPDATED: Tìm UserVoucher record chưa sử dụng đầu tiên và mark là đã sử dụng
+            List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
+                    .filter(uv -> uv.getUser().getId().equals(userId) && 
+                                 uv.getVoucher().getId().equals(voucherId) &&
+                                 (uv.getUsedCount() == null || uv.getUsedCount() == 0))
+                    .toList();
             
-            if (userVoucher != null) {
-                // Decrease available quantity and increase used count
-                int currentQuantity = userVoucher.getQuantity() != null ? userVoucher.getQuantity() : 0;
-                int currentUsedCount = userVoucher.getUsedCount() != null ? userVoucher.getUsedCount() : 0;
+            if (!userVouchers.isEmpty()) {
+                UserVoucher firstAvailable = userVouchers.get(0);
+                firstAvailable.setUsedCount(1); // Mark as used
+                userVoucherRepository.save(firstAvailable);
                 
-                if (currentQuantity > 0) {
-                    userVoucher.setQuantity(currentQuantity - 1);
-                    userVoucher.setUsedCount(currentUsedCount + 1);
-                    userVoucherRepository.save(userVoucher);
-                    
-                    log.info("🎫 Updated voucher usage for user {} voucher {}: quantity {} -> {}, usedCount {} -> {}", 
-                        userId, voucherId, currentQuantity, currentQuantity - 1, currentUsedCount, currentUsedCount + 1);
-                } else {
-                    log.warn("⚠️ Attempted to use voucher {} but user {} has no available quantity", voucherId, userId);
-                }
+                log.info("🎫 Marked UserVoucher {} as used for user {} voucher {}", 
+                    firstAvailable.getId(), userId, voucherId);
             } else {
-                log.warn("⚠️ Attempted to use voucher {} but user {} has no voucher record", voucherId, userId);
+                log.warn("⚠️ Attempted to use voucher {} but user {} has no available voucher records", voucherId, userId);
             }
         }
     }

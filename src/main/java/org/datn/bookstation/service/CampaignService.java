@@ -37,6 +37,7 @@ public interface CampaignService {
      * Cập nhật trạng thái chiến dịch
      */
     void updateStatus(Integer id, Byte status, Integer updatedBy);
+    void toggleStatus(Integer id, Integer updatedBy);
     
     /**
      * Xóa chiến dịch

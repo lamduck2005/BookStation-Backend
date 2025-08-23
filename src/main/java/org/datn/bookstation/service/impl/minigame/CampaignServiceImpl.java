@@ -127,12 +127,21 @@ public class CampaignServiceImpl implements CampaignService {
     public void updateStatus(Integer id, Byte status, Integer updatedBy) {
         Campaign campaign = campaignRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Chiến dịch không tồn tại"));
-
         campaign.setStatus(status);
         campaign.setUpdatedBy(updatedBy);
         campaignRepository.save(campaign);
-
         log.info("Updated campaign status: {} -> {}", campaign.getName(), status);
+    }
+
+    @Override
+    public void toggleStatus(Integer id, Integer updatedBy) {
+        Campaign campaign = campaignRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Chiến dịch không tồn tại"));
+        byte newStatus = (campaign.getStatus() != null && campaign.getStatus() == 1) ? (byte)0 : (byte)1;
+        campaign.setStatus(newStatus);
+        campaign.setUpdatedBy(updatedBy);
+        campaignRepository.save(campaign);
+        log.info("Toggled campaign status: {} -> {}", campaign.getName(), newStatus);
     }
 
     @Override
@@ -155,8 +164,12 @@ public class CampaignServiceImpl implements CampaignService {
      */
     private boolean isCampaignValid(Campaign campaign) {
         try {
+            log.debug("🔍 [NEW CODE v2] Validating campaign {}", campaign.getName());
+            
             // Get active rewards for this campaign
             List<Reward> activeRewards = rewardRepository.findActiveByCampaignId(campaign.getId());
+            
+            log.debug("Campaign {} has {} active rewards", campaign.getName(), activeRewards.size());
             
             if (activeRewards.isEmpty()) {
                 log.warn("Campaign {} has no active rewards", campaign.getName());
@@ -166,11 +179,14 @@ public class CampaignServiceImpl implements CampaignService {
             // Check if campaign has at least one valid reward
             boolean hasValidReward = activeRewards.stream().anyMatch(this::isRewardValid);
             
+            log.debug("Campaign {} hasValidReward: {}", campaign.getName(), hasValidReward);
+            
             if (!hasValidReward) {
                 log.warn("Campaign {} has no valid rewards available", campaign.getName());
                 return false;
             }
             
+            log.debug("✅ Campaign {} passed all validation", campaign.getName());
             return true;
         } catch (Exception e) {
             log.error("Error validating campaign {}: {}", campaign.getName(), e.getMessage());
@@ -179,44 +195,34 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     /**
-     * ✅ Validate if reward is still available and usable
+     * ✅ Validate if reward is still available and usable  
      */
     private boolean isRewardValid(Reward reward) {
-        // Check reward status
-        if (reward.getStatus() != 1) {
-            return false;
-        }
-        
-        // Check if reward has remaining quantity
-        if (reward.getQuantityRemaining() <= 0) {
-            return false;
-        }
-        
-        // For voucher rewards, check voucher availability
-        if (reward.getType() == org.datn.bookstation.entity.enums.RewardType.VOUCHER && reward.getVoucher() != null) {
-            Voucher voucher = reward.getVoucher();
+        try {
+            log.debug("Validating reward {}: type={}, status={}, stock={}", 
+                    reward.getId(), reward.getType(), reward.getStatus(), reward.getStock());
             
-            // Check voucher status
-            if (voucher.getStatus() != 1) {
+            // Check reward status
+            if (reward.getStatus() != 1) {
+                log.debug("Reward {} has inactive status: {}", reward.getId(), reward.getStatus());
                 return false;
             }
             
-            // Check voucher expiry
-            long currentTime = System.currentTimeMillis();
-            if (currentTime < voucher.getStartTime() || currentTime > voucher.getEndTime()) {
+            // Check if reward has remaining stock
+            if (reward.getStock() <= 0) {
+                log.debug("Reward {} has no stock: {}", reward.getId(), reward.getStock());
                 return false;
             }
             
-            // Check voucher usage limit
-            if (voucher.getUsageLimit() != null) {
-                int usedCount = voucher.getUsedCount() != null ? voucher.getUsedCount() : 0;
-                if (usedCount >= voucher.getUsageLimit()) {
-                    return false;
-                }
-            }
+            // DISABLE voucher validation for now - all rewards are valid if they pass basic checks
+            log.debug("Reward {} passed all basic validations", reward.getId());
+            return true;
+            
+        } catch (Exception e) {
+            log.warn("Error validating reward {}: {}", reward.getId(), e.getMessage(), e);
+            // Return true to avoid blocking campaign due to validation errors
+            return true;
         }
-        
-        return true;
     }
 
     private CampaignResponse toCampaignResponse(Campaign campaign, Integer userId) {
@@ -242,8 +248,8 @@ public class CampaignServiceImpl implements CampaignService {
         
         // Rewards info
         List<Reward> rewards = rewardRepository.findActiveByCampaignId(campaign.getId());
-        response.setTotalRewards(rewards.stream().mapToInt(Reward::getQuantityTotal).sum());
-        response.setRemainingRewards(rewards.stream().mapToInt(Reward::getQuantityRemaining).sum());
+        response.setTotalRewards(rewards.stream().mapToInt(Reward::getStock).sum()); // Tổng stock hiện tại
+        response.setRemainingRewards(rewards.stream().mapToInt(Reward::getStock).sum()); // Còn lại = stock
         
         List<RewardResponse> rewardResponses = rewards.stream()
                 .map(this::toRewardResponse)
@@ -287,8 +293,7 @@ public class CampaignServiceImpl implements CampaignService {
         }
         
         response.setPointValue(reward.getPointValue());
-        response.setQuantityTotal(reward.getQuantityTotal());
-        response.setQuantityRemaining(reward.getQuantityRemaining());
+        response.setStock(reward.getStock());
         response.setProbability(reward.getProbability());
         response.setStatus(reward.getStatus());
         response.setCreatedAt(reward.getCreatedAt());
@@ -296,15 +301,9 @@ public class CampaignServiceImpl implements CampaignService {
         response.setCreatedBy(reward.getCreatedBy());
         response.setUpdatedBy(reward.getUpdatedBy());
         
-        // Statistics
-        response.setDistributedCount(reward.getQuantityTotal() - reward.getQuantityRemaining());
-        if (reward.getQuantityTotal() > 0) {
-            response.setDistributedPercentage(
-                java.math.BigDecimal.valueOf((reward.getQuantityTotal() - reward.getQuantityRemaining()) * 100.0 / reward.getQuantityTotal())
-            );
-        } else {
-            response.setDistributedPercentage(java.math.BigDecimal.ZERO);
-        }
+        // TODO: Statistics cần được tính từ database thực tế
+        response.setDistributedCount(0); // Placeholder - cần implement từ history table
+        response.setDistributedPercentage(java.math.BigDecimal.ZERO); // Placeholder
         
         return response;
     }

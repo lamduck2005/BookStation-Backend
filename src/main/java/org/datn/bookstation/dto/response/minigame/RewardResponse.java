@@ -27,8 +27,7 @@ public class RewardResponse {
     // Giá trị điểm (nếu có)
     private Integer pointValue;
     
-    private Integer quantityTotal;
-    private Integer quantityRemaining;
+    private Integer stock; // Số lượng còn lại
     private BigDecimal probability;
     private Byte status;
     
