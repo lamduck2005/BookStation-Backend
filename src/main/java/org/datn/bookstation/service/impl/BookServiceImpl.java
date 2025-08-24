@@ -1338,7 +1338,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - Enhanced với Quarter support
+     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - FIXED và loại bỏ growth calculation
      * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
      */
     @Override
@@ -1346,20 +1346,46 @@ public class BookServiceImpl implements BookService {
         try {
             log.info("📊 Getting book statistics details - period: {}, date: {}, limit: {}", period, date, limit);
             
-            // Parse timestamp và tính toán khoảng thời gian cụ thể
-            TimeRangeInfo timeRange = calculateTimeRangeFromTimestamp(period, date);
+            // FIXED: Parse timestamp và tính toán khoảng thời gian cụ thể - sử dụng CHÍNH XÁC logic generateWeeklySummary
+            TimeRangeInfo timeRange;
+            
+            if ("week".equalsIgnoreCase(period) || "weekly".equalsIgnoreCase(period)) {
+                // CRITICAL FIX: Use EXACTLY the same logic as generateWeeklySummary
+                LocalDate inputDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate();
+                
+                // Find the Monday of the week containing this date (EXACTLY like generateWeeklySummary)
+                LocalDate weekStart = inputDate.with(java.time.DayOfWeek.MONDAY);
+                LocalDate weekEnd = weekStart.plusDays(6);
+                
+                // Convert to timestamps - EXACTLY like generateWeeklySummary
+                long weekStartMs = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long weekEndMs = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                
+                // CRITICAL DEBUG: Print exact values  
+                log.error("🎯 WEEK DEBUG - Input timestamp: {}", date);
+                log.error("🎯 WEEK DEBUG - Input date: {} ({})", inputDate, inputDate.getDayOfWeek());
+                log.error("🎯 WEEK DEBUG - Week start: {} = {}", weekStart, weekStartMs);
+                log.error("🎯 WEEK DEBUG - Week end: {} = {}", weekEnd, weekEndMs);
+                log.error("🎯 WEEK DEBUG - Query range: {} to {}", weekStartMs, weekEndMs);
+                
+                timeRange = new TimeRangeInfo(weekStartMs, weekEndMs);
+            } else {
+                // Other periods use existing logic
+                timeRange = calculateTimeRangeFromTimestamp(period, date);
+            }
+            
+            log.info("📊 Calculated time range: {} to {} for period: {}", 
+                    Instant.ofEpochMilli(timeRange.getStartTime()).toString(), 
+                    Instant.ofEpochMilli(timeRange.getEndTime()).toString(), period);
             
             // Query top books trong khoảng thời gian đó
             List<Object[]> currentData = orderDetailRepository.findTopBooksByDateRange(
                     timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
             
-            // Query data kỳ trước để tính growth
-            TimeRangeInfo previousRange = calculatePreviousTimeRange(timeRange, period);
-            List<Object[]> previousData = orderDetailRepository.findTopBooksByDateRange(
-                    previousRange.getStartTime(), previousRange.getEndTime(), limit != null ? limit : 10);
+            log.info("📊 Found {} books in time range", currentData.size());
             
-            // Build response với growth comparison
-            List<Map<String, Object>> detailsData = buildDetailsWithGrowth(currentData, previousData);
+            // Build response WITHOUT growth comparison (yêu cầu loại bỏ)
+            List<Map<String, Object>> detailsData = buildDetailsWithoutGrowth(currentData);
             
             String message = String.format("Book details retrieved successfully for %s on %s", period, date);
             return new ApiResponse<>(200, message, detailsData);
@@ -1448,12 +1474,18 @@ public class BookServiceImpl implements BookService {
     private TimeRangeInfo calculateTimeRangeFromTimestamp(String period, Long timestamp) {
         long targetTime = timestamp;
         
+        log.info("🔍 DEBUG: calculateTimeRangeFromTimestamp - period: {}, timestamp: {} ({})", 
+                period, targetTime, Instant.ofEpochMilli(targetTime).toString());
+        
         switch (period.toLowerCase()) {
             case "day":
             case "daily":
                 // Lấy từ 00:00:00 đến 23:59:59 của ngày đó
                 long dayStart = getStartOfDay(targetTime);
                 long dayEnd = dayStart + (24 * 60 * 60 * 1000L) - 1;
+                log.info("🔍 DEBUG: Day range - {} to {}", 
+                        Instant.ofEpochMilli(dayStart).toString(), 
+                        Instant.ofEpochMilli(dayEnd).toString());
                 return new TimeRangeInfo(dayStart, dayEnd);
                 
             case "week":
@@ -1461,6 +1493,9 @@ public class BookServiceImpl implements BookService {
                 // Lấy tuần chứa timestamp đó
                 long weekStart = getStartOfWeek(targetTime);
                 long weekEnd = weekStart + (7 * 24 * 60 * 60 * 1000L) - 1;
+                log.info("🔍 DEBUG: Week range - {} to {}", 
+                        Instant.ofEpochMilli(weekStart).toString(), 
+                        Instant.ofEpochMilli(weekEnd).toString());
                 return new TimeRangeInfo(weekStart, weekEnd);
                 
             case "month":
@@ -1526,8 +1561,43 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * Build response data với growth comparison (ĐÚNG DỮ LIỆU THỰC TỪ DATABASE)
+     * Build book details WITHOUT growth calculation (yêu cầu loại bỏ)
      */
+    private List<Map<String, Object>> buildDetailsWithoutGrowth(List<Object[]> currentData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Xử lý từng book trong currentData
+        for (Object[] current : currentData) {
+            Integer bookId = (Integer) current[0];
+            String bookCode = (String) current[1];
+            String bookName = (String) current[2]; 
+            String isbn = (String) current[3];
+            BigDecimal price = (BigDecimal) current[4];
+            Long currentQuantity = ((Number) current[5]).longValue();
+            BigDecimal currentRevenue = (BigDecimal) current[6];
+            
+            Map<String, Object> bookDetail = new HashMap<>();
+            bookDetail.put("bookCode", bookCode);
+            bookDetail.put("title", bookName);  // Use "title" field for consistency with frontend
+            bookDetail.put("isbn", isbn);
+            bookDetail.put("currentPrice", price);
+            bookDetail.put("revenue", currentRevenue);
+            bookDetail.put("totalQuantity", currentQuantity);  // Use "totalQuantity" field for consistency
+            
+            // REMOVED: Tất cả logic growth calculation theo yêu cầu
+            // Không có: revenueGrowthPercent, revenueGrowthValue, revenueGrowthLabel
+            // Không có: quantityGrowthPercent, quantityGrowthValue, quantityGrowthLabel
+            
+            result.add(bookDetail);
+        }
+        
+        return result;
+    }
+
+    /**
+     * DEPRECATED: Build response data với growth comparison (không dùng nữa)
+     */
+    @SuppressWarnings("unused")
     private List<Map<String, Object>> buildDetailsWithGrowth(List<Object[]> currentData, List<Object[]> previousData) {
         List<Map<String, Object>> result = new ArrayList<>();
         
@@ -1673,10 +1743,16 @@ public class BookServiceImpl implements BookService {
     }
     
     private long getStartOfWeek(long timestamp) {
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        cal.setTimeInMillis(timestamp);
-        cal.set(java.util.Calendar.DAY_OF_WEEK, cal.getFirstDayOfWeek());
-        return getStartOfDay(cal.getTimeInMillis());
+        // FIX: Sử dụng logic CONSISTENT với generateWeeklySummary
+        LocalDate date = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate weekStart = date.with(java.time.DayOfWeek.MONDAY);
+        long result = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        
+        log.info("🔍 DEBUG: getStartOfWeek - input: {} ({}), calculated Monday: {} ({})", 
+                timestamp, Instant.ofEpochMilli(timestamp).toString(),
+                result, Instant.ofEpochMilli(result).toString());
+        
+        return result;
     }
     
     private long getStartOfMonth(long timestamp) {

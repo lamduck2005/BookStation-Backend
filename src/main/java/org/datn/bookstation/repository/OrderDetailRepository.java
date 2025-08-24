@@ -94,7 +94,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     List<Object[]> findBookSalesSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
     // 📚 Book Statistics API - Top books by date range (FIXED: Net revenue with refunds deducted)
-    @Query(value = "SELECT " +
+    @Query(value = "SELECT TOP (:limit) " +
            "    od.book_id as bookId, " +
            "    b.book_code, " +
            "    b.book_name, " +
@@ -119,6 +119,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
            "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
            "GROUP BY od.book_id, b.book_code, b.book_name, b.isbn, b.price " +
+           "HAVING SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) > 0 " +
            "ORDER BY quantitySold DESC", nativeQuery = true)
     List<Object[]> findTopBooksByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate, @Param("limit") Integer limit);
 }
