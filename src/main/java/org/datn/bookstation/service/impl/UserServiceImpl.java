@@ -17,7 +17,7 @@ import org.datn.bookstation.specification.UserRankSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+//import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -191,16 +191,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ApiResponse<User> updateClient(User user, Integer id) {
-        User userById = userRepository.findById(id).get();
-        if (userById == null) {
-            return new ApiResponse<>(404, "Không tìm thấy", null);
+        // Kiểm tra id có tồn tại không
+        Optional<User> optionalUser = userRepository.findById(id);
+        if (optionalUser.isEmpty()) {
+            return new ApiResponse<>(404, "Không tìm thấy người dùng với id = " + id, null);
         }
+
+        // Lấy user từ DB
+        User userById = optionalUser.get();
+
+        // Validate dữ liệu đầu vào
+        if (user.getFullName() == null || user.getFullName().trim().isEmpty()) {
+            return new ApiResponse<>(400, "Họ tên không được để trống", null);
+        }
+
+        if (user.getPhoneNumber() == null || !user.getPhoneNumber().matches("^(0\\d{9})$")) {
+            return new ApiResponse<>(400, "Số điện thoại không hợp lệ (phải có 10 số và bắt đầu bằng 0)", null);
+        }
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            return new ApiResponse<>(400, "Email không được để trống", null);
+        }
+        if (!user.getEmail().matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+            return new ApiResponse<>(400, "Email không đúng định dạng", null);
+        }
+        // Cập nhật thông tin
         userById.setUpdatedAt(System.currentTimeMillis());
-        userById.setFullName(user.getFullName());
-        userById.setPhoneNumber(user.getPhoneNumber());
+        userById.setFullName(user.getFullName().trim());
+        userById.setEmail(user.getEmail().trim());
+        userById.setPhoneNumber(user.getPhoneNumber().trim());
+
+
         User userUpdate = userRepository.save(userById);
+
         return new ApiResponse<>(200, "Cập nhật thông tin thành công", userUpdate);
     }
+
 
     @Override
     public ApiResponse<List<UserRoleRequest>> getUserPOS(String text) {
