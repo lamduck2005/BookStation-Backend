@@ -69,15 +69,27 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT 1 as bookId, 'Sample' as title, 0 as quantity, 0.0 as revenue")
     List<Object[]> findBookPerformanceDataByDateRange(@Param("startDate") long startDate, @Param("endDate") long endDate);
     
-    // 📊 Book Statistics API - Summary by date range (simple version)
+    // 📊 Book Statistics API - Summary by date range (FIXED VERSION with refunds and Vietnam timezone)
     @Query(value = "SELECT " +
-           "    CAST(DATEADD(SECOND, o.created_at / 1000, '1970-01-01') AS DATE) as saleDate, " +
-           "    SUM(od.quantity) as totalBooksSold " +
+           "    CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) as saleDate, " +
+           "    COALESCE(SUM(od.quantity), 0) - COALESCE(SUM(refunds.refund_quantity), 0) as netBooksSold, " +
+           "    COALESCE(SUM((od.unit_price * od.quantity) - COALESCE(od.voucher_discount_amount, 0)), 0) as netRevenue " +
            "FROM order_detail od " +
            "JOIN [order] o ON od.order_id = o.id " +
+           "LEFT JOIN ( " +
+           "    SELECT " +
+           "        od2.order_id, " +
+           "        od2.book_id, " +
+           "        SUM(ri.refund_quantity) as refund_quantity " +
+           "    FROM refund_item ri " +
+           "    JOIN refund_request rr ON ri.refund_request_id = rr.id " +
+           "    JOIN order_detail od2 ON rr.order_id = od2.order_id AND ri.book_id = od2.book_id " +
+           "    WHERE rr.status IN ('APPROVED', 'COMPLETED') " +
+           "    GROUP BY od2.order_id, od2.book_id " +
+           ") refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id " +
            "WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
-           "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
-           "GROUP BY CAST(DATEADD(SECOND, o.created_at / 1000, '1970-01-01') AS DATE) " +
+           "  AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+           "GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) " +
            "ORDER BY saleDate", nativeQuery = true)
     List<Object[]> findBookSalesSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
