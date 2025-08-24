@@ -1805,13 +1805,9 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 LOGIC THÔNG MINH MỚI: Sử dụng TOÀN BỘ dữ liệu từ fromDate-toDate
-     * - Nếu đủ dữ liệu cho period → giữ nguyên period như frontend yêu cầu
-     * - Nếu không đủ dữ liệu → hạ cấp xuống period nhỏ hơn  
-     * - QUAN TRỌNG: Luôn dùng TOÀN BỘ fromDate-toDate, KHÔNG cắt dữ liệu
-     * 
-     * VD: T1/2024 → T8/2025 (19 tháng) + period=year 
-     *     → Trả về yearly với TOÀN BỘ 19 tháng (không cắt 8 tháng năm 2025)
+     * 🔥 STRICT VALIDATION: No auto-downgrade, return exact period or null for validation error
+     * - User yêu cầu: Báo lỗi thay vì auto-downgrade
+     * - Validation được thực hiện sau method này
      */
     private PeriodCalculationResult calculateCustomPeriodRange(String period, Long fromDate, Long toDate) {
         long duration = toDate - fromDate;
@@ -1820,55 +1816,28 @@ public class BookServiceImpl implements BookService {
         log.info("🔥 Custom period analysis: {} with {} days duration", period, daysDuration);
         log.info("🔥 USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
         
+        // KHÔNG auto-downgrade, chỉ return period như user request
+        // Validation sẽ được thực hiện ở validateDateRangeForPeriod method
         switch (period.toLowerCase()) {
             case "year":
-                if (daysDuration >= 180) { // Ít nhất 6 tháng để có thể phân tích theo năm
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL yearly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "yearly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích năm → hạ xuống quý
-                    log.info("🔥 Not enough data for yearly analysis ({} days < 180), downgrading to quarter", daysDuration);
-                    return calculateCustomPeriodRange("quarter", fromDate, toDate);
-                }
+                log.info("✅ Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "yearly");
                 
             case "quarter":
-                if (daysDuration >= 45) { // Ít nhất 1.5 tháng để có thể phân tích theo quý
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL quarterly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "quarterly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích quý → hạ xuống tháng
-                    log.info("🔥 Not enough data for quarterly analysis ({} days < 45), downgrading to month", daysDuration);
-                    return calculateCustomPeriodRange("month", fromDate, toDate);
-                }
+                log.info("✅ Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "quarterly");
                 
             case "month":
-                if (daysDuration >= 14) { // Ít nhất 2 tuần để có thể phân tích theo tháng
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL monthly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "monthly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích tháng → hạ xuống tuần
-                    log.info("🔥 Not enough data for monthly analysis ({} days < 14), downgrading to week", daysDuration);
-                    return calculateCustomPeriodRange("week", fromDate, toDate);
-                }
+                log.info("✅ Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "monthly");
                 
             case "week":
-                if (daysDuration >= 3) { // Ít nhất 3 ngày để có thể phân tích theo tuần
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt  
-                    log.info("✅ Using FULL weekly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "weekly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích tuần → hạ xuống ngày
-                    log.info("🔥 Not enough data for weekly analysis ({} days < 3), downgrading to day", daysDuration);
-                    return calculateCustomPeriodRange("day", fromDate, toDate);
-                }
+                log.info("✅ Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "weekly");
                 
             case "day":
             default:
-                // Ngày luôn được chấp nhận và sử dụng TOÀN BỘ fromDate-toDate
-                log.info("✅ Using FULL daily range: {} days", daysDuration);
+                log.info("✅ Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "daily");
         }
     }
@@ -2256,32 +2225,57 @@ public class BookServiceImpl implements BookService {
         
         switch (periodType.toLowerCase()) {
             case "daily":
+                // Minimum: ít nhất 1 ngày
+                if (durationDays < 1) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ ngày (tối thiểu 1 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 90 ngày
                 if (durationDays > 90) {
                     return "Khoảng thời gian quá lớn cho chế độ ngày (tối đa 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
                 }
                 break;
             
             case "weekly":
+                // Minimum: ít nhất 7 ngày (1 tuần)
+                if (durationDays < 7) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tuần (tối thiểu 7 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 2 năm
                 if (durationYears > 2) {
                     return "Khoảng thời gian quá lớn cho chế độ tuần (tối đa 2 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
                 }
                 break;
             
             case "monthly":
-                if (durationYears > 10) {
-                    return "Khoảng thời gian quá lớn cho chế độ tháng (tối đa 10 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                // Minimum: ít nhất 28 ngày (1 tháng)
+                if (durationDays < 28) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tháng (tối thiểu 28 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ tháng (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
                 }
                 break;
             
             case "quarterly":
-                if (durationYears > 10) {
-                    return "Khoảng thời gian quá lớn cho chế độ quý (tối đa 10 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                // Minimum: ít nhất 90 ngày (1 quý)
+                if (durationDays < 90) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ quý (tối thiểu 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ quý (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
                 }
                 break;
             
             case "yearly":
-                if (durationYears > 30) {
-                    return "Khoảng thời gian quá lớn cho chế độ năm (tối đa 30 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                // Minimum: ít nhất 365 ngày (1 năm)
+                if (durationDays < 365) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ năm (tối thiểu 365 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 25 năm
+                if (durationYears > 25) {
+                    return "Khoảng thời gian quá lớn cho chế độ năm (tối đa 25 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
                 }
                 break;
         }
