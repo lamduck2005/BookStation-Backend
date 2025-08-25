@@ -29,7 +29,6 @@ import org.datn.bookstation.service.TrendingCacheService;
 import org.datn.bookstation.service.FlashSaleItemService;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
-import org.datn.bookstation.repository.ReviewRepository;
 import org.datn.bookstation.util.DateTimeUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,7 +36,9 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,7 +59,7 @@ public class BookController {
     private final FlashSaleItemService flashSaleItemService;
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final OrderDetailRepository orderDetailRepository;
-    private final ReviewRepository reviewRepository;
+    private final org.datn.bookstation.service.BookProcessingQuantityService bookProcessingQuantityService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginationResponse<BookResponse>>> getAll(
@@ -532,9 +533,54 @@ public class BookController {
     }
     
     /**
-     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75% với thông tin sentiment chi tiết
-     * GET /api/books/high-positive-rating
+     * � DEBUG ENDPOINT - Test week calculation
+     * GET /api/books/debug-week-calculation
      */
+    @GetMapping("/debug-week-calculation")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> debugWeekCalculation(
+            @RequestParam Long timestamp) {
+        
+        Map<String, Object> debug = new HashMap<>();
+        
+        // Input timestamp info
+        LocalDate inputDate = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDate();
+        debug.put("inputTimestamp", timestamp);
+        debug.put("inputDate", inputDate.toString());
+        debug.put("inputDayOfWeek", inputDate.getDayOfWeek().toString());
+        
+        // Calculate week range
+        LocalDate weekStart = inputDate.with(java.time.DayOfWeek.MONDAY);
+        LocalDate weekEnd = weekStart.plusDays(6);
+        long startTime = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long endTime = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        
+        debug.put("weekStart", weekStart.toString());
+        debug.put("weekEnd", weekEnd.toString());
+        debug.put("startTimestamp", startTime);
+        debug.put("endTimestamp", endTime);
+        debug.put("startInstant", Instant.ofEpochMilli(startTime).toString());
+        debug.put("endInstant", Instant.ofEpochMilli(endTime).toString());
+        
+        // Test what data is found in this range
+        List<Object[]> testData = orderDetailRepository.findTopBooksByDateRange(startTime, endTime, 10);
+        debug.put("booksFoundCount", testData.size());
+        
+        if (!testData.isEmpty()) {
+            List<Map<String, Object>> books = new ArrayList<>();
+            for (Object[] row : testData) {
+                Map<String, Object> book = new HashMap<>();
+                book.put("bookId", row[0]);
+                book.put("bookCode", row[1]);
+                book.put("bookName", row[2]);
+                book.put("quantitySold", row[5]);
+                books.add(book);
+            }
+            debug.put("booksFound", books);
+        }
+        
+        ApiResponse<Map<String, Object>> response = new ApiResponse<>(200, "Debug info", debug);
+        return ResponseEntity.ok(response);
+    }
     @GetMapping("/high-positive-rating")
     public ResponseEntity<ApiResponse<PaginationResponse<BookSentimentResponse>>> getBooksWithHighPositiveRating(
             @RequestParam(defaultValue = "0") int page,
@@ -543,41 +589,17 @@ public class BookController {
         return ResponseEntity.ok(response);
     }
     
-    // 🔍 DEBUG: Test endpoint đơn giản  
-    @GetMapping("/debug/test")
-    public ResponseEntity<?> debugTest() {
-        return ResponseEntity.ok(Map.of("status", 200, "message", "Debug test works"));
-    }
-    
-    // 🔥 DEBUG: Test endpoint để kiểm tra raw data
-    @GetMapping("/debug/raw-data")
-    public ResponseEntity<?> debugRawData() {
+    // ✅ API lấy processing quantity cho một sách
+    @GetMapping("/processing-quantity/{bookId}")
+    public ResponseEntity<ApiResponse<Integer>> getProcessingQuantity(@PathVariable Integer bookId) {
         try {
-            long currentTime = System.currentTimeMillis();
-            long startTime = currentTime - (7 * 24 * 60 * 60 * 1000L); // 7 days ago
-            
-            List<Object[]> rawData = orderDetailRepository.findBookPerformanceDataByDateRange(startTime, currentTime);
-            
-            // Lấy first 3 records để debug
-            List<Map<String, Object>> debugData = new ArrayList<>();
-            for (int i = 0; i < Math.min(3, rawData.size()); i++) {
-                Object[] row = rawData.get(i);
-                Map<String, Object> record = new HashMap<>();
-                record.put("bookId", row[0]);
-                record.put("bookTitle", row[1]);
-                record.put("bookCode", row[2]);
-                record.put("isbn", row[3]);
-                record.put("quantity", row[4]);
-                record.put("revenue", row[5]);
-                record.put("orderTime", row[6]);
-                debugData.add(record);
-            }
-            
-            return ResponseEntity.ok(debugData);
+            Integer processingQuantity = bookProcessingQuantityService.getProcessingQuantity(bookId);
+            return ResponseEntity.ok(new ApiResponse<>(200, "Lấy processing quantity thành công", processingQuantity));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+            return ResponseEntity.ok(new ApiResponse<>(500, "Lỗi khi lấy processing quantity: " + e.getMessage(), null));
         }
     }
+
     @GetMapping("/isbn/{isbn}")
     public ResponseEntity<ApiResponse<PosBookItemResponse>> getByIsbn(@PathVariable String isbn) {
         ApiResponse<PosBookItemResponse> resp = bookService.getBookByIsbn(isbn);

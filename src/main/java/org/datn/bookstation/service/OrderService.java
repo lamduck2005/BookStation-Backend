@@ -12,6 +12,7 @@ import org.datn.bookstation.entity.Order;
 import org.datn.bookstation.entity.enums.OrderStatus;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface OrderService {
@@ -104,4 +105,31 @@ public interface OrderService {
     ApiResponse<List<RevenueStatsResponse>> getMonthlySoldQuantity();
 
     ApiResponse<Long> getTotalDeliveredOrders();
+
+    // ================================================================
+    // ORDER STATISTICS APIs - 2-TIER ARCHITECTURE
+    // ================================================================
+
+    /**
+     * 📊 API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary) - WITH SUMMARY TOTALS
+     * Trả về dữ liệu tổng quan theo thời gian: tổng đơn, đơn hoàn thành, đơn hủy, đơn hoàn, doanh thu, AOV
+     * PLUS: Summary totals cho toàn bộ period
+     * 
+     * @param period day/week/month/quarter/year/custom (mặc định day)
+     * @param fromDate timestamp bắt đầu (tùy chọn - bắt buộc nếu period=custom)
+     * @param toDate timestamp kết thúc (tùy chọn - bắt buộc nếu period=custom)
+     * @return Map với "data" array + summary totals (totalOrdersSum, totalRevenueSum, averageAOV, completionRate)
+     */
+    ApiResponse<Map<String, Object>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate);
+
+    /**
+     * 📊 API THỐNG KÊ CHI TIẾT ĐỚN HÀNG - TIER 2 (Details)
+     * Trả về danh sách chi tiết đơn hàng khi user click vào điểm cụ thể trên chart
+     * 
+     * @param period day/week/month/quarter/year (loại khoảng thời gian)
+     * @param date timestamp số đại diện cho khoảng thời gian cần xem
+     * @param limit số lượng đơn hàng muốn lấy (mặc định 10)
+     * @return Danh sách chi tiết đơn hàng với thông tin khách hàng và sản phẩm
+     */
+    ApiResponse<List<Map<String, Object>>> getOrderStatisticsDetails(String period, Long date, Integer limit);
 }

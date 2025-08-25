@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
+import org.datn.bookstation.dto.response.CustomerDropdownResponse;
 
 import org.datn.bookstation.entity.UserRank;
 import org.datn.bookstation.repository.UserRepository;
@@ -71,15 +72,18 @@ public class UserController {
     }
 
     /**
-     * API lấy danh sách user dạng dropdown (id, name) cho frontend làm khoá ngoại
+     * API lấy danh sách khách hàng dạng dropdown (id, name, email) cho frontend làm khoá ngoại
+     * Hỗ trợ tìm kiếm theo tên hoặc email
+     * @param search Từ khóa tìm kiếm (tên hoặc email), nếu không truyền thì lấy tất cả khách hàng
      */
     @GetMapping("/dropdown")
-    public ResponseEntity<ApiResponse<List<DropdownOptionResponse>>> getDropdownUsers() {
-        List<DropdownOptionResponse> dropdown = userService.getActiveUsers().stream()
-                .map(user -> new DropdownOptionResponse(user.getId(), user.getFullName()))
+    public ResponseEntity<ApiResponse<List<CustomerDropdownResponse>>> getDropdownCustomers(
+            @RequestParam(required = false) String search) {
+        List<CustomerDropdownResponse> dropdown = userService.searchCustomersForDropdown(search).stream()
+                .map(user -> new CustomerDropdownResponse(user.getId(), user.getFullName(), user.getEmail()))
                 .collect(Collectors.toList());
-        ApiResponse<List<DropdownOptionResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
-                "Lấy danh sách user thành công", dropdown);
+        ApiResponse<List<CustomerDropdownResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
+                "Lấy danh sách khách hàng thành công", dropdown);
         return ResponseEntity.ok(response);
     }
 

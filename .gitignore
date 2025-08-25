@@ -6,7 +6,7 @@ target/
 !**/src/test/**/target/
 uploads/
 
-
+documents/
 ### STS ###
 .apt_generated
 .classpath

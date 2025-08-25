@@ -232,6 +232,27 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<User> searchCustomersForDropdown(String search) {
+        // Lấy tất cả user có role CUSTOMER và status = 1 (active)
+        List<User> customers = userRepository.findAll().stream()
+                .filter(u -> u.getStatus() != null && u.getStatus() == 1) // Active users only
+                .filter(u -> u.getRole() != null && "CUSTOMER".equals(u.getRole().getRoleName().name())) // Only customers
+                .collect(Collectors.toList());
+
+        // Nếu không có search term hoặc rỗng, trả về tất cả customers
+        if (search == null || search.trim().isEmpty()) {
+            return customers;
+        }
+
+        // Lọc theo tên hoặc email (case insensitive)
+        String searchLower = search.trim().toLowerCase();
+        return customers.stream()
+                .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(searchLower)) ||
+                           (u.getEmail() != null && u.getEmail().toLowerCase().contains(searchLower)))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public ApiResponse<List<TopSpenderResponse>> getTopSpenders(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         List<TopSpenderResponse> result = userRepository.findTopSpenders(pageable);
