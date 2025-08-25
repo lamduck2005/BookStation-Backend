@@ -795,12 +795,16 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public ApiResponse<List<BookSearchRequest>> getBookByName(String text) {
+    public ApiResponse<List<FlashSaleItemBookRequest>> getBookByName(String text) {
         Specification<Book> bookSpecification = BookSpecification.filterBy(text);
         Pageable pageable = PageRequest.of(0, 5); // Trang đầu tiên (0), 5 bản ghi
         List<Book> books = bookRepository.findAll(bookSpecification, pageable).getContent();
 
-        return new ApiResponse<>(200, "Lấy được books search rồi", bookCategoryMapper.bookSearchMapper(books));
+        List<FlashSaleItemBookRequest> bookResponses = books.stream()
+                .map(book -> BookFlashSaleMapper.mapToFlashSaleItemBookRequest(book, flashSaleItemRepository, orderDetailRepository))
+                .collect(Collectors.toList());
+
+        return new ApiResponse<>(200, "Lấy được books search rồi", bookResponses);
     }
 
     @Override

@@ -3,6 +3,7 @@ package org.datn.bookstation.specification;
 import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.UserRank;
+import org.datn.bookstation.entity.enums.RoleName;
 import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -39,6 +40,10 @@ public class UserRankSpecification {
     public static Specification<User> filterBy(String text) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            // Chỉ lấy user có role là CUSTOMER
+            predicates.add(criteriaBuilder.equal(root.get("role").get("roleName"),
+                   RoleName.CUSTOMER));
 
             if (text != null && !text.trim().isEmpty()) {
                 Predicate fullNamePredicate = criteriaBuilder.like(

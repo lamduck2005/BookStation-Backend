@@ -60,9 +60,12 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String phone_number,
             @RequestParam(required = false) Integer role_id,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+                        @RequestParam(required = false) Integer userId
+
+            ) {
         PaginationResponse<UserResponse> users = userService.getAllWithPagination(
-                page, size, full_name, email, phone_number, role_id, status);
+                page, size, full_name, email, phone_number, role_id, status,userId);
         ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
                 users);
         return ResponseEntity.ok(response);

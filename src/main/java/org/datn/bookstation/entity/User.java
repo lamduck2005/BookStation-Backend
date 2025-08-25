@@ -66,6 +66,10 @@ public class User {
     @Column(name = "total_point")
     private Integer totalPoint;
 
+    @ColumnDefault("0")
+    @Column(name = "email_verified")
+    private Byte emailVerified;
+
     @Column(name = "total_spent", precision = 10, scale = 2)
     private BigDecimal totalSpent;
 

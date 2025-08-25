@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface UserService {
     // Chuẩn REST: Phân trang, lọc, trả về PaginationResponse<UserResponse>
     PaginationResponse<UserResponse> getAllWithPagination(int page, int size, String fullName, String email,
-            String phoneNumber, Integer roleId, String status);
+            String phoneNumber, Integer roleId, String status,Integer userId);
 
     // Trả về UserResponse theo id
     Optional<UserResponse> getUserResponseById(Integer id);

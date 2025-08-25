@@ -14,6 +14,7 @@ import org.datn.bookstation.dto.response.CheckoutSessionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.CartItemResponse;
 import org.datn.bookstation.entity.*;
+import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.mapper.CheckoutSessionMapper;
 import org.datn.bookstation.mapper.CheckoutSessionResponseMapper;
 import org.datn.bookstation.repository.*;
@@ -486,31 +487,31 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                         sessionId, markEx.getMessage());
                 }
 
-                // 7. 🔄 CLEAR CART AFTER SUCCESSFUL ORDER CREATION
+                // 7.  CLEAR CART AFTER SUCCESSFUL ORDER CREATION
                 try {
                     cartService.clearCart(userId);
-                    log.info("✅ Cart cleared for user {} after successful order creation", userId);
+                    log.info(" Cart cleared for user {} after successful order creation", userId);
                 } catch (Exception cartEx) {
                     // Không throw error vì order đã tạo thành công, chỉ log warning
-                    log.warn("⚠️ Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
+                    log.warn(" Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
                 }
 
                 // 8. Đặt hết hạn các session cũ (status != 2) để tránh user back-order
                 try {
                     int expiredCount = checkoutSessionRepository.expireSessionsExceptCompleted(userId, System.currentTimeMillis());
-                    log.info("✅ Expired {} old sessions for user {} after order creation", expiredCount, userId);
+                    log.info(" Expired {} old sessions for user {} after order creation", expiredCount, userId);
                 } catch (Exception expireEx) {
-                    log.warn("⚠️  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
+                    log.warn("  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
                 }
 
                 String orderCode = orderResponse.getData().getCode();
-                log.info("✅ Successfully created order: {} from session: {}", orderCode, sessionId);
+                log.info(" Successfully created order: {} from session: {}", orderCode, sessionId);
 
                 return new ApiResponse<>(201, "Đặt hàng thành công! Mã đơn hàng: " + orderCode, orderCode);
             }
 
         } catch (Exception e) {
-            log.error("💥 Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
+            log.error(" Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
             
             // Phân tích chi tiết lỗi cho user
             String userFriendlyError = analyzeExceptionForUserMessage(e);
@@ -1089,7 +1090,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
             try {
-                log.info("🎫 Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
+                log.info(" Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
                 
                 // Create a temporary order for voucher calculation
                 Order tempOrder = new Order();
@@ -1452,12 +1453,15 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         orderRequest.setOrderType("ONLINE"); // Default order type for checkout sessions
         orderRequest.setNotes(session.getNotes());
         
-        //  SET PAYMENT METHOD FROM SESSION
+        // SET PAYMENT METHOD FROM SESSION
         if (session.getPaymentMethod() != null) {
             orderRequest.setPaymentMethod(session.getPaymentMethod());
         } else {
             orderRequest.setPaymentMethod("COD"); // Default COD if not specified
         }
+        
+        // SET ORDER STATUS - Default PENDING, will be overridden to CONFIRMED for VNPAY in OrderService
+        orderRequest.setOrderStatus(OrderStatus.PENDING);
 
         // Log session data for debugging
         log.debug("Building OrderRequest from session {}: subtotal={}, totalAmount={}, shippingFee={}", 
