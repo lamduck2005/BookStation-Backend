@@ -36,6 +36,13 @@ public interface UserService {
      */
     List<User> getActiveUsers();
 
+    /**
+     * Tìm kiếm khách hàng (role CUSTOMER) theo tên hoặc email cho dropdown
+     * @param search Từ khóa tìm kiếm (có thể là tên hoặc email, null/empty thì trả tất cả)
+     * @return Danh sách khách hàng với id, tên, email
+     */
+    List<User> searchCustomersForDropdown(String search);
+
     ApiResponse<User> getUserByEmail(String email);
 
     ApiResponse<User> updateClient(User user, Integer id);

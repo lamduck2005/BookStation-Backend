@@ -71,7 +71,7 @@ public class UserServiceImpl implements UserService {
         
         // Filter theo status
         if (status != null && !status.trim().isEmpty()) {
-            Byte statusByte = "ACTIVE".equalsIgnoreCase(status) ? (byte) 1 : (byte) 0;
+            Byte statusByte = "1".equals(status) ? (byte) 1 : (byte) 0;
             spec = spec.and((root, query, cb) -> 
                 cb.equal(root.get("status"), statusByte));
         }
@@ -153,7 +153,7 @@ public class UserServiceImpl implements UserService {
         user.setFullName(req.getFull_name());
         user.setEmail(req.getEmail());
         user.setPhoneNumber(req.getPhone_number());
-        user.setStatus(parseStatus(req.getStatus(), user.getStatus()));
+        user.setStatus(Byte.parseByte(req.getStatus()));
         user.setUpdatedAt(System.currentTimeMillis());
         user.setTotalSpent(req.getTotal_spent() != null ? req.getTotal_spent() : user.getTotalSpent());
         user.setTotalPoint(req.getTotal_point() != null ? req.getTotal_point() : user.getTotalPoint());
@@ -257,6 +257,27 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<User> searchCustomersForDropdown(String search) {
+        // Lấy tất cả user có role CUSTOMER và status = 1 (active)
+        List<User> customers = userRepository.findAll().stream()
+                .filter(u -> u.getStatus() != null && u.getStatus() == 1) // Active users only
+                .filter(u -> u.getRole() != null && "CUSTOMER".equals(u.getRole().getRoleName().name())) // Only customers
+                .collect(Collectors.toList());
+
+        // Nếu không có search term hoặc rỗng, trả về tất cả customers
+        if (search == null || search.trim().isEmpty()) {
+            return customers;
+        }
+
+        // Lọc theo tên hoặc email (case insensitive)
+        String searchLower = search.trim().toLowerCase();
+        return customers.stream()
+                .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(searchLower)) ||
+                           (u.getEmail() != null && u.getEmail().toLowerCase().contains(searchLower)))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public ApiResponse<List<TopSpenderResponse>> getTopSpenders(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         List<TopSpenderResponse> result = userRepository.findTopSpenders(pageable);
@@ -277,9 +298,9 @@ public class UserServiceImpl implements UserService {
     private Byte parseStatus(String status) {
         if (status == null)
             return 1;
-        if (status.equalsIgnoreCase("ACTIVE") || status.equals("1"))
+        if (status.equals("1"))
             return 1;
-        if (status.equalsIgnoreCase("INACTIVE") || status.equals("0"))
+        if (status.equals("0"))
             return 0;
         try {
             return Byte.valueOf(status);
@@ -302,7 +323,8 @@ public class UserServiceImpl implements UserService {
         res.setPhone_number(u.getPhoneNumber());
         res.setRole_id(u.getRole() != null ? u.getRole().getId() : null);
         res.setRole_name(u.getRole() != null ? u.getRole().getRoleName().name() : null); // Thêm tên vai trò
-        res.setStatus(u.getStatus() != null && u.getStatus() == 1 ? "ACTIVE" : "INACTIVE");
+        res.setStatus(u.getStatus());
+        res.setEmail_verified(u.getEmailVerified());
         res.setCreated_at(formatTime(u.getCreatedAt()));
         res.setUpdated_at(formatTime(u.getUpdatedAt()));
         res.setTotal_spent(u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO);

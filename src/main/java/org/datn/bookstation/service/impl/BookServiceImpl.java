@@ -1280,21 +1280,33 @@ public class BookServiceImpl implements BookService {
             endTime = periodResult.getEndTime();
             finalPeriodType = periodResult.getFinalPeriodType();
             
+            // 2. Validate khoảng thời gian tối đa cho từng period type
+            String validationError = validateDateRangeForPeriod(finalPeriodType, startTime, endTime);
+            if (validationError != null) {
+                log.warn("❌ Date range validation failed: {}", validationError);
+                return new ApiResponse<>(400, validationError, new ArrayList<>());
+            }
+            
             log.info("📊 Final period: {}, timeRange: {} to {}", finalPeriodType, 
                     new java.util.Date(startTime), new java.util.Date(endTime));
             
-            // 2. Query dữ liệu từ database
+            // 3. Query dữ liệu từ database
             List<Object[]> rawData = orderDetailRepository.findBookSalesSummaryByDateRange(startTime, endTime);
             
-            // 3. Convert raw data thành Map
-            Map<String, Integer> dataMap = new HashMap<>();
+            // 4. Convert raw data thành Map với cả netBooksSold và netRevenue
+            Map<String, Map<String, Object>> dataMap = new HashMap<>();
             for (Object[] row : rawData) {
                 String date = row[0].toString(); // Date string từ DB
-                Integer totalSold = ((Number) row[1]).intValue();
-                dataMap.put(date, totalSold);
+                Integer netBooksSold = ((Number) row[1]).intValue(); // net books sold (after refunds)
+                BigDecimal netRevenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO; // net revenue (after voucher discount)
+                
+                Map<String, Object> dayData = new HashMap<>();
+                dayData.put("totalBooksSold", netBooksSold);
+                dayData.put("netRevenue", netRevenue);
+                dataMap.put(date, dayData);
             }
             
-            // 4. Generate full date range với 0 cho ngày không có data
+            // 5. Generate full date range với 0 cho ngày không có data
             switch (finalPeriodType) {
                 case "daily":
                     summaryData = generateDailySummary(startTime, endTime, dataMap);
@@ -1326,7 +1338,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - Enhanced với Quarter support
+     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - FIXED và loại bỏ growth calculation
      * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
      */
     @Override
@@ -1334,20 +1346,46 @@ public class BookServiceImpl implements BookService {
         try {
             log.info("📊 Getting book statistics details - period: {}, date: {}, limit: {}", period, date, limit);
             
-            // Parse timestamp và tính toán khoảng thời gian cụ thể
-            TimeRangeInfo timeRange = calculateTimeRangeFromTimestamp(period, date);
+            // FIXED: Parse timestamp và tính toán khoảng thời gian cụ thể - sử dụng CHÍNH XÁC logic generateWeeklySummary
+            TimeRangeInfo timeRange;
+            
+            if ("week".equalsIgnoreCase(period) || "weekly".equalsIgnoreCase(period)) {
+                // CRITICAL FIX: Use EXACTLY the same logic as generateWeeklySummary
+                LocalDate inputDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate();
+                
+                // Find the Monday of the week containing this date (EXACTLY like generateWeeklySummary)
+                LocalDate weekStart = inputDate.with(java.time.DayOfWeek.MONDAY);
+                LocalDate weekEnd = weekStart.plusDays(6);
+                
+                // Convert to timestamps - EXACTLY like generateWeeklySummary
+                long weekStartMs = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long weekEndMs = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                
+                // CRITICAL DEBUG: Print exact values  
+                log.error("🎯 WEEK DEBUG - Input timestamp: {}", date);
+                log.error("🎯 WEEK DEBUG - Input date: {} ({})", inputDate, inputDate.getDayOfWeek());
+                log.error("🎯 WEEK DEBUG - Week start: {} = {}", weekStart, weekStartMs);
+                log.error("🎯 WEEK DEBUG - Week end: {} = {}", weekEnd, weekEndMs);
+                log.error("🎯 WEEK DEBUG - Query range: {} to {}", weekStartMs, weekEndMs);
+                
+                timeRange = new TimeRangeInfo(weekStartMs, weekEndMs);
+            } else {
+                // Other periods use existing logic
+                timeRange = calculateTimeRangeFromTimestamp(period, date);
+            }
+            
+            log.info("📊 Calculated time range: {} to {} for period: {}", 
+                    Instant.ofEpochMilli(timeRange.getStartTime()).toString(), 
+                    Instant.ofEpochMilli(timeRange.getEndTime()).toString(), period);
             
             // Query top books trong khoảng thời gian đó
             List<Object[]> currentData = orderDetailRepository.findTopBooksByDateRange(
                     timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
             
-            // Query data kỳ trước để tính growth
-            TimeRangeInfo previousRange = calculatePreviousTimeRange(timeRange, period);
-            List<Object[]> previousData = orderDetailRepository.findTopBooksByDateRange(
-                    previousRange.getStartTime(), previousRange.getEndTime(), limit != null ? limit : 10);
+            log.info("📊 Found {} books in time range", currentData.size());
             
-            // Build response với growth comparison
-            List<Map<String, Object>> detailsData = buildDetailsWithGrowth(currentData, previousData);
+            // Build response WITHOUT growth comparison (yêu cầu loại bỏ)
+            List<Map<String, Object>> detailsData = buildDetailsWithoutGrowth(currentData);
             
             String message = String.format("Book details retrieved successfully for %s on %s", period, date);
             return new ApiResponse<>(200, message, detailsData);
@@ -1436,12 +1474,18 @@ public class BookServiceImpl implements BookService {
     private TimeRangeInfo calculateTimeRangeFromTimestamp(String period, Long timestamp) {
         long targetTime = timestamp;
         
+        log.info("🔍 DEBUG: calculateTimeRangeFromTimestamp - period: {}, timestamp: {} ({})", 
+                period, targetTime, Instant.ofEpochMilli(targetTime).toString());
+        
         switch (period.toLowerCase()) {
             case "day":
             case "daily":
                 // Lấy từ 00:00:00 đến 23:59:59 của ngày đó
                 long dayStart = getStartOfDay(targetTime);
                 long dayEnd = dayStart + (24 * 60 * 60 * 1000L) - 1;
+                log.info("🔍 DEBUG: Day range - {} to {}", 
+                        Instant.ofEpochMilli(dayStart).toString(), 
+                        Instant.ofEpochMilli(dayEnd).toString());
                 return new TimeRangeInfo(dayStart, dayEnd);
                 
             case "week":
@@ -1449,6 +1493,9 @@ public class BookServiceImpl implements BookService {
                 // Lấy tuần chứa timestamp đó
                 long weekStart = getStartOfWeek(targetTime);
                 long weekEnd = weekStart + (7 * 24 * 60 * 60 * 1000L) - 1;
+                log.info("🔍 DEBUG: Week range - {} to {}", 
+                        Instant.ofEpochMilli(weekStart).toString(), 
+                        Instant.ofEpochMilli(weekEnd).toString());
                 return new TimeRangeInfo(weekStart, weekEnd);
                 
             case "month":
@@ -1514,8 +1561,43 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * Build response data với growth comparison (ĐÚNG DỮ LIỆU THỰC TỪ DATABASE)
+     * Build book details WITHOUT growth calculation (yêu cầu loại bỏ)
      */
+    private List<Map<String, Object>> buildDetailsWithoutGrowth(List<Object[]> currentData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        // Xử lý từng book trong currentData
+        for (Object[] current : currentData) {
+            Integer bookId = (Integer) current[0];
+            String bookCode = (String) current[1];
+            String bookName = (String) current[2]; 
+            String isbn = (String) current[3];
+            BigDecimal price = (BigDecimal) current[4];
+            Long currentQuantity = ((Number) current[5]).longValue();
+            BigDecimal currentRevenue = (BigDecimal) current[6];
+            
+            Map<String, Object> bookDetail = new HashMap<>();
+            bookDetail.put("bookCode", bookCode);
+            bookDetail.put("title", bookName);  // Use "title" field for consistency with frontend
+            bookDetail.put("isbn", isbn);
+            bookDetail.put("currentPrice", price);
+            bookDetail.put("revenue", currentRevenue);
+            bookDetail.put("totalQuantity", currentQuantity);  // Use "totalQuantity" field for consistency
+            
+            // REMOVED: Tất cả logic growth calculation theo yêu cầu
+            // Không có: revenueGrowthPercent, revenueGrowthValue, revenueGrowthLabel
+            // Không có: quantityGrowthPercent, quantityGrowthValue, quantityGrowthLabel
+            
+            result.add(bookDetail);
+        }
+        
+        return result;
+    }
+
+    /**
+     * DEPRECATED: Build response data với growth comparison (không dùng nữa)
+     */
+    @SuppressWarnings("unused")
     private List<Map<String, Object>> buildDetailsWithGrowth(List<Object[]> currentData, List<Object[]> previousData) {
         List<Map<String, Object>> result = new ArrayList<>();
         
@@ -1661,10 +1743,16 @@ public class BookServiceImpl implements BookService {
     }
     
     private long getStartOfWeek(long timestamp) {
-        java.util.Calendar cal = java.util.Calendar.getInstance();
-        cal.setTimeInMillis(timestamp);
-        cal.set(java.util.Calendar.DAY_OF_WEEK, cal.getFirstDayOfWeek());
-        return getStartOfDay(cal.getTimeInMillis());
+        // FIX: Sử dụng logic CONSISTENT với generateWeeklySummary
+        LocalDate date = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate weekStart = date.with(java.time.DayOfWeek.MONDAY);
+        long result = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        
+        log.info("🔍 DEBUG: getStartOfWeek - input: {} ({}), calculated Monday: {} ({})", 
+                timestamp, Instant.ofEpochMilli(timestamp).toString(),
+                result, Instant.ofEpochMilli(result).toString());
+        
+        return result;
     }
     
     private long getStartOfMonth(long timestamp) {
@@ -1793,13 +1881,9 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 LOGIC THÔNG MINH MỚI: Sử dụng TOÀN BỘ dữ liệu từ fromDate-toDate
-     * - Nếu đủ dữ liệu cho period → giữ nguyên period như frontend yêu cầu
-     * - Nếu không đủ dữ liệu → hạ cấp xuống period nhỏ hơn  
-     * - QUAN TRỌNG: Luôn dùng TOÀN BỘ fromDate-toDate, KHÔNG cắt dữ liệu
-     * 
-     * VD: T1/2024 → T8/2025 (19 tháng) + period=year 
-     *     → Trả về yearly với TOÀN BỘ 19 tháng (không cắt 8 tháng năm 2025)
+     * 🔥 STRICT VALIDATION: No auto-downgrade, return exact period or null for validation error
+     * - User yêu cầu: Báo lỗi thay vì auto-downgrade
+     * - Validation được thực hiện sau method này
      */
     private PeriodCalculationResult calculateCustomPeriodRange(String period, Long fromDate, Long toDate) {
         long duration = toDate - fromDate;
@@ -1808,55 +1892,28 @@ public class BookServiceImpl implements BookService {
         log.info("🔥 Custom period analysis: {} with {} days duration", period, daysDuration);
         log.info("🔥 USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
         
+        // KHÔNG auto-downgrade, chỉ return period như user request
+        // Validation sẽ được thực hiện ở validateDateRangeForPeriod method
         switch (period.toLowerCase()) {
             case "year":
-                if (daysDuration >= 180) { // Ít nhất 6 tháng để có thể phân tích theo năm
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL yearly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "yearly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích năm → hạ xuống quý
-                    log.info("🔥 Not enough data for yearly analysis ({} days < 180), downgrading to quarter", daysDuration);
-                    return calculateCustomPeriodRange("quarter", fromDate, toDate);
-                }
+                log.info("✅ Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "yearly");
                 
             case "quarter":
-                if (daysDuration >= 45) { // Ít nhất 1.5 tháng để có thể phân tích theo quý
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL quarterly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "quarterly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích quý → hạ xuống tháng
-                    log.info("🔥 Not enough data for quarterly analysis ({} days < 45), downgrading to month", daysDuration);
-                    return calculateCustomPeriodRange("month", fromDate, toDate);
-                }
+                log.info("✅ Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "quarterly");
                 
             case "month":
-                if (daysDuration >= 14) { // Ít nhất 2 tuần để có thể phân tích theo tháng
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt
-                    log.info("✅ Using FULL monthly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "monthly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích tháng → hạ xuống tuần
-                    log.info("🔥 Not enough data for monthly analysis ({} days < 14), downgrading to week", daysDuration);
-                    return calculateCustomPeriodRange("week", fromDate, toDate);
-                }
+                log.info("✅ Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "monthly");
                 
             case "week":
-                if (daysDuration >= 3) { // Ít nhất 3 ngày để có thể phân tích theo tuần
-                    // SỬ DỤNG TOÀN BỘ fromDate-toDate, KHÔNG align/cắt  
-                    log.info("✅ Using FULL weekly range: {} days", daysDuration);
-                    return new PeriodCalculationResult(fromDate, toDate, "weekly");
-                } else {
-                    // Không đủ dữ liệu cho phân tích tuần → hạ xuống ngày
-                    log.info("🔥 Not enough data for weekly analysis ({} days < 3), downgrading to day", daysDuration);
-                    return calculateCustomPeriodRange("day", fromDate, toDate);
-                }
+                log.info("✅ Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new PeriodCalculationResult(fromDate, toDate, "weekly");
                 
             case "day":
             default:
-                // Ngày luôn được chấp nhận và sử dụng TOÀN BỘ fromDate-toDate
-                log.info("✅ Using FULL daily range: {} days", daysDuration);
+                log.info("✅ Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "daily");
         }
     }
@@ -1974,9 +2031,9 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * Generate daily summary với 0 cho ngày không có data
+     * Generate daily summary với 0 cho ngày không có data (UPDATED for net revenue)
      */
-    private List<Map<String, Object>> generateDailySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+    private List<Map<String, Object>> generateDailySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         
         // Convert timestamps to LocalDate
@@ -1987,11 +2044,15 @@ public class BookServiceImpl implements BookService {
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(endDate)) {
             String dateStr = currentDate.toString(); // Format: YYYY-MM-DD
-            Integer totalSold = dataMap.getOrDefault(dateStr, 0);
+            Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dateStr, new HashMap<>());
+            
+            Integer totalSold = (Integer) dayDataFromDB.getOrDefault("totalBooksSold", 0);
+            BigDecimal netRevenue = (BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO);
             
             Map<String, Object> dayData = new HashMap<>();
             dayData.put("date", dateStr);
             dayData.put("totalBooksSold", totalSold);
+            dayData.put("netRevenue", netRevenue);
             dayData.put("period", "daily");
             
             result.add(dayData);
@@ -2002,9 +2063,9 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * Generate weekly summary
+     * Generate weekly summary (UPDATED for net revenue)
      */
-    private List<Map<String, Object>> generateWeeklySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+    private List<Map<String, Object>> generateWeeklySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         
         // Group data by weeks - simplified implementation
@@ -2018,20 +2079,35 @@ public class BookServiceImpl implements BookService {
             LocalDate weekEnd = weekStart.plusDays(6);
             String weekLabel = weekStart.toString() + " to " + weekEnd.toString();
             
+            // Calculate week number of year
+            int weekNumber = weekStart.get(java.time.temporal.WeekFields.ISO.weekOfYear());
+            int year = weekStart.getYear();
+            
             // Sum all days in this week from dataMap
             int weekTotal = 0;
+            BigDecimal weekRevenue = BigDecimal.ZERO;
             LocalDate currentDay = weekStart;
+            LocalDate actualWeekEnd = weekEnd.isAfter(endDate) ? endDate : weekEnd; // Actual end date for this week
+            
             while (!currentDay.isAfter(weekEnd) && !currentDay.isAfter(endDate)) {
                 String dayStr = currentDay.toString();
-                weekTotal += dataMap.getOrDefault(dayStr, 0);
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                weekTotal += (Integer) dayDataFromDB.getOrDefault("totalBooksSold", 0);
+                weekRevenue = weekRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
                 currentDay = currentDay.plusDays(1);
             }
             
             Map<String, Object> weekData = new HashMap<>();
             weekData.put("date", weekStart.toString()); // Use week start as date
             weekData.put("totalBooksSold", weekTotal);
+            weekData.put("netRevenue", weekRevenue);
             weekData.put("period", "weekly");
             weekData.put("dateRange", weekLabel);
+            weekData.put("weekNumber", weekNumber);
+            weekData.put("year", year);
+            // Thêm startDate và endDate thực tế
+            weekData.put("startDate", weekStart.toString());
+            weekData.put("endDate", actualWeekEnd.toString());
             
             result.add(weekData);
             weekStart = weekStart.plusWeeks(1);
@@ -2041,9 +2117,9 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * Generate monthly summary
+     * Generate monthly summary (UPDATED for net revenue)
      */
-    private List<Map<String, Object>> generateMonthlySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+    private List<Map<String, Object>> generateMonthlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         
         LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
@@ -2056,20 +2132,38 @@ public class BookServiceImpl implements BookService {
             LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
             String monthLabel = monthStart.getMonth().toString() + " " + monthStart.getYear();
             
+            // Calculate month info
+            int monthNumber = monthStart.getMonthValue();
+            int year = monthStart.getYear();
+            String monthName = monthStart.getMonth().getDisplayName(
+                java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("vi-VN"));
+            
             // Sum all days in this month from dataMap
             int monthTotal = 0;
+            BigDecimal monthRevenue = BigDecimal.ZERO;
             LocalDate currentDay = monthStart;
+            LocalDate actualMonthEnd = monthEnd.isAfter(endDate) ? endDate : monthEnd; // Actual end date for this month
+            
             while (!currentDay.isAfter(monthEnd) && !currentDay.isAfter(endDate)) {
                 String dayStr = currentDay.toString();
-                monthTotal += dataMap.getOrDefault(dayStr, 0);
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                monthTotal += (Integer) dayDataFromDB.getOrDefault("totalBooksSold", 0);
+                monthRevenue = monthRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
                 currentDay = currentDay.plusDays(1);
             }
             
             Map<String, Object> monthData = new HashMap<>();
             monthData.put("date", monthStart.toString()); // Use month start as date
             monthData.put("totalBooksSold", monthTotal);
+            monthData.put("netRevenue", monthRevenue);
             monthData.put("period", "monthly");
             monthData.put("dateRange", monthLabel);
+            monthData.put("monthNumber", monthNumber);
+            monthData.put("monthName", monthName);
+            monthData.put("year", year);
+            // Thêm startDate và endDate thực tế
+            monthData.put("startDate", monthStart.toString());
+            monthData.put("endDate", actualMonthEnd.toString());
             
             result.add(monthData);
             monthStart = monthStart.plusMonths(1);
@@ -2079,9 +2173,9 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 NEW: Generate quarterly summary
+     * Generate quarterly summary (UPDATED for net revenue)
      */
-    private List<Map<String, Object>> generateQuarterlySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+    private List<Map<String, Object>> generateQuarterlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         
         LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
@@ -2092,24 +2186,35 @@ public class BookServiceImpl implements BookService {
         
         while (!quarterStart.isAfter(endDate)) {
             LocalDate quarterEnd = getQuarterEnd(quarterStart);
-            String quarterLabel = "Q" + getQuarterNumber(quarterStart) + " " + quarterStart.getYear();
+            int quarterNumber = getQuarterNumber(quarterStart);
+            int year = quarterStart.getYear();
+            String quarterLabel = "Quý " + quarterNumber + " năm " + year;
             
             // Sum all days in this quarter from dataMap
             int quarterTotal = 0;
+            BigDecimal quarterRevenue = BigDecimal.ZERO;
             LocalDate currentDay = quarterStart;
+            LocalDate actualQuarterEnd = quarterEnd.isAfter(endDate) ? endDate : quarterEnd; // Actual end date for this quarter
+            
             while (!currentDay.isAfter(quarterEnd) && !currentDay.isAfter(endDate)) {
                 String dayStr = currentDay.toString();
-                quarterTotal += dataMap.getOrDefault(dayStr, 0);
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                quarterTotal += (Integer) dayDataFromDB.getOrDefault("totalBooksSold", 0);
+                quarterRevenue = quarterRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
                 currentDay = currentDay.plusDays(1);
             }
             
             Map<String, Object> quarterData = new HashMap<>();
             quarterData.put("date", quarterStart.toString()); // Use quarter start as date
             quarterData.put("totalBooksSold", quarterTotal);
+            quarterData.put("netRevenue", quarterRevenue);
             quarterData.put("period", "quarterly");
             quarterData.put("dateRange", quarterLabel);
-            quarterData.put("quarter", getQuarterNumber(quarterStart));
-            quarterData.put("year", quarterStart.getYear());
+            quarterData.put("quarter", quarterNumber);
+            quarterData.put("year", year);
+            // Thêm startDate và endDate thực tế
+            quarterData.put("startDate", quarterStart.toString());
+            quarterData.put("endDate", actualQuarterEnd.toString());
             
             result.add(quarterData);
             quarterStart = quarterStart.plusMonths(3); // Next quarter
@@ -2119,9 +2224,9 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 NEW: Generate yearly summary
+     * Generate yearly summary (UPDATED for net revenue)
      */
-    private List<Map<String, Object>> generateYearlySummary(Long startTime, Long endTime, Map<String, Integer> dataMap) {
+    private List<Map<String, Object>> generateYearlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         
         LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
@@ -2136,19 +2241,28 @@ public class BookServiceImpl implements BookService {
             
             // Sum all days in this year from dataMap
             int yearTotal = 0;
+            BigDecimal yearRevenue = BigDecimal.ZERO;
             LocalDate currentDay = yearStart;
+            LocalDate actualYearEnd = yearEnd.isAfter(endDate) ? endDate : yearEnd; // Actual end date for this year
+            
             while (!currentDay.isAfter(yearEnd) && !currentDay.isAfter(endDate)) {
                 String dayStr = currentDay.toString();
-                yearTotal += dataMap.getOrDefault(dayStr, 0);
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                yearTotal += (Integer) dayDataFromDB.getOrDefault("totalBooksSold", 0);
+                yearRevenue = yearRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
                 currentDay = currentDay.plusDays(1);
             }
             
             Map<String, Object> yearData = new HashMap<>();
             yearData.put("date", yearStart.toString()); // Use year start as date
             yearData.put("totalBooksSold", yearTotal);
+            yearData.put("netRevenue", yearRevenue);
             yearData.put("period", "yearly");
             yearData.put("dateRange", yearLabel);
             yearData.put("year", yearStart.getYear());
+            // Thêm startDate và endDate thực tế
+            yearData.put("startDate", yearStart.toString());
+            yearData.put("endDate", actualYearEnd.toString());
             
             result.add(yearData);
             yearStart = yearStart.plusYears(1);
@@ -2174,6 +2288,75 @@ public class BookServiceImpl implements BookService {
     private int getQuarterNumber(LocalDate date) {
         int month = date.getMonthValue();
         return (month - 1) / 3 + 1; // 1, 2, 3, 4
+    }
+
+    /**
+     * 🔥 VALIDATE DATE RANGE FOR PERIOD TYPES
+     * Kiểm tra khoảng thời gian có hợp lệ cho từng period type không
+     */
+    private String validateDateRangeForPeriod(String periodType, long startTime, long endTime) {
+        long durationMillis = endTime - startTime;
+        long durationDays = durationMillis / (24 * 60 * 60 * 1000L);
+        long durationYears = durationDays / 365L;
+        
+        switch (periodType.toLowerCase()) {
+            case "daily":
+                // Minimum: ít nhất 1 ngày
+                if (durationDays < 1) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ ngày (tối thiểu 1 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 90 ngày
+                if (durationDays > 90) {
+                    return "Khoảng thời gian quá lớn cho chế độ ngày (tối đa 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                break;
+            
+            case "weekly":
+                // Minimum: ít nhất 7 ngày (1 tuần)
+                if (durationDays < 7) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tuần (tối thiểu 7 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 2 năm
+                if (durationYears > 2) {
+                    return "Khoảng thời gian quá lớn cho chế độ tuần (tối đa 2 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "monthly":
+                // Minimum: ít nhất 28 ngày (1 tháng)
+                if (durationDays < 28) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tháng (tối thiểu 28 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ tháng (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "quarterly":
+                // Minimum: ít nhất 90 ngày (1 quý)
+                if (durationDays < 90) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ quý (tối thiểu 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ quý (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "yearly":
+                // Minimum: ít nhất 365 ngày (1 năm)
+                if (durationDays < 365) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ năm (tối thiểu 365 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 25 năm
+                if (durationYears > 25) {
+                    return "Khoảng thời gian quá lớn cho chế độ năm (tối đa 25 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+        }
+        
+        return null; // Valid
     }
 
     private static class TimeRangeInfo {

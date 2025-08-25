@@ -17,4 +17,6 @@ public class PointResponse {
     private BigDecimal minSpent;
     private Integer pointSpent;
     private String description;
+    private Long createdAt;     // Thêm trường ngày tạo
+    private Long updatedAt;     // Thêm trường ngày cập nhật
 }

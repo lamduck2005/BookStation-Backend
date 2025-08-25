@@ -12,6 +12,7 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.UserForVoucher;
 import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.dto.response.VoucherStatsResponse;
+import org.datn.bookstation.dto.response.VoucherDropdownResponse;
 import org.datn.bookstation.dto.response.voucherUserResponse;
 import org.datn.bookstation.entity.User;
 import org.datn.bookstation.entity.UserVoucher;
@@ -260,6 +261,29 @@ public class VoucherController {
                 "Lỗi khi lấy thống kê voucher: " + e.getMessage(),
                 null
             );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * API dropdown voucher cho minigame box system
+     * Tìm kiếm voucher theo mã hoặc tên và trả về thông tin đầy đủ (trừ createdAt, updatedAt)
+     */
+    @GetMapping("/dropdown")
+    public ResponseEntity<ApiResponse<List<VoucherDropdownResponse>>> getVoucherDropdown(
+            @RequestParam(required = false) String search) {
+        try {
+            List<VoucherDropdownResponse> vouchers = voucherService.getVoucherDropdown(search);
+            ApiResponse<List<VoucherDropdownResponse>> response = new ApiResponse<>(
+                    HttpStatus.OK.value(),
+                    "Lấy danh sách voucher thành công",
+                    vouchers);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<List<VoucherDropdownResponse>> response = new ApiResponse<>(
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    "Lỗi khi lấy danh sách voucher: " + e.getMessage(),
+                    null);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
