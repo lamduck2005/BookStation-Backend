@@ -351,4 +351,55 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       ORDER BY year_key
       """, nativeQuery = true)
   List<Object[]> findYearlyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
+
+  // ================================================================
+  // ORDER STATISTICS APIs - 2-TIER ARCHITECTURE QUERIES
+  // ================================================================
+
+  /**
+   * 📊 ORDER STATISTICS SUMMARY - Query dữ liệu tổng quan theo ngày (SIMPLIFIED)
+   * Tương tự BookRepository.findBookSalesSummaryByDateRange() nhưng cho Order
+   * 
+   * Trả về: date, totalOrders, completedOrders, canceledOrders, refundedOrders, netRevenue
+   */
+  @Query(value = "SELECT " +
+         "CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) as saleDate, " +
+         "COUNT(o.id) as totalOrders, " +
+         "SUM(CASE WHEN o.order_status = 'DELIVERED' THEN 1 ELSE 0 END) as completedOrders, " +
+         "SUM(CASE WHEN o.order_status = 'CANCELED' THEN 1 ELSE 0 END) as canceledOrders, " +
+         "SUM(CASE WHEN o.order_status IN ('PARTIALLY_REFUNDED', 'REFUNDED') THEN 1 ELSE 0 END) as refundedOrders, " +
+         "COALESCE(SUM(o.total_amount - COALESCE(o.shipping_fee, 0)), 0) as netRevenue " +
+         "FROM [order] o " +
+         "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
+         "GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) " +
+         "ORDER BY saleDate", nativeQuery = true)
+  List<Object[]> findOrderStatisticsSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
+
+  /**
+   * 📊 ORDER STATISTICS DETAILS - Query chi tiết đơn hàng trong khoảng thời gian
+   * Tương tự BookRepository.findTopBooksByDateRange() nhưng cho Order
+   * 
+   * Trả về: order_code, customer_name, customer_email, total_amount, order_status, created_at, product_info
+   */
+  @Query(value = "SELECT TOP (:limit) " +
+         "o.code as orderCode, " +
+         "u.full_name as customerName, " +
+         "u.email as customerEmail, " +
+         "o.total_amount as totalAmount, " +
+         "o.order_status as orderStatus, " +
+         "o.order_date as createdAt, " +
+         "( " +
+         "  SELECT STRING_AGG( " +
+         "    CONCAT(b.book_name, ' (ISBN:', b.isbn, ', ID:', b.id, ')'), " +
+         "    ', ' " +
+         "  ) " +
+         "  FROM order_detail od " +
+         "  JOIN book b ON od.book_id = b.id " +
+         "  WHERE od.order_id = o.id " +
+         ") as productInfo " +
+         "FROM [order] o " +
+         "JOIN [user] u ON o.user_id = u.id " +
+         "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
+         "ORDER BY o.order_date DESC", nativeQuery = true)
+  List<Object[]> findOrderDetailsByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate, @Param("limit") Integer limit);
 }
