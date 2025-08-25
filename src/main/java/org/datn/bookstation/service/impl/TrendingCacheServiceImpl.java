@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 🔥 REAL-TIME TRENDING CACHE SERVICE IMPLEMENTATION
+ *  REAL-TIME TRENDING CACHE SERVICE IMPLEMENTATION
  * DISABLED - Cache đã được tắt theo yêu cầu
  */
 @Service
@@ -77,7 +77,7 @@ public class TrendingCacheServiceImpl implements TrendingCacheService {
     
     @Override
     public String getCacheStatistics() {
-        return "📊 Cache Statistics: DISABLED - Cache đã được tắt theo yêu cầu";
+        return " Cache Statistics: DISABLED - Cache đã được tắt theo yêu cầu";
     }
     
     private void updateLastInvalidationTime() {

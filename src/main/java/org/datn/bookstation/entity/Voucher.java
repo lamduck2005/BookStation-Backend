@@ -40,7 +40,7 @@ public class Voucher {
     @Column(name = "description")
     private String description;
 
-    // ✅ NEW VOUCHER SYSTEM: Split VoucherType into VoucherCategory + DiscountType
+    //  NEW VOUCHER SYSTEM: Split VoucherType into VoucherCategory + DiscountType
     @Enumerated(EnumType.STRING)
     @Column(name = "voucher_category", nullable = false, length = 20)
     private VoucherCategory voucherCategory = VoucherCategory.NORMAL;

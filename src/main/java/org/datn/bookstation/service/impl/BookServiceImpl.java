@@ -165,7 +165,7 @@ public class BookServiceImpl implements BookService {
                 return new ApiResponse<>(400, "Mã sách đã tồn tại", null);
             }
 
-            // ✅ THÊM: Validate authors - Bắt buộc phải có ít nhất 1 tác giả
+            //  THÊM: Validate authors - Bắt buộc phải có ít nhất 1 tác giả
             if (request.getAuthorIds() == null || request.getAuthorIds().isEmpty()) {
                 return new ApiResponse<>(400, "Sách phải có ít nhất một tác giả", null);
             }
@@ -213,10 +213,10 @@ public class BookServiceImpl implements BookService {
             book.setCreatedBy(1); // Default created by system user
             book.setStatus((byte) 1); // Active by default
 
-            // ✅ THÊM: Save book first to get ID
+            //  THÊM: Save book first to get ID
             Book savedBook = bookRepository.save(book);
 
-            // ✅ THÊM: Create AuthorBook relationships
+            //  THÊM: Create AuthorBook relationships
             for (Author author : authors) {
                 AuthorBook authorBook = new AuthorBook();
                 AuthorBookId authorBookId = new AuthorBookId();
@@ -278,14 +278,14 @@ public class BookServiceImpl implements BookService {
             int soldQuantity = book.getSoldCount() != null ? book.getSoldCount() : 0;
             // Số lượng tồn kho
             int stockQuantity = book.getStockQuantity() != null ? book.getStockQuantity() : 0;
-            // ✅ SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
+            //  SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
             int processingQuantity = bookProcessingQuantityService.getProcessingQuantity(book.getId());
 
             // Flash sale related data
             int flashSaleSold = flashSaleItem != null && flashSaleItem.getSoldCount() != null
                     ? flashSaleItem.getSoldCount()
                     : 0;
-            // ✅ SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
+            //  SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
             int flashSaleProcessing = flashSaleItem != null
                     ? bookProcessingQuantityService.getFlashSaleProcessingQuantity(flashSaleItem.getId())
                     : 0;
@@ -335,7 +335,7 @@ public class BookServiceImpl implements BookService {
                 return new ApiResponse<>(400, "Mã sách đã tồn tại", null);
             }
 
-            // ✅ THÊM: Validate authors - Bắt buộc phải có ít nhất 1 tác giả
+            //  THÊM: Validate authors - Bắt buộc phải có ít nhất 1 tác giả
             if (request.getAuthorIds() == null || request.getAuthorIds().isEmpty()) {
                 return new ApiResponse<>(400, "Sách phải có ít nhất một tác giả", null);
             }
@@ -361,7 +361,7 @@ public class BookServiceImpl implements BookService {
                 authorBookRepository.save(authorBook);
             }
 
-            // ✅ STORE ORIGINAL PRICE BEFORE UPDATE FOR FLASH SALE RECALCULATION
+            //  STORE ORIGINAL PRICE BEFORE UPDATE FOR FLASH SALE RECALCULATION
             BigDecimal originalPrice = existing.getPrice();
 
             // Update basic fields
@@ -394,7 +394,7 @@ public class BookServiceImpl implements BookService {
                 existing.setDimensions(request.getDimensions());
             }
 
-            // ✅ THÊM MỚI: Update discount fields
+            //  THÊM MỚI: Update discount fields
             if (request.getDiscountValue() != null) {
                 existing.setDiscountValue(request.getDiscountValue());
             }
@@ -458,14 +458,14 @@ public class BookServiceImpl implements BookService {
 
             Book saved = bookRepository.save(existing);
 
-            // ✅ RECALCULATE FLASH SALE PRICES IF BOOK PRICE CHANGED
+            //  RECALCULATE FLASH SALE PRICES IF BOOK PRICE CHANGED
             if (!originalPrice.equals(request.getPrice())) {
                 log.info("Book price changed from {} to {} for book ID {}, recalculating flash sale prices", 
                     originalPrice, request.getPrice(), id);
                 recalculateFlashSalePrices(id, originalPrice, request.getPrice());
             }
 
-            // 🔥 INVALIDATE TRENDING CACHE ON UPDATE
+            //  INVALIDATE TRENDING CACHE ON UPDATE
             trendingCacheService.invalidateAllTrendingCache();
 
             return new ApiResponse<>(200, "Cập nhật sách thành công", saved);
@@ -495,7 +495,7 @@ public class BookServiceImpl implements BookService {
 
             Book saved = bookRepository.save(existing);
 
-            // 🔥 INVALIDATE TRENDING CACHE ON STATUS CHANGE
+            //  INVALIDATE TRENDING CACHE ON STATUS CHANGE
             trendingCacheService.invalidateAllTrendingCache();
 
             return new ApiResponse<>(200, "Cập nhật trạng thái thành công", saved);
@@ -505,14 +505,14 @@ public class BookServiceImpl implements BookService {
         }
     }
 
-    // ❌ REMOVED: Old getTrendingBooks method - replaced by new
+    //  REMOVED: Old getTrendingBooks method - replaced by new
     // TrendingRequest-based method
 
-    // ❌ REMOVED: Old getTrendingBooksWithFallback method - replaced by new
+    //  REMOVED: Old getTrendingBooksWithFallback method - replaced by new
     // getDailyTrendingWithFallback
 
     /**
-     * 🔥 NEW MAIN METHOD: Trending books với TrendingRequest
+     *  NEW MAIN METHOD: Trending books với TrendingRequest
      * Hỗ trợ 2 loại: DAILY_TRENDING và HOT_DISCOUNT
      * Cache đã được tắt theo yêu cầu
      */
@@ -532,11 +532,11 @@ public class BookServiceImpl implements BookService {
                 result = getDailyTrendingBooks(request);
             }
 
-            // 🔥 ULTIMATE FINAL FIX: Force fix soldCount for Book ID 1 regardless of source
+            //  ULTIMATE FINAL FIX: Force fix soldCount for Book ID 1 regardless of source
             for (TrendingBookResponse book : result.getContent()) {
                 if (book.getId() == 1) {
                     Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(1);
-                    System.out.println("🔥🔥🔥🔥 ULTIMATE FINAL - Book ID 1 soldCount: " + realSoldCount);
+                    System.out.println(" ULTIMATE FINAL - Book ID 1 soldCount: " + realSoldCount);
                     book.setSoldCount(realSoldCount != null ? realSoldCount : 0);
                     book.setOrderCount(book.getSoldCount());
                 }
@@ -552,11 +552,11 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 DAILY TRENDING: Xu hướng theo ngày (sales + reviews + recency)
-     * ❌ KHÔNG sử dụng categoryId - lấy xu hướng tổng thể
+     *  DAILY TRENDING: Xu hướng theo ngày (sales + reviews + recency)
+     *  KHÔNG sử dụng categoryId - lấy xu hướng tổng thể
      */
     private PaginationResponse<TrendingBookResponse> getDailyTrendingBooks(TrendingRequest request) {
-        log.info("🔥 DAILY TRENDING - Starting with request: page={}, size={}", request.getPage(), request.getSize());
+        log.info(" DAILY TRENDING - Starting with request: page={}, size={}", request.getPage(), request.getSize());
         long currentTime = System.currentTimeMillis();
         long thirtyDaysAgo = currentTime - (30L * 24 * 60 * 60 * 1000);
         long sixtyDaysAgo = currentTime - (60L * 24 * 60 * 60 * 1000);
@@ -564,17 +564,17 @@ public class BookServiceImpl implements BookService {
         // Không truyền filter, chỉ lấy tổng thể
         Page<Object[]> trendingData = bookRepository.findTrendingBooksData(
                 thirtyDaysAgo, sixtyDaysAgo, currentTime, pageable);
-        log.info("🔥 DAILY TRENDING - Found {} records, need {} records", trendingData.getTotalElements(),
+        log.info(" DAILY TRENDING - Found {} records, need {} records", trendingData.getTotalElements(),
                 request.getSize());
         if (trendingData.getTotalElements() < request.getSize()) {
-            log.info("🔥 DAILY TRENDING - Not enough records, using fallback!");
+            log.info(" DAILY TRENDING - Not enough records, using fallback!");
             return getDailyTrendingWithFallback(request, trendingData, thirtyDaysAgo, sixtyDaysAgo, currentTime);
         }
         return mapTrendingDataToResponse(trendingData, request.getPage(), request.getSize());
     }
 
     /**
-     * 🔥 HOT DISCOUNT: Sách hot giảm sốc (flash sale + discount cao + sách giá tốt)
+     *  HOT DISCOUNT: Sách hot giảm sốc (flash sale + discount cao + sách giá tốt)
      * IMPROVED: Bao gồm cả flash sale và sách có giá hấp dẫn
      */
     private PaginationResponse<TrendingBookResponse> getHotDiscountBooks(TrendingRequest request) {
@@ -584,14 +584,14 @@ public class BookServiceImpl implements BookService {
         // Không chỉ lấy discount books, mà lấy cả flash sale và books giá tốt
         Page<Object[]> hotDiscountData = bookRepository.findHotDiscountBooks(currentTime, pageable);
         
-        log.info("🔥 HOT DISCOUNT - Found {} hot discount books from query", hotDiscountData.getTotalElements());
+        log.info(" HOT DISCOUNT - Found {} hot discount books from query", hotDiscountData.getTotalElements());
         
         // ALWAYS use fallback để đảm bảo có data
         return getHotDiscountWithFallback(request, hotDiscountData, currentTime);
     }
 
     /**
-     * 🔥 FALLBACK cho Daily Trending - Dựa trên dữ liệu thực tế
+     *  FALLBACK cho Daily Trending - Dựa trên dữ liệu thực tế
      */
     private PaginationResponse<TrendingBookResponse> getDailyTrendingWithFallback(
             TrendingRequest request, Page<Object[]> existingTrending,
@@ -601,7 +601,7 @@ public class BookServiceImpl implements BookService {
 
         // 1. Thêm trending thực sự (nếu có)
         if (!existingTrending.isEmpty()) {
-            System.out.println("🔥 EXISTING TRENDING - Processing " + existingTrending.getContent().size() + " books");
+            System.out.println(" EXISTING TRENDING - Processing " + existingTrending.getContent().size() + " books");
             PaginationResponse<TrendingBookResponse> existingResponse = mapTrendingDataToResponse(existingTrending, 0,
                     existingTrending.getContent().size());
             allTrendingBooks.addAll(existingResponse.getContent());
@@ -645,11 +645,11 @@ public class BookServiceImpl implements BookService {
         // filter category)
         long totalElements = bookRepository.countAllActiveBooks();
 
-        // 🔥 FINAL FIX: Force override soldCount for Book ID 1 in final result
+        //  FINAL FIX: Force override soldCount for Book ID 1 in final result
         for (TrendingBookResponse book : allTrendingBooks) {
             if (book.getId() == 1) {
                 Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(1);
-                System.out.println("🔥🔥🔥 FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
+                System.out.println(" FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
                 book.setSoldCount(realSoldCount != null ? realSoldCount : 0);
                 book.setOrderCount(book.getSoldCount());
             }
@@ -665,7 +665,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 FALLBACK cho Hot Discount - Dựa trên dữ liệu thực tế
+     *  FALLBACK cho Hot Discount - Dựa trên dữ liệu thực tế
      */
     private PaginationResponse<TrendingBookResponse> getHotDiscountWithFallback(
             TrendingRequest request, Page<Object[]> existingDiscount, long currentTime) {
@@ -674,37 +674,37 @@ public class BookServiceImpl implements BookService {
 
         // 1. Thêm sách giảm giá thực sự (nếu có)
         if (!existingDiscount.isEmpty()) {
-            log.info("🔥 HOT DISCOUNT - Processing {} existing discount books", existingDiscount.getContent().size());
+            log.info(" HOT DISCOUNT - Processing {} existing discount books", existingDiscount.getContent().size());
             PaginationResponse<TrendingBookResponse> existingResponse = mapTrendingDataToResponse(existingDiscount, 0,
                     existingDiscount.getContent().size());
             allDiscountBooks.addAll(existingResponse.getContent());
-            log.info("🔥 HOT DISCOUNT - After existing: {} books added", allDiscountBooks.size());
+            log.info("HOT DISCOUNT - After existing: {} books added", allDiscountBooks.size());
         }
 
         // 2. IMPROVED: Bổ sung từ flash sale items hiện tại
         int needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
-            log.info("🔥 HOT DISCOUNT - TEMPORARILY DISABLED FALLBACK - current count: {}", allDiscountBooks.size());
+            log.info(" HOT DISCOUNT - TEMPORARILY DISABLED FALLBACK - current count: {}", allDiscountBooks.size());
         }
 
         // 3. Nếu vẫn cần thêm, thạm thời bỏ qua good price fallback để test
         needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
-            log.info("🔥 HOT DISCOUNT - TEMPORARILY DISABLED GOOD PRICE FALLBACK - current count: {}", allDiscountBooks.size());
+            log.info(" HOT DISCOUNT - TEMPORARILY DISABLED GOOD PRICE FALLBACK - current count: {}", allDiscountBooks.size());
         }
 
         // 4. Tính tổng số phần tử
         long totalElements = Math.max(allDiscountBooks.size(), 
                                      bookRepository.countAllActiveBooks());
 
-        log.info("🔥 HOT DISCOUNT - Final result: {} books, total elements: {}", 
+        log.info(" HOT DISCOUNT - Final result: {} books, total elements: {}", 
                 allDiscountBooks.size(), totalElements);
 
-        // 🔥 FINAL FIX: Force override soldCount for Book ID 1 in final result
+        //  FINAL FIX: Force override soldCount for Book ID 1 in final result
         for (TrendingBookResponse book : allDiscountBooks) {
             if (book.getId() == 1) {
                 Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(1);
-                System.out.println("🔥🔥🔥 HOT DISCOUNT FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
+                System.out.println(" HOT DISCOUNT FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
                 book.setSoldCount(realSoldCount != null ? realSoldCount : 0);
                 book.setOrderCount(book.getSoldCount());
             }
@@ -735,17 +735,17 @@ public class BookServiceImpl implements BookService {
 
         for (Object[] data : trendingData.getContent()) {
             Integer bookId = (Integer) data[0];
-            System.out.println("🔥 SERVICE MAPPING - Processing Book ID: " + bookId + " at rank: " + rank);
+            System.out.println(" SERVICE MAPPING - Processing Book ID: " + bookId + " at rank: " + rank);
             TrendingBookResponse book = trendingBookMapper.mapToTrendingBookResponse(
                     data, rank++, authorsMap);
             trendingBooks.add(book);
         }
 
-        // 🔥 ABSOLUTE FINAL FIX: Force override soldCount for Book ID 1
+        //  ABSOLUTE FINAL FIX: Force override soldCount for Book ID 1
         for (TrendingBookResponse book : trendingBooks) {
             if (book.getId() == 1) {
                 Integer realSoldCount = orderDetailRepository.countSoldQuantityByBook(1);
-                System.out.println("🔥🔥🔥 ABSOLUTE FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
+                System.out.println(" ABSOLUTE FINAL OVERRIDE - Book ID 1 soldCount: " + realSoldCount);
                 book.setSoldCount(realSoldCount != null ? realSoldCount : 0);
                 book.setOrderCount(book.getSoldCount());
             }
@@ -1013,21 +1013,21 @@ public class BookServiceImpl implements BookService {
                     Integer totalOrderQuantity = (Integer) row[2]; // Tổng số lượng đã đặt
                     org.datn.bookstation.entity.enums.OrderStatus orderStatus = (org.datn.bookstation.entity.enums.OrderStatus) row[3];
                     
-                    // ✅ TẠM THỜI: Chưa có refund info, sẽ load riêng sau
+                    //  TẠM THỜI: Chưa có refund info, sẽ load riêng sau
                     Integer refundRequestId = null;
-                    // ✅ LẤY REFUND QUANTITY TỪ DATABASE NẾU CÓ
+                    //  LẤY REFUND QUANTITY TỪ DATABASE NẾU CÓ
                     Integer refundQuantity = orderDetailRepository.getRefundQuantityByOrderIdAndBookId(orderId, bookId);
                     if (refundQuantity == 0) refundQuantity = null; // Convert 0 thành null để logic xử lý đúng
                     
-                    // ✅ TÍNH SỐ LƯỢNG ĐANG XỬ LÝ CHÍNH XÁC
+                    //  TÍNH SỐ LƯỢNG ĐANG XỬ LÝ CHÍNH XÁC
                     Integer actualProcessingQuantity = calculateActualProcessingQuantity(
                         orderStatus, totalOrderQuantity, refundQuantity
                     );
                     
-                    // ✅ TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
+                    //  TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
                     String statusDisplay = createStatusDisplay(orderStatus, refundRequestId, refundQuantity, totalOrderQuantity);
                     
-                    // ✅ DEBUG LOG để kiểm tra
+                    //  DEBUG LOG để kiểm tra
                     log.debug("Order {}: totalQty={}, refundQty={}, processingQty={}, status={}", 
                         orderCode, totalOrderQuantity, refundQuantity, actualProcessingQuantity, statusDisplay);
                     
@@ -1074,7 +1074,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * ✅ TÍNH TOÁN SỐ LƯỢNG ĐANG XỬ LÝ THỰC TẾ
+     *  TÍNH TOÁN SỐ LƯỢNG ĐANG XỬ LÝ THỰC TẾ
      * Logic: 
      * - Đơn bình thường (không hoàn trả): processingQuantity = totalQuantity
      * - Đơn có hoàn trả: processingQuantity = refundQuantity (số lượng đang được hoàn trả)
@@ -1086,7 +1086,7 @@ public class BookServiceImpl implements BookService {
             Integer totalOrderQuantity, 
             Integer refundQuantity) {
         
-        // ✅ LOGIC CHÍNH XÁC: 
+        //  LOGIC CHÍNH XÁC: 
         // Nếu đơn hàng có liên quan đến hoàn trả VÀ có refundQuantity
         if (isRefundRelatedStatus(orderStatus) && refundQuantity != null && refundQuantity > 0) {
             log.debug("Refund order: refundQty={}, totalQty={} => processing={}", 
@@ -1100,7 +1100,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * ✅ TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
+     *  TẠO TRẠNG THÁI HIỂN THỊ RÕ RÀNG
      * Kết hợp orderStatus và refund info để tạo status message dễ hiểu
      */
     private String createStatusDisplay(
@@ -1140,7 +1140,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * ✅ KIỂM TRA TRẠNG THÁI CÓ LIÊN QUAN ĐẾN HOÀN TRẢ KHÔNG
+     *  KIỂM TRA TRẠNG THÁI CÓ LIÊN QUAN ĐẾN HOÀN TRẢ KHÔNG
      */
     private boolean isRefundRelatedStatus(org.datn.bookstation.entity.enums.OrderStatus status) {
         return status == org.datn.bookstation.entity.enums.OrderStatus.REFUND_REQUESTED ||
@@ -1151,13 +1151,13 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 📊 API BOOK STATS ĐƠN GIẢN - THEO USER YÊU CẦU
+     *  API BOOK STATS ĐƠN GIẢN - THEO USER YÊU CẦU
      * Trả về list sách với thông tin cơ bản + doanh thu + tăng trưởng
      */
     @Override
     public BookStatsResponse getBookStats(String chartType, Long fromDate, Long toDate) {
         try {
-            log.info("📊 BOOK STATS: chartType={}, fromDate={}, toDate={}", chartType, fromDate, toDate);
+            log.info("BOOK STATS: chartType={}, fromDate={}, toDate={}", chartType, fromDate, toDate);
             
             // Stub implementation - trả về empty data để test
             List<BookStatsResponse.BookStats> bookStatsList = new ArrayList<>();
@@ -1189,7 +1189,7 @@ public class BookServiceImpl implements BookService {
                     .build();
                     
         } catch (Exception e) {
-            log.error("❌ Lỗi khi lấy thống kê sách", e);
+            log.error(" Lỗi khi lấy thống kê sách", e);
             return BookStatsResponse.builder()
                     .status("lỗi")
                     .message("Lỗi khi lấy thống kê sách: " + e.getMessage())
@@ -1199,7 +1199,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 📊 BOOK STATS OVERVIEW - STUB IMPLEMENTATION
+     *  BOOK STATS OVERVIEW - STUB IMPLEMENTATION
      */
     @Override
     public ApiResponse<BookStatsOverviewResponse> getBookStatsOverview() {
@@ -1221,7 +1221,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔍 SEARCH BOOKS FOR DROPDOWN - STUB IMPLEMENTATION  
+     *  SEARCH BOOKS FOR DROPDOWN - STUB IMPLEMENTATION  
      */
     @Override
     public ApiResponse<List<BookSearchResponse>> searchBooksForDropdown(String query, Integer limit) {
@@ -1244,7 +1244,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 📈 COMPARE BOOKS - STUB IMPLEMENTATION
+     *  COMPARE BOOKS - STUB IMPLEMENTATION
      */
     @Override 
     public ApiResponse<BookComparisonResponse> compareBooks(Integer book1Id, Integer book2Id) {
@@ -1261,14 +1261,14 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 📊 API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary) - Enhanced với Quarter support
+     *  API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary) - Enhanced với Quarter support
      * Trả về dữ liệu nhẹ cho chart overview - chỉ tổng số sách bán theo thời gian
      * Hỗ trợ: day, week, month, quarter, year, custom
      */
     @Override
     public ApiResponse<List<Map<String, Object>>> getBookStatisticsSummary(String period, Long fromDate, Long toDate) {
         try {
-            log.info("📊 Getting book statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
+            log.info(" Getting book statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
             
             List<Map<String, Object>> summaryData = new ArrayList<>();
             Long startTime, endTime;
@@ -1283,11 +1283,11 @@ public class BookServiceImpl implements BookService {
             // 2. Validate khoảng thời gian tối đa cho từng period type
             String validationError = validateDateRangeForPeriod(finalPeriodType, startTime, endTime);
             if (validationError != null) {
-                log.warn("❌ Date range validation failed: {}", validationError);
+                log.warn(" Date range validation failed: {}", validationError);
                 return new ApiResponse<>(400, validationError, new ArrayList<>());
             }
             
-            log.info("📊 Final period: {}, timeRange: {} to {}", finalPeriodType, 
+            log.info(" Final period: {}, timeRange: {} to {}", finalPeriodType, 
                     new java.util.Date(startTime), new java.util.Date(endTime));
             
             // 3. Query dữ liệu từ database
@@ -1327,24 +1327,24 @@ public class BookServiceImpl implements BookService {
                     summaryData = generateDailySummary(startTime, endTime, dataMap);
             }
             
-            log.info("📊 Generated {} data points for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
+            log.info(" Generated {} data points for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
             
             return new ApiResponse<>(200, "Summary statistics retrieved successfully", summaryData);
             
         } catch (Exception e) {
-            log.error("❌ Error getting book statistics summary", e);
+            log.error(" Error getting book statistics summary", e);
             return new ApiResponse<>(500, "Lỗi: " + e.getMessage(), new ArrayList<>());
         }
     }
 
     /**
-     * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - FIXED và loại bỏ growth calculation
+     *  API THỐNG KÊ CHI TIẾT - TIER 2 (Details) - FIXED và loại bỏ growth calculation
      * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
      */
     @Override
     public ApiResponse<List<Map<String, Object>>> getBookStatisticsDetails(String period, Long date, Integer limit) {
         try {
-            log.info("📊 Getting book statistics details - period: {}, date: {}, limit: {}", period, date, limit);
+            log.info(" Getting book statistics details - period: {}, date: {}, limit: {}", period, date, limit);
             
             // FIXED: Parse timestamp và tính toán khoảng thời gian cụ thể - sử dụng CHÍNH XÁC logic generateWeeklySummary
             TimeRangeInfo timeRange;
@@ -1362,11 +1362,11 @@ public class BookServiceImpl implements BookService {
                 long weekEndMs = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 
                 // CRITICAL DEBUG: Print exact values  
-                log.error("🎯 WEEK DEBUG - Input timestamp: {}", date);
-                log.error("🎯 WEEK DEBUG - Input date: {} ({})", inputDate, inputDate.getDayOfWeek());
-                log.error("🎯 WEEK DEBUG - Week start: {} = {}", weekStart, weekStartMs);
-                log.error("🎯 WEEK DEBUG - Week end: {} = {}", weekEnd, weekEndMs);
-                log.error("🎯 WEEK DEBUG - Query range: {} to {}", weekStartMs, weekEndMs);
+                log.error(" WEEK DEBUG - Input timestamp: {}", date);
+                log.error(" WEEK DEBUG - Input date: {} ({})", inputDate, inputDate.getDayOfWeek());
+                log.error(" WEEK DEBUG - Week start: {} = {}", weekStart, weekStartMs);
+                log.error(" WEEK DEBUG - Week end: {} = {}", weekEnd, weekEndMs);
+                log.error(" WEEK DEBUG - Query range: {} to {}", weekStartMs, weekEndMs);
                 
                 timeRange = new TimeRangeInfo(weekStartMs, weekEndMs);
             } else {
@@ -1374,7 +1374,7 @@ public class BookServiceImpl implements BookService {
                 timeRange = calculateTimeRangeFromTimestamp(period, date);
             }
             
-            log.info("📊 Calculated time range: {} to {} for period: {}", 
+            log.info(" Calculated time range: {} to {} for period: {}", 
                     Instant.ofEpochMilli(timeRange.getStartTime()).toString(), 
                     Instant.ofEpochMilli(timeRange.getEndTime()).toString(), period);
             
@@ -1382,7 +1382,7 @@ public class BookServiceImpl implements BookService {
             List<Object[]> currentData = orderDetailRepository.findTopBooksByDateRange(
                     timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
             
-            log.info("📊 Found {} books in time range", currentData.size());
+            log.info(" Found {} books in time range", currentData.size());
             
             // Build response WITHOUT growth comparison (yêu cầu loại bỏ)
             List<Map<String, Object>> detailsData = buildDetailsWithoutGrowth(currentData);
@@ -1391,7 +1391,7 @@ public class BookServiceImpl implements BookService {
             return new ApiResponse<>(200, message, detailsData);
             
         } catch (Exception e) {
-            log.error("❌ Error getting book statistics details", e);
+            log.error(" Error getting book statistics details", e);
             return new ApiResponse<>(500, "Lỗi khi lấy chi tiết thống kê sách", new ArrayList<>());
         }
     }
@@ -1469,7 +1469,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 ENHANCED: Tính toán khoảng thời gian dựa trên timestamp và period với quarter support
+     *  ENHANCED: Tính toán khoảng thời gian dựa trên timestamp và period với quarter support
      */
     private TimeRangeInfo calculateTimeRangeFromTimestamp(String period, Long timestamp) {
         long targetTime = timestamp;
@@ -1493,7 +1493,7 @@ public class BookServiceImpl implements BookService {
                 // Lấy tuần chứa timestamp đó
                 long weekStart = getStartOfWeek(targetTime);
                 long weekEnd = weekStart + (7 * 24 * 60 * 60 * 1000L) - 1;
-                log.info("🔍 DEBUG: Week range - {} to {}", 
+                log.info(" DEBUG: Week range - {} to {}", 
                         Instant.ofEpochMilli(weekStart).toString(), 
                         Instant.ofEpochMilli(weekEnd).toString());
                 return new TimeRangeInfo(weekStart, weekEnd);
@@ -1507,7 +1507,7 @@ public class BookServiceImpl implements BookService {
                 
             case "quarter":
             case "quarterly":
-                // 🔥 NEW: Lấy quý chứa timestamp đó
+                //  NEW: Lấy quý chứa timestamp đó
                 long quarterStart = getStartOfQuarter(targetTime);
                 long quarterEnd = getEndOfQuarter(quarterStart);
                 return new TimeRangeInfo(quarterStart, quarterEnd);
@@ -1540,7 +1540,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 ENHANCED: Tính toán khoảng thời gian trước đó để compare growth với quarter support
+     *  ENHANCED: Tính toán khoảng thời gian trước đó để compare growth với quarter support
      */
     private TimeRangeInfo calculatePreviousTimeRange(TimeRangeInfo current, String period) {
         long duration = current.getEndTime() - current.getStartTime() + 1;
@@ -1748,7 +1748,7 @@ public class BookServiceImpl implements BookService {
         LocalDate weekStart = date.with(java.time.DayOfWeek.MONDAY);
         long result = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
         
-        log.info("🔍 DEBUG: getStartOfWeek - input: {} ({}), calculated Monday: {} ({})", 
+        log.info(" DEBUG: getStartOfWeek - input: {} ({}), calculated Monday: {} ({})", 
                 timestamp, Instant.ofEpochMilli(timestamp).toString(),
                 result, Instant.ofEpochMilli(result).toString());
         
@@ -1794,7 +1794,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 NEW: Quarter calculation methods
+     *  NEW: Quarter calculation methods
      */
     private long getStartOfQuarter(long timestamp) {
         java.util.Calendar cal = java.util.Calendar.getInstance();
@@ -1813,7 +1813,7 @@ public class BookServiceImpl implements BookService {
     // ============================================================================
     
     /**
-     * 🔥 CORE: Tính toán period và time range với logic đủ/thiếu
+     *  CORE: Tính toán period và time range với logic đủ/thiếu
      * Logic:
      * - Nếu không có fromDate/toDate → dùng default period ranges
      * - Nếu có fromDate/toDate → kiểm tra đủ/thiếu và hạ cấp nếu cần
@@ -1881,7 +1881,7 @@ public class BookServiceImpl implements BookService {
     }
     
     /**
-     * 🔥 STRICT VALIDATION: No auto-downgrade, return exact period or null for validation error
+     *  STRICT VALIDATION: No auto-downgrade, return exact period or null for validation error
      * - User yêu cầu: Báo lỗi thay vì auto-downgrade
      * - Validation được thực hiện sau method này
      */
@@ -1889,31 +1889,31 @@ public class BookServiceImpl implements BookService {
         long duration = toDate - fromDate;
         long daysDuration = duration / (24 * 60 * 60 * 1000L);
         
-        log.info("🔥 Custom period analysis: {} with {} days duration", period, daysDuration);
-        log.info("🔥 USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
+        log.info(" Custom period analysis: {} with {} days duration", period, daysDuration);
+        log.info(" USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
         
         // KHÔNG auto-downgrade, chỉ return period như user request
         // Validation sẽ được thực hiện ở validateDateRangeForPeriod method
         switch (period.toLowerCase()) {
             case "year":
-                log.info("✅ Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "yearly");
                 
             case "quarter":
-                log.info("✅ Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "quarterly");
                 
             case "month":
-                log.info("✅ Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "monthly");
                 
             case "week":
-                log.info("✅ Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "weekly");
                 
             case "day":
             default:
-                log.info("✅ Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
                 return new PeriodCalculationResult(fromDate, toDate, "daily");
         }
     }
@@ -2291,7 +2291,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 VALIDATE DATE RANGE FOR PERIOD TYPES
+     *  VALIDATE DATE RANGE FOR PERIOD TYPES
      * Kiểm tra khoảng thời gian có hợp lệ cho từng period type không
      */
     private String validateDateRangeForPeriod(String periodType, long startTime, long endTime) {
@@ -2373,7 +2373,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * 🔥 Result class for period calculation with downgrade logic
+     *  Result class for period calculation with downgrade logic
      */
     private static class PeriodCalculationResult {
         private final long startTime;
@@ -2392,7 +2392,7 @@ public class BookServiceImpl implements BookService {
     }
 
     /**
-     * ✅ RECALCULATE FLASH SALE PRICES WHEN BOOK PRICE CHANGES
+     *  RECALCULATE FLASH SALE PRICES WHEN BOOK PRICE CHANGES
      * Maintains the same discount percentage but updates the discount price
      */
     private void recalculateFlashSalePrices(Integer bookId, BigDecimal oldPrice, BigDecimal newPrice) {
@@ -2418,7 +2418,7 @@ public class BookServiceImpl implements BookService {
                 
                 flashSaleItemRepository.save(flashSale);
                 
-                log.info("✅ Updated flash sale item {}: oldPrice={}, newPrice={}, " +
+                log.info(" Updated flash sale item {}: oldPrice={}, newPrice={}, " +
                     "oldDiscountPrice={}, newDiscountPrice={}, discountPercent={}%", 
                     flashSale.getId(), oldPrice, newPrice, oldDiscountPrice, 
                     newDiscountPrice, discountPercentage);
@@ -2428,13 +2428,13 @@ public class BookServiceImpl implements BookService {
                 activeFlashSales.size(), bookId);
                 
         } catch (Exception e) {
-            log.error("❌ Failed to recalculate flash sale prices for book ID {}: {}", 
+            log.error(" Failed to recalculate flash sale prices for book ID {}: {}", 
                 bookId, e.getMessage(), e);
         }
     }
 
     /**
-     * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
+     *  API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75%
      */
     @Override
     public ApiResponse<PaginationResponse<BookSentimentResponse>> getBooksWithHighPositiveRating(int page, int size) {
@@ -2474,7 +2474,7 @@ public class BookServiceImpl implements BookService {
             // Lấy thông tin sách từ IDs
             List<Book> books = bookRepository.findAllById(pageBookIds);
             
-            // 📊 **LẤY THÔNG TIN SENTIMENT THỰC TỪ DATABASE**
+            //  **LẤY THÔNG TIN SENTIMENT THỰC TỪ DATABASE**
             List<Object[]> sentimentData = reviewRepository.findSimpleSentimentStatsByBookIds(pageBookIds);
             Map<Integer, Object[]> sentimentMap = sentimentData.stream()
                     .collect(Collectors.toMap(
@@ -2484,7 +2484,7 @@ public class BookServiceImpl implements BookService {
             
             List<BookSentimentResponse> bookSentimentResponses = books.stream()
                     .map(book -> {
-                        log.info("🔍 Tạo BookSentimentResponse cho book ID: {}", book.getId());
+                        log.info(" Tạo BookSentimentResponse cho book ID: {}", book.getId());
                         
                         // Lấy thông tin cơ bản từ BookResponseMapper
                         var basicResponse = bookResponseMapper.toResponse(book);
@@ -2516,7 +2516,7 @@ public class BookServiceImpl implements BookService {
                                             .build())
                                     .build();
                             
-                            log.info("📊 Real sentiment stats - Positive: {}%, Avg: {}, Total: {}", 
+                            log.info(" Real sentiment stats - Positive: {}%, Avg: {}, Total: {}", 
                                 positivePercentage, avgRating, totalReviews);
                         } else {
                             // Fallback nếu không có data
@@ -2535,7 +2535,7 @@ public class BookServiceImpl implements BookService {
                                             .build())
                                     .build();
                             
-                            log.warn("⚠️ No sentiment data found for book ID: {}", book.getId());
+                            log.warn(" No sentiment data found for book ID: {}", book.getId());
                         }
                         
                         // Tạo BookSentimentResponse
@@ -2578,7 +2578,7 @@ public class BookServiceImpl implements BookService {
                                 .sentimentStats(sentimentStats)
                                 .build();
                         
-                        log.info("✅ BookSentimentResponse created with sentiment stats: {}", response.getSentimentStats() != null);
+                        log.info(" BookSentimentResponse created with sentiment stats: {}", response.getSentimentStats() != null);
                         return response;
                     })
                     .collect(Collectors.toList());
@@ -2603,8 +2603,8 @@ public class BookServiceImpl implements BookService {
                 pagination);
             
         } catch (Exception e) {
-            log.error("❌ Lỗi khi lấy sách có đánh giá tích cực cao: {}", e.getMessage(), e);
-            log.error("❌ Stack trace: ", e);
+            log.error(" Lỗi khi lấy sách có đánh giá tích cực cao: {}", e.getMessage(), e);
+            log.error(" Stack trace: ", e);
             return new ApiResponse<>(500, "Lỗi hệ thống: " + e.getMessage(), null);
         }
     }

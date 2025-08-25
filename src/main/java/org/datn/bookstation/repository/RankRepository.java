@@ -14,7 +14,7 @@ public interface RankRepository extends JpaRepository<Rank, Integer>, org.spring
     boolean existsByRankName(String rankName);
     Optional<Rank> findByRankName(String rankName);
 
-    // ✅ THÊM MỚI: Thống kê user theo rank
+    //  THÊM MỚI: Thống kê user theo rank
     @Query("""
             SELECT r.rankName, 
                    (SELECT COUNT(ur.id) FROM UserRank ur WHERE ur.rank.id = r.id AND ur.status = 1),

@@ -47,7 +47,7 @@ public interface BookService {
 
         ApiResponse<Book> toggleStatus(Integer id);
 
-        // 🔥 Trending books API chỉ nhận TrendingRequest (type, page, size) ok
+        //  Trending books API chỉ nhận TrendingRequest (type, page, size) ok
         PaginationResponse<TrendingBookResponse> getTrendingBooks(TrendingRequest request);
 
         ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text);
@@ -55,7 +55,7 @@ public interface BookService {
         ApiResponse<List<BookSearchRequest>> getBookByName(String text);
 
         /**
-         * 🔥 API tính giá sách cho Frontend
+         *  API tính giá sách cho Frontend
          * Tính giá sách sau khi áp dụng discount và so sánh với flash sale
          */
         BookPriceCalculationResponse calculateBookPrice(Book book, BookPriceCalculationRequest request);
@@ -87,40 +87,40 @@ public interface BookService {
         ApiResponse<PosBookItemResponse> getBookByIsbn(String isbn);
         
         /**
-         * ✅ THÊM MỚI: Lấy danh sách đơn hàng đang xử lý theo bookId
+         *  THÊM MỚI: Lấy danh sách đơn hàng đang xử lý theo bookId
          * @param bookId ID của sách
          * @return Danh sách đơn hàng đang xử lý sách này
          */
         ApiResponse<List<org.datn.bookstation.dto.response.ProcessingOrderResponse>> getProcessingOrdersByBookId(Integer bookId);
         
-        // 📊 NEW BOOK STATISTICS APIs - Chỉ tập trung vào entity Book
+        //  NEW BOOK STATISTICS APIs - Chỉ tập trung vào entity Book
         
         /**
-         * 📈 Tổng quan thống kê sách - Overview cơ bản
+         *  Tổng quan thống kê sách - Overview cơ bản
          */
         ApiResponse<org.datn.bookstation.dto.response.BookStatsOverviewResponse> getBookStatsOverview();
         
         /**
-         * 🔍 API search/dropdown để lấy book ID cho comparison
+         *  API search/dropdown để lấy book ID cho comparison
          */
         ApiResponse<List<org.datn.bookstation.dto.response.BookSearchResponse>> searchBooksForDropdown(String searchQuery, Integer limit);
         
         /**
-         * ⚖️ So sánh hiệu suất giữa 2 sách hoặc sách vs trung bình
+         *  So sánh hiệu suất giữa 2 sách hoặc sách vs trung bình
          */
         ApiResponse<org.datn.bookstation.dto.response.BookComparisonResponse> compareBooks(Integer bookId1, Integer bookId2);
         
         /**
-         * 📊 Biểu đồ doanh số bán hàng theo thời gian
+         *  Biểu đồ doanh số bán hàng theo thời gian
          */
         /**
-         * 📊 API Thống kê sách đơn giản mới - FINAL API
+         *  API Thống kê sách đơn giản mới - FINAL API
          * Trả về list sách với thông tin cơ bản + doanh thu + tăng trưởng
          */
         org.datn.bookstation.dto.response.BookStatsResponse getBookStats(String chartType, Long fromDate, Long toDate);
         
         /**
-         * 📊 API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary)
+         *  API THỐNG KÊ TỔNG QUAN - TIER 1 (Summary)
          * Trả về dữ liệu nhẹ cho chart overview - chỉ tổng số sách bán theo thời gian
          * 
          * @param period day/week/month/year/custom
@@ -131,7 +131,7 @@ public interface BookService {
         ApiResponse<List<java.util.Map<String, Object>>> getBookStatisticsSummary(String period, Long fromDate, Long toDate);
         
         /**
-         * 📊 API THỐNG KÊ CHI TIẾT - TIER 2 (Details)
+         *  API THỐNG KÊ CHI TIẾT - TIER 2 (Details)
          * Trả về top sách chi tiết khi user click vào điểm cụ thể trên chart
          * 
          * @param period day/week/month/year (loại khoảng thời gian)
@@ -142,7 +142,7 @@ public interface BookService {
         ApiResponse<List<java.util.Map<String, Object>>> getBookStatisticsDetails(String period, Long date, Integer limit);
         
         /**
-         * 📊 API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75% với thông tin sentiment chi tiết
+         *  API lấy danh sách sách có tỉ lệ đánh giá tích cực >= 75% với thông tin sentiment chi tiết
          * @param page trang (mặc định 0)
          * @param size kích thước trang (mặc định 10)
          * @return Danh sách sách có đánh giá tích cực tốt kèm tỉ lệ chính xác và điểm sao trung bình

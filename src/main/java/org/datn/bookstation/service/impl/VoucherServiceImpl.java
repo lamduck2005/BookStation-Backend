@@ -221,7 +221,7 @@ public class VoucherServiceImpl implements VoucherService {
         // Active vouchers only
         spec = spec.and((root, criteriaQuery, criteriaBuilder) -> criteriaBuilder.equal(root.get("status"), (byte) 1));
 
-        // ✅ NEW: Exclude shipping vouchers for counter sales
+        //  NEW: Exclude shipping vouchers for counter sales
         spec = spec.and((root, criteriaQuery, criteriaBuilder) -> criteriaBuilder.notEqual(root.get("voucherCategory"),
                 org.datn.bookstation.entity.enums.VoucherCategory.SHIPPING));
 
@@ -279,7 +279,7 @@ public class VoucherServiceImpl implements VoucherService {
         // Tổng số voucher
         Long totalVouchers = voucherRepository.countTotalVouchers();
 
-        // ✅ SỬA: Voucher chưa được sử dụng thay vì voucher đang hoạt động
+        //  SỬA: Voucher chưa được sử dụng thay vì voucher đang hoạt động
         Long unusedVouchers = voucherRepository.countUnusedVouchers();
 
         // Tổng lượt sử dụng (giữ nguyên)

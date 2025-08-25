@@ -18,7 +18,7 @@ public interface PriceValidationService {
     ApiResponse<String> validateProductPrices(List<PriceValidationRequest> priceValidationRequests);
     
     /**
-     * ✅ ENHANCED: Validate giá và số lượng flash sale
+     *  ENHANCED: Validate giá và số lượng flash sale
      * @param priceValidationRequests Danh sách validation request với quantity
      * @param userId ID user để check giới hạn flash sale
      * @return ApiResponse chứa thông tin validation
@@ -34,7 +34,7 @@ public interface PriceValidationService {
     String validateSingleProductPrice(Integer bookId, java.math.BigDecimal frontendPrice);
     
     /**
-     * ✅ ENHANCED: Validate một sản phẩm với số lượng và flash sale limit
+     *  ENHANCED: Validate một sản phẩm với số lượng và flash sale limit
      * @param bookId ID của sách
      * @param frontendPrice Giá từ frontend
      * @param quantity Số lượng muốn mua

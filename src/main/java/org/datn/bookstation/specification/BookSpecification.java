@@ -16,7 +16,7 @@ public class BookSpecification {
             var predicates = criteriaBuilder.conjunction();
 
             if (bookName != null && !bookName.isEmpty()) {
-                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
+                //  IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
                 // khóa nào
                 String[] keywords = bookName.trim().split("\\s+");
                 var bookNamePredicate = criteriaBuilder.disjunction(); // OR thay vì AND
@@ -79,11 +79,11 @@ public class BookSpecification {
             BigDecimal minPrice, BigDecimal maxPrice) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
-            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            //  Chỉ lấy sách có status = 1 (hoạt động)
             predicates = criteriaBuilder.and(predicates,
                     criteriaBuilder.equal(root.get("status"), 1));
             if (bookName != null && !bookName.isEmpty()) {
-                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
+                //  IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
                 // khóa nào
                 String[] keywords = bookName.trim().split("\\s+");
                 var bookNamePredicate = criteriaBuilder.disjunction(); // OR thay vì AND
@@ -141,7 +141,7 @@ public class BookSpecification {
     public static Specification<Book> filterBy(Integer categoryId, String text) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
-            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            //  Chỉ lấy sách có status = 1 (hoạt động)
             predicates = criteriaBuilder.and(predicates,
                     criteriaBuilder.equal(root.get("status"), 1));
             System.out.println(categoryId);
@@ -151,7 +151,7 @@ public class BookSpecification {
             }
 
             if (text != null && !text.isEmpty()) {
-                // ✅ IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
+                //  IMPROVED: Tách từ khóa và tìm kiếm với OR logic để tìm sách chứa BẤT KỲ từ
                 // khóa nào
                 String[] keywords = text.trim().split("\\s+");
                 var textPredicate = criteriaBuilder.disjunction(); // OR thay vì AND
@@ -174,7 +174,7 @@ public class BookSpecification {
     public static Specification<Book> filterBy(String text) {
         return (root, query, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
-            // ✅ Chỉ lấy sách có status = 1 (hoạt động)
+            //  Chỉ lấy sách có status = 1 (hoạt động)
             predicates = criteriaBuilder.and(predicates,
                     criteriaBuilder.equal(root.get("status"), 1));
             if (text != null && !text.isEmpty()) {

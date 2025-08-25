@@ -40,23 +40,23 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> add(Category category) {
         try {
-            // ✅ Validate tên danh mục
+            //  Validate tên danh mục
             if (category.getCategoryName() == null || category.getCategoryName().trim().isEmpty()) {
                 return new ApiResponse<>(400, "Tên danh mục không được để trống", null);
             }
 
-            // ✅ Trim và kiểm tra tên trùng
+            //  Trim và kiểm tra tên trùng
             String trimmedName = category.getCategoryName().trim();
             if (categoryRepository.existsByCategoryNameIgnoreCase(trimmedName)) {
                 return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
             }
 
-            // ✅ Validate description length
+            //  Validate description length
             if (category.getDescription() != null && category.getDescription().length() > 500) {
                 return new ApiResponse<>(400, "Mô tả không được vượt quá 500 ký tự", null);
             }
 
-            // ✅ Validate parent category
+            //  Validate parent category
             if (category.getParentCategory() != null && category.getParentCategory().getId() != null) {
                 Category parentCategory = categoryRepository.findById(category.getParentCategory().getId())
                         .orElse(null);
@@ -70,12 +70,12 @@ public class CategoryServiceImpl implements CategoryService {
                 category.setParentCategory(null);
             }
             System.out.println(category.getId());
-            // ✅ Set default values
+            //  Set default values
             category.setId(null);
             category.setCategoryName(trimmedName);
             category.setCreatedBy(1);
 
-            // ✅ Set default status nếu chưa có
+            //  Set default status nếu chưa có
             if (category.getStatus() == null) {
                 category.setStatus((byte) 1);
             }
@@ -104,14 +104,14 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ApiResponse<Category> update(Category category, Integer id) {
         try {
-            // ✅ Kiểm tra tên trùng (loại trừ chính nó)
+            //  Kiểm tra tên trùng (loại trừ chính nó)
             String trimmedName = category.getCategoryName().trim();
             Category existingCategory = categoryRepository.findByCategoryNameIgnoreCase(trimmedName);
             if (existingCategory != null && !existingCategory.getId().equals(id)) {
                 return new ApiResponse<>(400, "Tên danh mục đã tồn tại", null);
             }
 
-            // ✅ Validate ID
+            //  Validate ID
             if (id == null || id <= 0) {
                 return new ApiResponse<>(400, "ID danh mục không hợp lệ", null);
             }
@@ -119,7 +119,7 @@ public class CategoryServiceImpl implements CategoryService {
             if (categoryById == null) {
                 return new ApiResponse<>(404, "Không tìm thấy danh mục với ID: " + id, null);
             }
-            // ✅ Validate tên danh mục
+            //  Validate tên danh mục
             if (category.getParentCategory() != null && category.getParentCategory().getId() != null) {
                 // Không thể tự làm cha của chính mình
                 if (category.getParentCategory().getId().equals(id)) {
@@ -142,7 +142,7 @@ public class CategoryServiceImpl implements CategoryService {
             categoryById.setStatus(category.getStatus());
             categoryById.setUpdatedBy(1);
 
-            // ✅ Không cho phép sửa nếu id này là cha của danh mục khác
+            //  Không cho phép sửa nếu id này là cha của danh mục khác
             boolean isParentOfAny = categoryRepository.existsByParentCategoryId(id);
             if (isParentOfAny) {
                 return new ApiResponse<>(400, "Không thể sửa vì danh mục này đang là cha của danh mục khác!", null);
@@ -164,13 +164,13 @@ public class CategoryServiceImpl implements CategoryService {
                 return new ApiResponse<>(404, "Không tìm thấy danh mục với ID: " + id, null);
             }
 
-            // ✅ Không cho phép xóa nếu id này là cha của danh mục khác
+            //  Không cho phép xóa nếu id này là cha của danh mục khác
             boolean isParentOfAny = categoryRepository.existsByParentCategoryId(id);
             if (isParentOfAny) {
                 return new ApiResponse<>(400, "Không thể xóa vì danh mục này đang là cha của danh mục khác!", null);
             }
 
-            // ✅ Không cho phép xóa nếu có sách thuộc danh mục này
+            //  Không cho phép xóa nếu có sách thuộc danh mục này
             boolean hasBook = bookRepository.existsByCategoryId(id);
             if (hasBook) {
                 return new ApiResponse<>(400, "Không thể xóa vì có sách thuộc danh mục này!", null);

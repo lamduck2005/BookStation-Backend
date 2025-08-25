@@ -40,7 +40,7 @@ public class RewardServiceImpl implements RewardService {
         Campaign campaign = campaignRepository.findById(request.getCampaignId())
                 .orElseThrow(() -> new RuntimeException("Chiến dịch không tồn tại"));
         
-        // ✅ VALIDATION: Kiểm tra tổng xác suất trước khi tạo
+        //  VALIDATION: Kiểm tra tổng xác suất trước khi tạo
         validateTotalProbabilityForCreate(request.getCampaignId(), request.getProbability());
 
         Reward reward = new Reward();
@@ -57,14 +57,14 @@ public class RewardServiceImpl implements RewardService {
             Voucher voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new RuntimeException("Voucher không tồn tại"));
             
-            // ✅ Validate voucher quantity availability
+            //  Validate voucher quantity availability
             if (voucher.getUsageLimit() != null && request.getStock() > voucher.getUsageLimit()) {
                 throw new RuntimeException("Số lượng phần thưởng (" + request.getStock() + 
                                          ") không thể vượt quá số lượng có sẵn của voucher (" + 
                                          voucher.getUsageLimit() + ")");
             }
             
-            // ✅ Check remaining usage of voucher
+            //  Check remaining usage of voucher
             int remainingVoucherUsage = voucher.getUsageLimit() != null ? 
                                        voucher.getUsageLimit() - (voucher.getUsedCount() != null ? voucher.getUsedCount() : 0) : 
                                        Integer.MAX_VALUE;
@@ -96,7 +96,7 @@ public class RewardServiceImpl implements RewardService {
         Reward reward = rewardRepository.findById(request.getId())
                 .orElseThrow(() -> new RuntimeException("Phần thưởng không tồn tại"));
         
-        // ✅ VALIDATION: Kiểm tra tổng xác suất trước khi update (exclude reward hiện tại)
+        //  VALIDATION: Kiểm tra tổng xác suất trước khi update (exclude reward hiện tại)
         validateTotalProbabilityForUpdate(reward.getCampaign().getId(), request.getId(), request.getProbability());
 
         reward.setType(request.getType());
@@ -111,14 +111,14 @@ public class RewardServiceImpl implements RewardService {
             Voucher voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new RuntimeException("Voucher không tồn tại"));
             
-            // ✅ Validate voucher quantity availability for update
+            //  Validate voucher quantity availability for update
             if (voucher.getUsageLimit() != null && request.getStock() > voucher.getUsageLimit()) {
                 throw new RuntimeException("Số lượng phần thưởng (" + request.getStock() + 
                                          ") không thể vượt quá số lượng có sẵn của voucher (" + 
                                          voucher.getUsageLimit() + ")");
             }
             
-            // ✅ Check remaining usage of voucher
+            //  Check remaining usage of voucher
             int remainingVoucherUsage = voucher.getUsageLimit() != null ? 
                                        voucher.getUsageLimit() - (voucher.getUsedCount() != null ? voucher.getUsedCount() : 0) : 
                                        Integer.MAX_VALUE;
@@ -155,7 +155,7 @@ public class RewardServiceImpl implements RewardService {
         Reward reward = rewardRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Phần thưởng không tồn tại"));
         
-        // ✅ NEW: Validate khi bật phần thưởng (status = 1)
+        //  NEW: Validate khi bật phần thưởng (status = 1)
         if (status == 1 && (reward.getStatus() == null || reward.getStatus() != 1)) {
             validateActiveProbabilityWhenEnabling(reward.getCampaign().getId(), reward.getProbability());
         }
@@ -172,7 +172,7 @@ public class RewardServiceImpl implements RewardService {
                 .orElseThrow(() -> new RuntimeException("Phần thưởng không tồn tại"));
         byte newStatus = (reward.getStatus() != null && reward.getStatus() == 1) ? (byte)0 : (byte)1;
         
-        // ✅ NEW: Validate khi bật phần thưởng (newStatus = 1)
+        //  NEW: Validate khi bật phần thưởng (newStatus = 1)
         if (newStatus == 1) {
             validateActiveProbabilityWhenEnabling(reward.getCampaign().getId(), reward.getProbability());
         }
@@ -188,11 +188,11 @@ public class RewardServiceImpl implements RewardService {
         Reward reward = rewardRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Phần thưởng không tồn tại"));
 
-        // ✅ Check if reward is being used in box_history
+        //  Check if reward is being used in box_history
         List<BoxHistory> boxHistories = boxHistoryRepository.findByRewardId(id);
         
         if (!boxHistories.isEmpty()) {
-            // ✅ Set reward_id to null in box_history before deleting reward
+            //  Set reward_id to null in box_history before deleting reward
             for (BoxHistory history : boxHistories) {
                 history.setReward(null);
                 boxHistoryRepository.save(history);
@@ -245,11 +245,11 @@ public class RewardServiceImpl implements RewardService {
         return response;
     }
     
-    // ✅ NEW: Validation methods - Updated to use ACTIVE rewards only
+    //  NEW: Validation methods - Updated to use ACTIVE rewards only
     @Override
     public void validateTotalProbability(Integer campaignId, Integer excludeRewardId) {
         BigDecimal totalActiveProbability = calculateTotalActiveProbability(campaignId, excludeRewardId);
-        // ✅ CHANGED: New rule - total active probability should be <= 100%
+        //  CHANGED: New rule - total active probability should be <= 100%
         if (totalActiveProbability.compareTo(new BigDecimal("100")) > 0) {
             throw new RuntimeException("Tổng xác suất của các phần thưởng đang hoạt động không được vượt quá 100%. Hiện tại: " + totalActiveProbability + "%");
         }
@@ -267,7 +267,7 @@ public class RewardServiceImpl implements RewardService {
     }
     
     private void validateTotalProbabilityForUpdate(Integer campaignId, Integer rewardId, BigDecimal newProbability) {
-        // ✅ FIXED: Use active probability calculation only
+        //  FIXED: Use active probability calculation only
         BigDecimal totalActiveProbability = calculateTotalActiveProbability(campaignId, rewardId);
         BigDecimal newTotal = totalActiveProbability.add(newProbability);
         if (newTotal.compareTo(new BigDecimal("100")) > 0) {
@@ -279,7 +279,7 @@ public class RewardServiceImpl implements RewardService {
     }
     
     /**
-     * ✅ NEW: Tính tổng xác suất của các phần thưởng ACTIVE (status=1)
+     *  NEW: Tính tổng xác suất của các phần thưởng ACTIVE (status=1)
      */
     private BigDecimal calculateTotalActiveProbability(Integer campaignId, Integer excludeRewardId) {
         List<Reward> rewards = rewardRepository.findByCampaignIdOrderByProbabilityDesc(campaignId);
@@ -291,7 +291,7 @@ public class RewardServiceImpl implements RewardService {
     }
     
     /**
-     * ✅ NEW: Validate khi bật phần thưởng để đảm bảo tổng <= 100%
+     *  NEW: Validate khi bật phần thưởng để đảm bảo tổng <= 100%
      */
     private void validateActiveProbabilityWhenEnabling(Integer campaignId, BigDecimal rewardProbability) {
         BigDecimal totalActiveProbability = calculateTotalActiveProbability(campaignId, null);
@@ -305,7 +305,7 @@ public class RewardServiceImpl implements RewardService {
     }
     
     /**
-     * ✅ NEW: API riêng cho thông tin xác suất chiến dịch
+     * NEW: API riêng cho thông tin xác suất chiến dịch
      */
     @Override
     public CampaignProbabilityResponse getCampaignProbabilityInfo(Integer campaignId) {

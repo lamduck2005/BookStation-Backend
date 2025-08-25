@@ -13,15 +13,15 @@ public interface PointRepository extends JpaRepository<Point, Integer>, JpaSpeci
 
     Point getByUserId(Integer userId);
 
-    // ✅ THÊM MỚI: Tổng điểm kiếm được trong khoảng thời gian
+    //  THÊM MỚI: Tổng điểm kiếm được trong khoảng thời gian
     @Query("SELECT COALESCE(SUM(p.pointEarned), 0) FROM Point p WHERE p.createdAt BETWEEN :startTime AND :endTime AND p.pointEarned IS NOT NULL")
     Long countPointsEarnedInPeriod(@Param("startTime") long startTime, @Param("endTime") long endTime);
 
-    // ✅ THÊM MỚI: Tổng điểm tiêu trong khoảng thời gian
+    //  THÊM MỚI: Tổng điểm tiêu trong khoảng thời gian
     @Query("SELECT COALESCE(SUM(p.pointSpent), 0) FROM Point p WHERE p.createdAt BETWEEN :startTime AND :endTime AND p.pointSpent IS NOT NULL")
     Long countPointsSpentInPeriod(@Param("startTime") long startTime, @Param("endTime") long endTime);
 
-    // ✅ THÊM MỚI: Top người kiếm điểm nhiều nhất
+    //  THÊM MỚI: Top người kiếm điểm nhiều nhất
     @Query("""
             SELECT u.fullName, u.email, 
                    COALESCE(SUM(p.pointEarned), 0) as totalEarned,

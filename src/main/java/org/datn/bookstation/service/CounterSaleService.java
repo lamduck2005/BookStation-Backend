@@ -6,7 +6,7 @@ import org.datn.bookstation.dto.response.CounterSaleResponse;
 import org.datn.bookstation.dto.response.OrderResponse;
 
 /**
- * ✅ Service cho bán hàng tại quầy (Counter Sales)
+ *  Service cho bán hàng tại quầy (Counter Sales)
  * 
  * Tính năng chính:
  * 1. Tạo đơn hàng tại quầy

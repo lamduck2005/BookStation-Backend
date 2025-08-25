@@ -149,7 +149,7 @@ public class OrderServiceImpl implements OrderService {
         // Sử dụng mapper với details
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
 
-        // ✅ THÊM MỚI: Set thông tin hoàn trả
+        //  THÊM MỚI: Set thông tin hoàn trả
         setRefundInfoToOrderResponse(response, order);
 
         return response;
@@ -158,7 +158,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public ApiResponse<OrderResponse> create(OrderRequest request) {
-        // ✅ MODIFIED: Validate user - allow null for counter sales
+        //  MODIFIED: Validate user - allow null for counter sales
         User user = null;
         if (request.getUserId() != null) {
             user = userRepository.findById(request.getUserId())
@@ -174,7 +174,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("Kiểu đơn hàng chỉ được phép là 'ONLINE' hoặc 'COUNTER'");
         }
 
-        // ✅ MODIFIED: Validate address - allow null for counter sales
+        //  MODIFIED: Validate address - allow null for counter sales
         Address address = null;
         if (request.getAddressId() != null) {
             address = addressRepository.findById(request.getAddressId())
@@ -184,7 +184,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("Address ID là bắt buộc cho đơn hàng online");
         }
 
-        // ✅ BACKEND TỰ TÍNH TOÁN SUBTOTAL từ orderDetails - KHÔNG TIN FRONTEND
+        //  BACKEND TỰ TÍNH TOÁN SUBTOTAL từ orderDetails - KHÔNG TIN FRONTEND
         BigDecimal calculatedSubtotal = BigDecimal.ZERO;
         for (var detailRequest : request.getOrderDetails()) {
             BigDecimal itemTotal = detailRequest.getUnitPrice()
@@ -192,7 +192,7 @@ public class OrderServiceImpl implements OrderService {
             calculatedSubtotal = calculatedSubtotal.add(itemTotal);
         }
 
-        // ✅ TỰ TÍNH VOUCHER DISCOUNT (nếu có)
+        //  TỰ TÍNH VOUCHER DISCOUNT (nếu có)
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal discountShipping = BigDecimal.ZERO;
 
@@ -212,7 +212,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // ✅ TỰ TÍNH TOTAL AMOUNT - KHÔNG TIN FRONTEND
+        //  TỰ TÍNH TOTAL AMOUNT - KHÔNG TIN FRONTEND
         BigDecimal shippingFee = request.getShippingFee() != null ? request.getShippingFee() : BigDecimal.ZERO;
         BigDecimal calculatedTotalAmount = calculatedSubtotal.add(shippingFee).subtract(discountAmount)
                 .subtract(discountShipping);
@@ -226,7 +226,7 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderType(request.getOrderType().toUpperCase());
         order.setPaymentMethod(request.getPaymentMethod()); // ✅ THÊM MỚI
         
-        // ✅ AUTO-SET CONFIRMED STATUS FOR VNPAY PAYMENTS
+        //  AUTO-SET CONFIRMED STATUS FOR VNPAY PAYMENTS
         if ("VNPay".equals(request.getPaymentMethod())) {
             order.setOrderStatus(OrderStatus.CONFIRMED);
             log.info("Auto-setting order status to CONFIRMED for VNPay payment: {}", order.getCode());
@@ -237,17 +237,17 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingFee(shippingFee);
         order.setDiscountAmount(discountAmount);
         order.setDiscountShipping(discountShipping);
-        order.setSubtotal(calculatedSubtotal); // ✅ Dùng giá trị backend tính
-        order.setTotalAmount(calculatedTotalAmount); // ✅ Dùng giá trị backend tính
+        order.setSubtotal(calculatedSubtotal); //  Dùng giá trị backend tính
+        order.setTotalAmount(calculatedTotalAmount); //  Dùng giá trị backend tính
         order.setNotes(request.getNotes());
 
-        // ✅ THÊM: Set thông tin người nhận cho đơn hàng tại quầy
+        //  THÊM: Set thông tin người nhận cho đơn hàng tại quầy
         if ("COUNTER".equalsIgnoreCase(request.getOrderType())) {
             order.setRecipientName(request.getRecipientName());
             order.setPhoneNumber(request.getPhoneNumber());
         }
 
-        // ✅ FIX: Set createdBy properly for counter sales
+        //  FIX: Set createdBy properly for counter sales
         if (user != null) {
             order.setCreatedBy(user.getId()); // Online order - use customer ID
         } else if (request.getStaffId() != null) {
@@ -272,7 +272,7 @@ public class OrderServiceImpl implements OrderService {
                     .orElseThrow(
                             () -> new BusinessException("Không tìm thấy sách với ID: " + detailRequest.getBookId()));
 
-            // ✅ ENHANCED: Xử lý logic flash sale và mixed purchase
+            //  ENHANCED: Xử lý logic flash sale và mixed purchase
             FlashSaleItem flashSaleItem = null;
             int quantityToOrder = detailRequest.getQuantity();
 
@@ -282,7 +282,7 @@ public class OrderServiceImpl implements OrderService {
                         .orElseThrow(() -> new BusinessException(
                                 "Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId()));
 
-                // ✅ Validate flash sale purchase limit per user
+                //  Validate flash sale purchase limit per user
                 if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), request.getUserId(),
                         quantityToOrder)) {
                     int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(),
@@ -320,20 +320,20 @@ public class OrderServiceImpl implements OrderService {
                     int flashSaleStock = activeFlashSale.getStockQuantity();
 
                     if (flashSaleStock >= quantityToOrder) {
-                        // ✅ ENHANCED: Validate flash sale purchase limit với hai loại thông báo
+                        //  ENHANCED: Validate flash sale purchase limit với hai loại thông báo
                         if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(),
                                 request.getUserId(), quantityToOrder)) {
                             int currentPurchased = flashSaleService
                                     .getUserPurchasedQuantity(activeFlashSale.getId().longValue(), request.getUserId());
                             int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
 
-                            // ✅ LOẠI 1: Đã đạt giới hạn tối đa
+                            //  LOẠI 1: Đã đạt giới hạn tối đa
                             if (currentPurchased >= maxAllowed) {
                                 throw new BusinessException("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" +
                                         book.getBookName() + "' cho phép. Không thể đặt hàng thêm.");
                             }
 
-                            // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                            //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
                             int remainingAllowed = maxAllowed - currentPurchased;
                             if (quantityToOrder > remainingAllowed) {
                                 throw new BusinessException("Bạn đã mua " + currentPurchased
@@ -341,7 +341,7 @@ public class OrderServiceImpl implements OrderService {
                                         remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
                             }
 
-                            // ✅ LOẠI 3: Thông báo chung
+                            //  LOẠI 3: Thông báo chung
                             throw new BusinessException(
                                     "Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" +
                                             book.getBookName() + "'.");
@@ -355,7 +355,7 @@ public class OrderServiceImpl implements OrderService {
                         // Cập nhật unit price về flash sale price
                         detailRequest.setUnitPrice(activeFlashSale.getDiscountPrice());
 
-                        log.info("✅ Auto-applied flash sale for book {}: {} items at price {}",
+                        log.info(" Auto-applied flash sale for book {}: {} items at price {}",
                                 book.getId(), quantityToOrder, activeFlashSale.getDiscountPrice());
                     } else if (flashSaleStock > 0) {
                         // Không đủ flash sale stock - KHÔNG hỗ trợ mixed purchase trong
@@ -389,7 +389,7 @@ public class OrderServiceImpl implements OrderService {
             orderDetail.setQuantity(quantityToOrder);
             orderDetail.setUnitPrice(detailRequest.getUnitPrice());
 
-            // ✅ FIX: Set createdBy properly for counter sales
+            //  FIX: Set createdBy properly for counter sales
             if (order.getUser() != null) {
                 orderDetail.setCreatedBy(order.getUser().getId()); // Online order
             } else {
@@ -401,14 +401,14 @@ public class OrderServiceImpl implements OrderService {
 
         orderDetailRepository.saveAll(orderDetails);
 
-        // ✅ CẬP NHẬT VOUCHER USAGE VÀ LƯU ORDERV OUCHER ENTITIES (nếu có sử dụng
+        //  CẬP NHẬT VOUCHER USAGE VÀ LƯU ORDERV OUCHER ENTITIES (nếu có sử dụng
         // voucher)
         if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
             try {
                 // 1. Update voucher usage counts
                 voucherCalculationService.updateVoucherUsage(request.getVoucherIds(), request.getUserId());
 
-                // 2. ✅ FIX: Save OrderVoucher entities để vouchers hiển thị trong API responses
+                // 2.  FIX: Save OrderVoucher entities để vouchers hiển thị trong API responses
                 saveOrderVouchers(order, request.getVoucherIds(), calculatedSubtotal, shippingFee);
 
                 // 3. Update voucher count trong order theo số lượng discount đã tính
@@ -497,7 +497,7 @@ public class OrderServiceImpl implements OrderService {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream()
                 .map(order -> {
-                    // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
+                    //  SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
                     List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
                     List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
 
@@ -524,7 +524,7 @@ public class OrderServiceImpl implements OrderService {
 
         List<OrderResponse> orderResponses = orderPage.getContent().stream()
                 .map(order -> {
-                    // ✅ SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
+                    //  SỬA: Lấy chi tiết đầy đủ như API getByIdWithDetails
                     List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
                     List<OrderVoucher> orderVouchers = orderVoucherRepository.findByOrderId(order.getId());
 
@@ -701,17 +701,17 @@ public class OrderServiceImpl implements OrderService {
                 break;
 
             case DELIVERED:
-                // ✅ CHÍNH THỨC CỘNG SỐ LƯỢNG ĐÃ BÁN KHI GIAO THÀNH CÔNG
+                // CHÍNH THỨC CỘNG SỐ LƯỢNG ĐÃ BÁN KHI GIAO THÀNH CÔNG
                 handleDeliveredBusinessLogic(order);
 
-                // ✅ Award points khi đơn hàng DELIVERED (không chỉ từ SHIPPED)
+                //  Award points khi đơn hàng DELIVERED (không chỉ từ SHIPPED)
                 // Đảm bảo chỉ tích điểm 1 lần
                 pointManagementService.earnPointsFromOrder(order, user);
                 log.info("Order {} delivered successfully, sold count updated, points awarded", order.getCode());
                 break;
 
             case DELIVERY_FAILED:
-                // ✅ KHÔI PHỤC STOCK KHI GIAO HÀNG THẤT BẠI
+                //  KHÔI PHỤC STOCK KHI GIAO HÀNG THẤT BẠI
                 handleDeliveryFailedBusinessLogic(order, oldStatus);
                 log.info("Order {} delivery failed, stock restored", order.getCode());
                 break;
@@ -726,17 +726,17 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void handleCancellationBusinessLogic(Order order, OrderStatus oldStatus) {
-        // ✅ Restore stock for canceled orders - cả book thông thường và flash sale
+        //  Restore stock for canceled orders - cả book thông thường và flash sale
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
         for (OrderDetail detail : orderDetails) {
             if (detail.getFlashSaleItem() != null) {
-                // ✅ CHỈ restore flash sale stock (không cần trừ sold count)
+                //  CHỈ restore flash sale stock (không cần trừ sold count)
                 FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
                 flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + detail.getQuantity());
                 // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
                 flashSaleItemRepository.save(flashSaleItem);
             } else {
-                // ✅ CHỈ restore book stock (không cần trừ sold count)
+                //  CHỈ restore book stock (không cần trừ sold count)
                 Book book = detail.getBook();
                 book.setStockQuantity(book.getStockQuantity() + detail.getQuantity());
                 // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
@@ -754,7 +754,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ LOGIC NGHIỆP VỤ KHI ĐƠN HÀNG ĐƯỢC GIAO THÀNH CÔNG
+     *  LOGIC NGHIỆP VỤ KHI ĐƠN HÀNG ĐƯỢC GIAO THÀNH CÔNG
      * - CHÍNH THỨC cộng số lượng đã bán cho cả Book và FlashSaleItem
      * - Chỉ gọi khi chuyển sang DELIVERED
      */
@@ -762,7 +762,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
         for (OrderDetail detail : orderDetails) {
             if (detail.getFlashSaleItem() != null) {
-                // ✅ Cộng sold count cho flash sale item
+                //  Cộng sold count cho flash sale item
                 FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
                 int currentSoldCount = flashSaleItem.getSoldCount() != null ? flashSaleItem.getSoldCount() : 0;
                 flashSaleItem.setSoldCount(currentSoldCount + detail.getQuantity());
@@ -772,7 +772,7 @@ public class OrderServiceImpl implements OrderService {
                         flashSaleItem.getId(), detail.getQuantity(), flashSaleItem.getSoldCount());
             }
 
-            // ✅ Cộng sold count cho book (cả flash sale và regular)
+            //  Cộng sold count cho book (cả flash sale và regular)
             Book book = detail.getBook();
             int currentBookSoldCount = book.getSoldCount() != null ? book.getSoldCount() : 0;
             book.setSoldCount(currentBookSoldCount + detail.getQuantity());
@@ -786,7 +786,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ LOGIC NGHIỆP VỤ KHI GIAO HÀNG THẤT BẠI
+     *  LOGIC NGHIỆP VỤ KHI GIAO HÀNG THẤT BẠI
      * - Khôi phục stock về số lượng ban đầu (vì khi tạo đơn đã trừ stock)
      * - KHÔNG cần trừ sold count (vì khi tạo đơn chưa cộng sold count)
      */
@@ -794,7 +794,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
         for (OrderDetail detail : orderDetails) {
             if (detail.getFlashSaleItem() != null) {
-                // ✅ CHỈ restore flash sale stock (không cần trừ sold count)
+                //  CHỈ restore flash sale stock (không cần trừ sold count)
                 FlashSaleItem flashSaleItem = detail.getFlashSaleItem();
                 flashSaleItem.setStockQuantity(flashSaleItem.getStockQuantity() + detail.getQuantity());
                 // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
@@ -804,7 +804,7 @@ public class OrderServiceImpl implements OrderService {
                         flashSaleItem.getId(), detail.getQuantity());
             }
 
-            // ✅ CHỈ restore book stock (không cần trừ sold count)
+            //  CHỈ restore book stock (không cần trừ sold count)
             Book book = detail.getBook();
             book.setStockQuantity(book.getStockQuantity() + detail.getQuantity());
             // KHÔNG cần trừ sold count vì khi tạo đơn chưa cộng
@@ -841,7 +841,7 @@ public class OrderServiceImpl implements OrderService {
                     .multiply(BigDecimal.valueOf(refundDetail.getRefundQuantity()));
             totalRefundAmount = totalRefundAmount.add(detailRefundAmount);
 
-            // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
+            //  KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
             // GOODS_RETURNED_TO_WAREHOUSE
             log.info("Partial refund calculated for book {}: quantity={}, amount={}",
                     refundDetail.getBookId(), refundDetail.getRefundQuantity(), detailRefundAmount);
@@ -855,7 +855,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void handleFullRefundBusinessLogic(Order order, String reason) {
-        // ✅ KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
+        //  KHÔNG cộng stock ở đây nữa - chỉ khi admin đổi trạng thái về
         // GOODS_RETURNED_TO_WAREHOUSE
         List<OrderDetail> orderDetails = orderDetailRepository.findByOrderId(order.getId());
 
@@ -875,8 +875,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ THÊM MỚI: Khách hàng gửi yêu cầu hoàn trả
-     * 🔥 FIXED: Tạo RefundRequest record trong database
+     *  THÊM MỚI: Khách hàng gửi yêu cầu hoàn trả
+     *  FIXED: Tạo RefundRequest record trong database
      */
     @Override
     @Transactional
@@ -895,7 +895,7 @@ public class OrderServiceImpl implements OrderService {
                 throw new BusinessException("Chỉ có thể yêu cầu hoàn trả đơn hàng đã giao thành công");
             }
 
-            // 🔥 SOLUTION: Tạo RefundRequest record thông qua RefundService
+            //  SOLUTION: Tạo RefundRequest record thông qua RefundService
             RefundRequest newRefundRequest = new RefundRequest();
             newRefundRequest.setOrder(order);
             newRefundRequest.setUser(order.getUser());
@@ -915,7 +915,7 @@ public class OrderServiceImpl implements OrderService {
             // Save RefundRequest first
             RefundRequest savedRefundRequest = refundRequestRepository.save(newRefundRequest);
 
-            // 🔥 Tạo RefundItem records cho từng sản phẩm
+            //  Tạo RefundItem records cho từng sản phẩm
             if (refundRequest.getRefundDetails() != null) {
                 List<RefundItem> refundItems = new ArrayList<>();
                 for (OrderDetailRefundRequest detail : refundRequest.getRefundDetails()) {
@@ -962,7 +962,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ THÊM MỚI: Admin chấp nhận yêu cầu hoàn trả
+     *  THÊM MỚI: Admin chấp nhận yêu cầu hoàn trả
      */
     @Override
     @Transactional
@@ -977,7 +977,7 @@ public class OrderServiceImpl implements OrderService {
                 throw new BusinessException("Đơn hàng không ở trạng thái chờ xem xét hoàn trả");
             }
 
-            // ✅ FIX: Admin chấp nhận -> CHỈ chuyển sang REFUNDING (không auto REFUNDED)
+            //  FIX: Admin chấp nhận -> CHỈ chuyển sang REFUNDING (không auto REFUNDED)
             // Admin sẽ manual chuyển sau khi đã xử lý đầy đủ
             order.setOrderStatus(OrderStatus.REFUNDING);
             order.setUpdatedBy(decision.getAdminId().intValue());
@@ -992,13 +992,13 @@ public class OrderServiceImpl implements OrderService {
                 log.info("Should deduct points for user {} amount {}", order.getUser().getId(), order.getTotalAmount());
             }
 
-            // ✅ REMOVED: Không tự động chuyển thành REFUNDED nữa
+            //  REMOVED: Không tự động chuyển thành REFUNDED nữa
             // Admin sẽ sử dụng Order Status Transition API để chuyển thành:
             // REFUNDING → GOODS_RECEIVED_FROM_CUSTOMER → GOODS_RETURNED_TO_WAREHOUSE →
             // REFUNDED
 
             log.info(
-                    "✅ Admin {} approved refund for order {} - Status: REFUNDING (admin must manually transition to complete)",
+                    " Admin {} approved refund for order {} - Status: REFUNDING (admin must manually transition to complete)",
                     decision.getAdminId(), order.getCode());
 
             OrderResponse response = orderResponseMapper.toResponse(order);
@@ -1016,7 +1016,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ THÊM MỚI: Admin từ chối yêu cầu hoàn trả
+     *  THÊM MỚI: Admin từ chối yêu cầu hoàn trả
      */
     @Override
     @Transactional
@@ -1064,14 +1064,14 @@ public class OrderServiceImpl implements OrderService {
         // Map sang DTO
         OrderResponse response = orderResponseMapper.toResponseWithDetails(order, orderDetails, orderVouchers);
 
-        // ✅ THÊM MỚI: Set thông tin hoàn trả
+        //  THÊM MỚI: Set thông tin hoàn trả
         setRefundInfoToOrderResponse(response, order);
 
         return response;
     }
 
     /**
-     * ✅ THÊM MỚI: Set thông tin hoàn trả cho OrderResponse
+     *  THÊM MỚI: Set thông tin hoàn trả cho OrderResponse
      */
     private void setRefundInfoToOrderResponse(OrderResponse orderResponse, Order order) {
         // Kiểm tra trạng thái hoàn trả
@@ -1102,7 +1102,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // ✅ Set thông tin hoàn trả cho từng order detail
+        //  Set thông tin hoàn trả cho từng order detail
         if (orderResponse.getOrderDetails() != null) {
             for (OrderDetailResponse detail : orderResponse.getOrderDetails()) {
                 setRefundInfoToOrderDetail(detail, order.getId());
@@ -1111,7 +1111,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ SỬA: Set thông tin hoàn trả cho OrderDetailResponse
+     *  SỬA: Set thông tin hoàn trả cho OrderDetailResponse
      */
     private void setRefundInfoToOrderDetail(OrderDetailResponse detail, Integer orderId) {
         // Lấy tất cả RefundItem cho sản phẩm này trong đơn hàng
@@ -1130,7 +1130,7 @@ public class OrderServiceImpl implements OrderService {
             detail.setRefundedQuantity(totalRefundedQuantity);
             detail.setRefundedAmount(totalRefundedAmount);
 
-            // ✅ SỬA: Lấy lý do từ RefundRequest (dropdown user chọn), không phải từ
+            //  SỬA: Lấy lý do từ RefundRequest (dropdown user chọn), không phải từ
             // RefundItem
             RefundItem latestItem = refundItems.get(refundItems.size() - 1);
             RefundRequest refundRequest = latestItem.getRefundRequest();
@@ -1140,7 +1140,7 @@ public class OrderServiceImpl implements OrderService {
             detail.setRefundReasonDisplay(RefundReasonUtil.getReasonDisplayName(refundRequest.getReason())); // ✅ THÊM
             detail.setRefundDate(refundRequest.getCreatedAt());
 
-            // ✅ THÊM MỚI: Set trạng thái hoàn trả của sản phẩm
+            //  THÊM MỚI: Set trạng thái hoàn trả của sản phẩm
             detail.setRefundStatus(refundRequest.getStatus().name());
             detail.setRefundStatusDisplay(getRefundStatusDisplay(refundRequest.getStatus()));
 
@@ -1153,7 +1153,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ THÊM MỚI: Helper method để convert trạng thái hoàn trả sang display name
+     *  THÊM MỚI: Helper method để convert trạng thái hoàn trả sang display name
      */
     private String getRefundStatusDisplay(RefundStatus status) {
         switch (status) {
@@ -1375,7 +1375,7 @@ public class OrderServiceImpl implements OrderService {
             long endMillis = end.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
             List<Object[]> raw = orderRepository.findAllMonthlyRevenueByDateRange(startMillis, endMillis);
 
-            // ✅ SỬA: Thay index 2 thành index 1 (vì chỉ có 2 cột)
+            //  SỬA: Thay index 2 thành index 1 (vì chỉ có 2 cột)
             BigDecimal revenue = raw.isEmpty() ? BigDecimal.ZERO : (BigDecimal) rowValue(raw.get(0), 1);
             result.add(new RevenueStatsResponse(year, m, null, revenue));
         }
@@ -1463,7 +1463,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * ✅ ENHANCED: Save OrderVoucher entities để vouchers hiển thị trong API
+     *  ENHANCED: Save OrderVoucher entities để vouchers hiển thị trong API
      * responses
      */
     private void saveOrderVouchers(Order order, List<Integer> voucherIds, BigDecimal orderSubtotal,
@@ -1506,12 +1506,12 @@ public class OrderServiceImpl implements OrderService {
                 // Save OrderVoucher
                 orderVoucherRepository.save(orderVoucher);
 
-                log.info("✅ Saved OrderVoucher: orderId={}, voucherId={}, discountApplied={}",
+                log.info(" Saved OrderVoucher: orderId={}, voucherId={}, discountApplied={}",
                         order.getId(), voucher.getId(), discountApplied);
             }
 
         } catch (Exception e) {
-            log.error("❌ Failed to save OrderVoucher entities for order {}: {}", order.getId(), e.getMessage(), e);
+            log.error(" Failed to save OrderVoucher entities for order {}: {}", order.getId(), e.getMessage(), e);
             // Không throw exception để không làm fail việc tạo order
         }
     }
@@ -1526,13 +1526,13 @@ public class OrderServiceImpl implements OrderService {
     // ================================================================
 
     /**
-     * 📊 API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary)
+     *  API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary)
      * Tương tự BookServiceImpl.getBookStatisticsSummary() nhưng cho Order
      */
     @Override
     public ApiResponse<Map<String, Object>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate) {
         try {
-            log.info("📊 Getting order statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
+            log.info(" Getting order statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
             
             List<Map<String, Object>> summaryData = new ArrayList<>();
             Long startTime, endTime;
@@ -1547,7 +1547,7 @@ public class OrderServiceImpl implements OrderService {
             // 2. Validate khoảng thời gian tối đa cho từng period type
             String validationError = validateOrderDateRangeForPeriod(finalPeriodType, startTime, endTime);
             if (validationError != null) {
-                log.warn("❌ Date range validation failed: {}", validationError);
+                log.warn(" Date range validation failed: {}", validationError);
                 Map<String, Object> errorData = new HashMap<>();
                 errorData.put("data", new ArrayList<>());
                 errorData.put("totalOrdersSum", 0);
@@ -1557,7 +1557,7 @@ public class OrderServiceImpl implements OrderService {
                 return new ApiResponse<>(400, validationError, errorData);
             }
             
-            log.info("📊 Final period: {}, timeRange: {} to {}", finalPeriodType, 
+            log.info(" Final period: {}, timeRange: {} to {}", finalPeriodType, 
                     new java.util.Date(startTime), new java.util.Date(endTime));
             
             // 3. Query dữ liệu từ database
@@ -1606,14 +1606,14 @@ public class OrderServiceImpl implements OrderService {
                     throw new IllegalArgumentException("Unsupported period type: " + finalPeriodType);
             }
             
-            // 🔥 Calculate summary totals and add to response 
+            //  Calculate summary totals and add to response 
             Map<String, Object> responseWithSummary = calculateOrderSummaryTotals(summaryData);
             
-            log.info("📊 Generated {} data points with summary totals for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
+            log.info(" Generated {} data points with summary totals for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
             return new ApiResponse<>(200, "Lấy thống kê tổng quan đơn hàng thành công", responseWithSummary);
             
         } catch (Exception e) {
-            log.error("❌ Error getting order statistics summary", e);
+            log.error(" Error getting order statistics summary", e);
             Map<String, Object> errorData = new HashMap<>();
             errorData.put("data", new ArrayList<>());
             errorData.put("totalOrdersSum", 0);
@@ -1625,7 +1625,7 @@ public class OrderServiceImpl implements OrderService {
     }
     
     /**
-     * 🔥 Calculate summary totals from data list
+     *  Calculate summary totals from data list
      * Returns Map with "data" array and summary totals
      */
     private Map<String, Object> calculateOrderSummaryTotals(List<Map<String, Object>> summaryData) {
@@ -1679,13 +1679,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 📊 API THỐNG KÊ CHI TIẾT ĐỚN HÀNG - TIER 2 (Details)  
+     *  API THỐNG KÊ CHI TIẾT ĐỚN HÀNG - TIER 2 (Details)  
      * Tương tự BookServiceImpl.getBookStatisticsDetails() nhưng cho Order
      */
     @Override
     public ApiResponse<List<Map<String, Object>>> getOrderStatisticsDetails(String period, Long date, Integer limit) {
         try {
-            log.info("📊 Getting order statistics details - period: {}, date: {}, limit: {}", period, date, limit);
+            log.info("Getting order statistics details - period: {}, date: {}, limit: {}", period, date, limit);
             
             // Parse timestamp và tính toán khoảng thời gian cụ thể
             OrderTimeRangeInfo timeRange;
@@ -1699,7 +1699,7 @@ public class OrderServiceImpl implements OrderService {
                 long weekStartMs = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 long weekEndMs = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 
-                log.info("🎯 Week calculation - Input: {} -> Week: {} to {} ({}ms to {}ms)", 
+                log.info(" Week calculation - Input: {} -> Week: {} to {} ({}ms to {}ms)", 
                         inputDate, weekStart, weekEnd, weekStartMs, weekEndMs);
                 
                 timeRange = new OrderTimeRangeInfo(weekStartMs, weekEndMs);
@@ -1708,7 +1708,7 @@ public class OrderServiceImpl implements OrderService {
                 timeRange = calculateOrderTimeRangeFromTimestamp(period, date);
             }
             
-            log.info("📊 Calculated time range: {} to {} for period: {}", 
+            log.info(" Calculated time range: {} to {} for period: {}", 
                     Instant.ofEpochMilli(timeRange.getStartTime()).toString(), 
                     Instant.ofEpochMilli(timeRange.getEndTime()).toString(), period);
             
@@ -1716,7 +1716,7 @@ public class OrderServiceImpl implements OrderService {
             List<Object[]> orderData = orderRepository.findOrderDetailsByDateRange(
                     timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
             
-            log.info("📊 Found {} orders in time range", orderData.size());
+            log.info(" Found {} orders in time range", orderData.size());
             
             // Build response với thông tin chi tiết
             List<Map<String, Object>> detailsData = buildOrderDetailsResponse(orderData);
@@ -1725,7 +1725,7 @@ public class OrderServiceImpl implements OrderService {
             return new ApiResponse<>(200, message, detailsData);
             
         } catch (Exception e) {
-            log.error("❌ Error getting order statistics details", e);
+            log.error(" Error getting order statistics details", e);
             return new ApiResponse<>(500, "Lỗi khi lấy chi tiết thống kê đơn hàng", new ArrayList<>());
         }
     }
@@ -1773,7 +1773,7 @@ public class OrderServiceImpl implements OrderService {
      * Calculate period và time range cho Order (copy từ BookServiceImpl)
      */
     /**
-     * 🔥 CORE: Tính toán period và time range với logic đúng (COPY từ BookServiceImpl)
+     *  CORE: Tính toán period và time range với logic đúng (COPY từ BookServiceImpl)
      * Logic:
      * - Nếu không có fromDate/toDate → dùng default period ranges
      * - Nếu có fromDate/toDate → kiểm tra validation và return exact range
@@ -1841,38 +1841,38 @@ public class OrderServiceImpl implements OrderService {
     }
     
     /**
-     * 🔥 STRICT VALIDATION: Return exact period range (COPY từ BookServiceImpl)
+     *  STRICT VALIDATION: Return exact period range (COPY từ BookServiceImpl)
      * - Validation sẽ được thực hiện sau method này
      */
     private OrderPeriodCalculationResult calculateOrderCustomPeriodRange(String period, Long fromDate, Long toDate) {
         long duration = toDate - fromDate;
         long daysDuration = duration / (24 * 60 * 60 * 1000L);
         
-        log.info("🔥 Order Custom period analysis: {} with {} days duration", period, daysDuration);
-        log.info("🔥 USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
+        log.info(" Order Custom period analysis: {} with {} days duration", period, daysDuration);
+        log.info(" USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
         
         // KHÔNG auto-downgrade, chỉ return period như user request
         // Validation sẽ được thực hiện ở validateOrderDateRangeForPeriod method
         switch (period.toLowerCase()) {
             case "year":
-                log.info("✅ Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new OrderPeriodCalculationResult(fromDate, toDate, "yearly");
                 
             case "quarter":
-                log.info("✅ Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new OrderPeriodCalculationResult(fromDate, toDate, "quarterly");
                 
             case "month":
-                log.info("✅ Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new OrderPeriodCalculationResult(fromDate, toDate, "monthly");
                 
             case "week":
-                log.info("✅ Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
                 return new OrderPeriodCalculationResult(fromDate, toDate, "weekly");
                 
             case "day":
             default:
-                log.info("✅ Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
+                log.info(" Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
                 return new OrderPeriodCalculationResult(fromDate, toDate, "daily");
         }
     }
@@ -1881,7 +1881,7 @@ public class OrderServiceImpl implements OrderService {
      * Validate date range cho Order (copy từ BookServiceImpl)
      */
     /**
-     * 🔥 VALIDATE DATE RANGE FOR PERIOD TYPES (COPIED FROM BookServiceImpl)
+     *  VALIDATE DATE RANGE FOR PERIOD TYPES (COPIED FROM BookServiceImpl)
      * Kiểm tra khoảng thời gian có hợp lệ cho từng period type không
      * - Giới hạn giống hệt Book APIs để đảm bảo consistency
      */

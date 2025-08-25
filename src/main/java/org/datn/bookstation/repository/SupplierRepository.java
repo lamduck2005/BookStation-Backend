@@ -13,7 +13,7 @@ public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
     Page<Supplier> findAll(Specification<Supplier> spec, Pageable pageable);
     List<Supplier> findByStatus(Byte status);
 
-    // ✅ THÊM MỚI: Thống kê sách theo nhà cung cấp
+    //  THÊM MỚI: Thống kê sách theo nhà cung cấp
     @Query("""
             SELECT s.supplierName,
                    COUNT(b.id) as totalBooks
@@ -25,7 +25,7 @@ public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
             """)
     List<Object[]> getSupplierBookStatistics();
 
-    // ✅ THÊM MỚI: Doanh thu theo nhà cung cấp
+    //  THÊM MỚI: Doanh thu theo nhà cung cấp
     @Query("""
             SELECT s.supplierName,
                    COALESCE(SUM(od.unitPrice * od.quantity), 0) as totalRevenue,
@@ -39,7 +39,7 @@ public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
             """)
     List<Object[]> getSupplierRevenueStatistics();
 
-    // ✅ THÊM MỚI: Top nhà cung cấp theo doanh thu
+    //  THÊM MỚI: Top nhà cung cấp theo doanh thu
     @Query("""
             SELECT s.supplierName,
                    COALESCE(SUM(od.unitPrice * od.quantity), 0) as totalRevenue,
@@ -53,7 +53,7 @@ public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
             """)
     List<Object[]> getTopSuppliersByRevenue(Pageable pageable);
 
-    // ✅ THÊM MỚI: Top nhà cung cấp theo số lượng
+    //  THÊM MỚI: Top nhà cung cấp theo số lượng
     @Query("""
             SELECT s.supplierName,
                    COALESCE(SUM(od.quantity), 0) as totalQuantity,

@@ -69,7 +69,7 @@ public class CampaignServiceImpl implements CampaignService {
         long currentTime = System.currentTimeMillis();
         List<Campaign> campaigns = campaignRepository.findActiveCampaigns(currentTime);
         
-        // ✅ Filter campaigns that have valid rewards
+        //  Filter campaigns that have valid rewards
         return campaigns.stream()
                 .filter(this::isCampaignValid)
                 .map(campaign -> toCampaignResponse(campaign, null))
@@ -81,7 +81,7 @@ public class CampaignServiceImpl implements CampaignService {
         Campaign campaign = campaignRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Chiến dịch không tồn tại"));
 
-        // ✅ Check if campaign is valid before returning to user (for gameplay)
+        //  Check if campaign is valid before returning to user (for gameplay)
         if (userId != null && !isCampaignValid(campaign)) {
             throw new RuntimeException("Chiến dịch không có phần thưởng nào khả dụng");
         }
@@ -160,11 +160,11 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     /**
-     * ✅ Validate if campaign is playable (has valid rewards)
+     *  Validate if campaign is playable (has valid rewards)
      */
     private boolean isCampaignValid(Campaign campaign) {
         try {
-            log.debug("🔍 [NEW CODE v2] Validating campaign {}", campaign.getName());
+            log.debug(" [NEW CODE v2] Validating campaign {}", campaign.getName());
             
             // Get active rewards for this campaign
             List<Reward> activeRewards = rewardRepository.findActiveByCampaignId(campaign.getId());
@@ -186,7 +186,7 @@ public class CampaignServiceImpl implements CampaignService {
                 return false;
             }
             
-            log.debug("✅ Campaign {} passed all validation", campaign.getName());
+            log.debug(" Campaign {} passed all validation", campaign.getName());
             return true;
         } catch (Exception e) {
             log.error("Error validating campaign {}: {}", campaign.getName(), e.getMessage());
@@ -195,7 +195,7 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     /**
-     * ✅ Validate if reward is still available and usable  
+     *  Validate if reward is still available and usable  
      */
     private boolean isRewardValid(Reward reward) {
         try {

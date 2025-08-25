@@ -41,7 +41,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
 
         // Get vouchers
         List<Voucher> vouchers = voucherRepository.findAllById(voucherIds);
-        log.debug("🎫 Found {} vouchers in database", vouchers.size());
+        log.debug(" Found {} vouchers in database", vouchers.size());
         
         if (vouchers.size() != voucherIds.size()) {
             throw new RuntimeException("Một số voucher không tồn tại");
@@ -49,7 +49,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
 
         // Log each voucher details
         for (Voucher voucher : vouchers) {
-            log.debug("🎫 Voucher {}: category={}, discountType={}, discountAmount={}, discountPercentage={}", 
+            log.debug(" Voucher {}: category={}, discountType={}, discountAmount={}, discountPercentage={}", 
                 voucher.getCode(), voucher.getVoucherCategory(), voucher.getDiscountType(), 
                 voucher.getDiscountAmount(), voucher.getDiscountPercentage());
         }
@@ -64,18 +64,18 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         int shippingCount = 0;
 
         for (Voucher voucher : vouchers) {
-            log.debug("🎫 Processing voucher {}: category={}", voucher.getCode(), voucher.getVoucherCategory());
+            log.debug(" Processing voucher {}: category={}", voucher.getCode(), voucher.getVoucherCategory());
             
             if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
                 shippingCount++;
                 BigDecimal shippingDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
-                log.debug("🎫 Shipping voucher {} discount: {}", voucher.getCode(), shippingDiscount);
+                log.debug(" Shipping voucher {} discount: {}", voucher.getCode(), shippingDiscount);
                 result.setTotalShippingDiscount(result.getTotalShippingDiscount().add(shippingDiscount));
                 appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), shippingDiscount));
             } else {
                 regularCount++;
                 BigDecimal productDiscount = calculateSingleVoucherDiscount(voucher, order.getSubtotal(), order.getShippingFee());
-                log.debug("🎫 Normal voucher {} discount: {}", voucher.getCode(), productDiscount);
+                log.debug(" Normal voucher {} discount: {}", voucher.getCode(), productDiscount);
                 result.setTotalProductDiscount(result.getTotalProductDiscount().add(productDiscount));
                 appliedVouchers.add(new VoucherApplicationDetail(voucher.getId(), voucher.getVoucherCategory(), voucher.getDiscountType(), productDiscount));
             }
@@ -85,7 +85,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         result.setShippingVoucherCount(shippingCount);
         result.setAppliedVouchers(appliedVouchers);
 
-        log.debug("🎫 Final result: productDiscount={}, shippingDiscount={}, totalVouchers={}", 
+        log.debug(" Final result: productDiscount={}, shippingDiscount={}, totalVouchers={}", 
             result.getTotalProductDiscount(), result.getTotalShippingDiscount(), appliedVouchers.size());
 
         return result;
@@ -144,11 +144,11 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         if (totalPotentialDiscount.compareTo(orderTotal) > 0) {
             log.warn("⚠️ Total voucher discount ({}) exceeds order total ({}) - will be capped at order total", 
                 totalPotentialDiscount, orderTotal);
-            // ✅ DON'T throw exception - just log warning and let calculation proceed
+            //  DON'T throw exception - just log warning and let calculation proceed
             // The actual calculation will cap the discount appropriately
         }
 
-        // ✅ NEW: Check if shipping voucher is used for counter sales
+        //  NEW: Check if shipping voucher is used for counter sales
         if (shippingVoucherCount > 0 && "COUNTER".equals(order.getOrderType())) {
             throw new RuntimeException("Không thể áp dụng voucher giảm phí ship cho đơn hàng tại quầy vì không có phí vận chuyển");
         }
@@ -168,7 +168,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
             
         BigDecimal discount = BigDecimal.ZERO;
         
-        // ✅ NEW LOGIC: Use VoucherCategory to determine what to discount
+        //  NEW LOGIC: Use VoucherCategory to determine what to discount
         if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
             // Shipping voucher always discounts shipping fee
             discount = shippingFee != null ? shippingFee : BigDecimal.ZERO;
@@ -188,14 +188,14 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                     break;
             }
             
-            // ✅ FIX: Always cap normal voucher discount at order subtotal
+            //  FIX: Always cap normal voucher discount at order subtotal
             if (discount.compareTo(orderSubtotal) > 0) {
                 log.info("🎫 Capping normal voucher {} discount from {} to {} (order subtotal)", 
                     voucher.getCode(), discount, orderSubtotal);
                 discount = orderSubtotal;
             }
-            
-            // ✅ FIX: Only apply max discount limit if it's actually set and > 0
+        
+            //  FIX: Only apply max discount limit if it's actually set and > 0
             if (voucher.getMaxDiscountValue() != null && 
                 voucher.getMaxDiscountValue().compareTo(BigDecimal.ZERO) > 0 && 
                 discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
@@ -214,7 +214,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
         if (voucher == null || voucher.getUsageLimitPerUser() == null) return false;
 
-        // ✅ UPDATED: Đếm số lần user đã sử dụng voucher này
+        //  UPDATED: Đếm số lần user đã sử dụng voucher này
         // Không dùng quantity nữa, dựa vào usedCount của các UserVoucher records
         List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
                 .filter(uv -> uv.getUser().getId().equals(userId) && 
@@ -227,7 +227,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         
         int availableCount = userVouchers.size() - totalUsedCount; // Số record chưa sử dụng
         
-        log.debug("🎫 canUserUseVoucher: userId={}, voucherId={}, totalRecords={}, totalUsedCount={}, availableCount={}, usageLimitPerUser={}", 
+        log.debug(" canUserUseVoucher: userId={}, voucherId={}, totalRecords={}, totalUsedCount={}, availableCount={}, usageLimitPerUser={}", 
             userId, voucherId, userVouchers.size(), totalUsedCount, availableCount, voucher.getUsageLimitPerUser());
         
         return availableCount > 0; // Can use if user has available vouchers
@@ -243,7 +243,7 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 voucherRepository.save(voucher);
             }
 
-            // ✅ UPDATED: Tìm UserVoucher record chưa sử dụng đầu tiên và mark là đã sử dụng
+            //  UPDATED: Tìm UserVoucher record chưa sử dụng đầu tiên và mark là đã sử dụng
             List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
                     .filter(uv -> uv.getUser().getId().equals(userId) && 
                                  uv.getVoucher().getId().equals(voucherId) &&
@@ -255,10 +255,10 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 firstAvailable.setUsedCount(1); // Mark as used
                 userVoucherRepository.save(firstAvailable);
                 
-                log.info("🎫 Marked UserVoucher {} as used for user {} voucher {}", 
+                log.info(" Marked UserVoucher {} as used for user {} voucher {}", 
                     firstAvailable.getId(), userId, voucherId);
             } else {
-                log.warn("⚠️ Attempted to use voucher {} but user {} has no available voucher records", voucherId, userId);
+                log.warn(" Attempted to use voucher {} but user {} has no available voucher records", voucherId, userId);
             }
         }
     }

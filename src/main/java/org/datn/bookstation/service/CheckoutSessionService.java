@@ -93,7 +93,7 @@ public interface CheckoutSessionService {
     CheckoutSession getSessionEntity(Integer sessionId, Integer userId);
 
     /**
-     * ✅ NEW: Update payment method cho session
+     *  NEW: Update payment method cho session
      */
     ApiResponse<String> updateSessionPaymentMethod(Integer sessionId, String paymentMethod);
 }

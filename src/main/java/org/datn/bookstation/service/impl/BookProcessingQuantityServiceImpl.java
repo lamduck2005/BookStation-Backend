@@ -22,7 +22,7 @@ public class BookProcessingQuantityServiceImpl implements BookProcessingQuantity
     private final OrderDetailRepository orderDetailRepository;
     private final BookRepository bookRepository;
     
-    // ✅ FIXED: Các trạng thái đơn hàng được coi là "đang xử lý"  
+    //  FIXED: Các trạng thái đơn hàng được coi là "đang xử lý"  
     // CHỈ LOẠI TRỪ những trạng thái đã hoàn tất HOÀN TOÀN
     private static final List<OrderStatus> PROCESSING_STATUSES = List.of(
         OrderStatus.PENDING,                        // Chờ xử lý
@@ -34,18 +34,18 @@ public class BookProcessingQuantityServiceImpl implements BookProcessingQuantity
         OrderStatus.REFUND_REQUESTED,               // Yêu cầu hoàn trả
         OrderStatus.AWAITING_GOODS_RETURN,          // Chờ hàng trả về
         OrderStatus.REFUNDING,                      // Đang hoàn trả
-        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,   // ✅ Đã nhận hàng từ khách (còn phải hoàn tiền)
-        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE     // ✅ Hàng đã về kho (còn phải hoàn tiền)
-        // ❌ CHỈ LOẠI TRỪ: DELIVERED, REFUNDED, PARTIALLY_REFUNDED, CANCELED (đã hoàn tất hoàn toàn)
+        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,   //  Đã nhận hàng từ khách (còn phải hoàn tiền)
+        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE     //  Hàng đã về kho (còn phải hoàn tiền)
+        //  CHỈ LOẠI TRỪ: DELIVERED, REFUNDED, PARTIALLY_REFUNDED, CANCELED (đã hoàn tất hoàn toàn)
     );
     
     @Override
     public Integer getProcessingQuantity(Integer bookId) {
-        // ✅ SỬ DỤNG CÙNG LOGIC NHU BookServiceImpl.calculateActualProcessingQuantity()
+        //  SỬ DỤNG CÙNG LOGIC NHU BookServiceImpl.calculateActualProcessingQuantity()
         // Lấy danh sách tất cả đơn hàng đang processing cho bookId này
         List<Object[]> processingOrders = orderDetailRepository.findProcessingOrderDetailsByBookId(bookId, PROCESSING_STATUSES);
         
-        System.out.println("📊 DEBUG Book ID " + bookId + " - Found " + processingOrders.size() + " orders");
+        System.out.println(" DEBUG Book ID " + bookId + " - Found " + processingOrders.size() + " orders");
         
         int totalProcessingQuantity = 0;
         
@@ -58,37 +58,37 @@ public class BookProcessingQuantityServiceImpl implements BookProcessingQuantity
             Integer refundQuantity = orderDetailRepository.getRefundQuantityByOrderIdAndBookId(orderId, bookId);
             if (refundQuantity == 0) refundQuantity = null; // Convert 0 thành null để logic xử lý đúng
             
-            System.out.println("🔍 Order " + orderId + ": qty=" + orderDetailQuantity + ", status=" + orderStatus + ", refundQty=" + refundQuantity);
+            System.out.println(" Order " + orderId + ": qty=" + orderDetailQuantity + ", status=" + orderStatus + ", refundQty=" + refundQuantity);
             
             // Sử dụng cùng logic như BookServiceImpl.calculateActualProcessingQuantity()
             int processingQuantityForThisOrder;
             if (isRefundRelatedStatus(orderStatus) && refundQuantity != null && refundQuantity > 0) {
-                // ✅ LOGIC MỚI: Phân biệt hoàn 1 phần vs hoàn toàn phần
+                // LOGIC MỚI: Phân biệt hoàn 1 phần vs hoàn toàn phần
                 if (refundQuantity.equals(orderDetailQuantity)) {
                     // HOÀN TOÀN PHẦN: refund quantity = order quantity → hiển thị full order quantity  
                     processingQuantityForThisOrder = orderDetailQuantity;
-                    System.out.println("🟢 Full refund case: using orderQty=" + processingQuantityForThisOrder);
+                    System.out.println(" Full refund case: using orderQty=" + processingQuantityForThisOrder);
                 } else {
                     // HOÀN 1 PHẦN: refund quantity < order quantity → chỉ hiển thị refund quantity
                     processingQuantityForThisOrder = refundQuantity;
                     System.out.println("� Partial refund case: using refundQty=" + processingQuantityForThisOrder);
                 }
             } else if (orderStatus == OrderStatus.REFUND_REQUESTED && (refundQuantity == null || refundQuantity == 0)) {
-                // ✅ FIXED LOGIC: Refund_request tồn tại nhưng không có refund_item = Full refund
+                //  FIXED LOGIC: Refund_request tồn tại nhưng không có refund_item = Full refund
                 // Trả về toàn bộ order quantity
                 processingQuantityForThisOrder = orderDetailQuantity;
-                System.out.println("🔄 Full refund case (no refund_item): using orderQty=" + processingQuantityForThisOrder);
+                System.out.println(" Full refund case (no refund_item): using orderQty=" + processingQuantityForThisOrder);
             } else {
                 // Đơn bình thường: tính full quantity
                 processingQuantityForThisOrder = orderDetailQuantity;
-                System.out.println("⚪ Normal case: using orderQty=" + processingQuantityForThisOrder);
+                System.out.println(" Normal case: using orderQty=" + processingQuantityForThisOrder);
             }
             
             totalProcessingQuantity += processingQuantityForThisOrder;
-            System.out.println("📈 Running total: " + totalProcessingQuantity);
+            System.out.println(" Running total: " + totalProcessingQuantity);
         }
         
-        System.out.println("🎯 FINAL RESULT: " + totalProcessingQuantity);
+        System.out.println(" FINAL RESULT: " + totalProcessingQuantity);
         return totalProcessingQuantity;
     }
     
