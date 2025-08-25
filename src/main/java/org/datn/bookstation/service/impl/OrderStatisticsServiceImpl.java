@@ -31,16 +31,6 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
         OrderStatus.PARTIALLY_REFUNDED
     );
     
-    //  THÊM: Các trạng thái đang trong quá trình hoàn hàng - KHÔNG trừ doanh thu
-    // Vì khách hàng vẫn chưa được hoàn tiền thực sự
-    private static final List<OrderStatus> REFUND_PROCESSING_STATUSES = Arrays.asList(
-        OrderStatus.REFUND_REQUESTED,
-        OrderStatus.AWAITING_GOODS_RETURN,
-        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,
-        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,
-        OrderStatus.REFUNDING
-    );
-    
     // Các trạng thái đơn hàng COD thất bại
     private static final List<OrderStatus> FAILED_COD_STATUSES = Arrays.asList(
         OrderStatus.DELIVERY_FAILED,
@@ -420,33 +410,24 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     // ============ PRIVATE HELPER METHODS ============
     
-    //  SỬA LẠI HOÀN TOÀN: Tính doanh thu ròng theo logic đúng
+    //  ✅ FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
     private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
-        // 1. Tất cả các đơn đã hoàn thành giao hàng (bao gồm cả đang hoàn trả)
-        // - DELIVERED: Đơn bình thường 
-        // - REFUND_REQUESTED, APPROVED: Đang yêu cầu/duyệt hoàn trả (nhưng vẫn giữ tiền)
-        // - PARTIALLY_REFUNDED: Hoàn một phần
-        List<OrderStatus> allSuccessfulStatuses = new ArrayList<>();
-        allSuccessfulStatuses.add(OrderStatus.DELIVERED);
-        allSuccessfulStatuses.add(OrderStatus.PARTIALLY_REFUNDED);
-        allSuccessfulStatuses.addAll(REFUND_PROCESSING_STATUSES);
+        log.info("🔍 DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
         
-        log.info("🔍 DEBUG: Calculating revenue for period {} to {}", startTime, endTime);
-        log.info("🔍 DEBUG: Using statuses: {}", allSuccessfulStatuses);
+        // ✅ SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
+        // Query này đã tính proportional revenue và trừ refund chính xác
+        List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
         
-        BigDecimal totalGrossRevenue = orderRepository.sumRevenueByDateRangeAndStatuses(
-            startTime, endTime, allSuccessfulStatuses
-        );
+        BigDecimal totalNetRevenue = BigDecimal.ZERO;
+        for (Object[] row : rawData) {
+            // row[5] là netRevenue từ query (đã tính proportional và trừ refund)
+            BigDecimal dayNetRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+            totalNetRevenue = totalNetRevenue.add(dayNetRevenue);
+        }
         
-        // 2. CHỈ trừ số tiền đã hoàn trả THỰC SỰ (COMPLETED)
-        BigDecimal actuallyRefundedAmount = orderRepository.sumRefundedAmountByDateRange(startTime, endTime);
+        log.info("🔍 DEBUG: Calculated total net revenue = {} (using same logic as summary API)", totalNetRevenue);
         
-        BigDecimal netRevenue = totalGrossRevenue.subtract(actuallyRefundedAmount);
-        
-        log.info("🔍 DEBUG: totalGross={}, actuallyRefunded={}, net={}", 
-                 totalGrossRevenue, actuallyRefundedAmount, netRevenue);
-        
-        return netRevenue;
+        return totalNetRevenue;
     }
     
     //  THÊM: Tính doanh thu trung bình trên mỗi đơn
