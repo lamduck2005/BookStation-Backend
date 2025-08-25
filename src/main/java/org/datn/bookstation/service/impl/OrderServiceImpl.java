@@ -34,13 +34,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -1511,21 +1516,826 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private Long getStartOfDay(int dayOffset) {
-        return LocalDate.now().plusDays(dayOffset)
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant().toEpochMilli();
-    }
-
-    private Long getEndOfDay(int dayOffset) {
-        return LocalDate.now().plusDays(dayOffset)
-                .atTime(23, 59, 59, 999_999_999)
-                .atZone(ZoneId.systemDefault())
-                .toInstant().toEpochMilli();
-    }
-
     // helper để an toàn kiểu Number -> BigDecimal
     private Object rowValue(Object[] row, int idx) {
         return row[idx];
+    }
+
+    // ================================================================
+    // ORDER STATISTICS APIs IMPLEMENTATION - 2-TIER ARCHITECTURE
+    // ================================================================
+
+    /**
+     * 📊 API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary)
+     * Tương tự BookServiceImpl.getBookStatisticsSummary() nhưng cho Order
+     */
+    @Override
+    public ApiResponse<Map<String, Object>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate) {
+        try {
+            log.info("📊 Getting order statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
+            
+            List<Map<String, Object>> summaryData = new ArrayList<>();
+            Long startTime, endTime;
+            String finalPeriodType;
+            
+            // 1. Xử lý logic period và time range (copy từ BookServiceImpl)
+            OrderPeriodCalculationResult periodResult = calculateOrderPeriodAndTimeRange(period, fromDate, toDate);
+            startTime = periodResult.getStartTime();
+            endTime = periodResult.getEndTime();
+            finalPeriodType = periodResult.getFinalPeriodType();
+            
+            // 2. Validate khoảng thời gian tối đa cho từng period type
+            String validationError = validateOrderDateRangeForPeriod(finalPeriodType, startTime, endTime);
+            if (validationError != null) {
+                log.warn("❌ Date range validation failed: {}", validationError);
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("data", new ArrayList<>());
+                errorData.put("totalOrdersSum", 0);
+                errorData.put("totalRevenueSum", 0.0);
+                errorData.put("averageAOV", 0.0);
+                errorData.put("completionRate", 0.0);
+                return new ApiResponse<>(400, validationError, errorData);
+            }
+            
+            log.info("📊 Final period: {}, timeRange: {} to {}", finalPeriodType, 
+                    new java.util.Date(startTime), new java.util.Date(endTime));
+            
+            // 3. Query dữ liệu từ database
+            List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
+            
+            // 4. Convert raw data thành Map
+            Map<String, Map<String, Object>> dataMap = new HashMap<>();
+            for (Object[] row : rawData) {
+                String date = row[0].toString(); // Date string từ DB
+                Integer totalOrders = ((Number) row[1]).intValue();
+                Integer completedOrders = ((Number) row[2]).intValue();
+                Integer canceledOrders = ((Number) row[3]).intValue();
+                Integer refundedOrders = ((Number) row[4]).intValue();
+                BigDecimal netRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+                
+                Map<String, Object> dayData = new HashMap<>();
+                dayData.put("totalOrders", totalOrders);
+                dayData.put("completedOrders", completedOrders);
+                dayData.put("canceledOrders", canceledOrders);
+                dayData.put("refundedOrders", refundedOrders);
+                dayData.put("netRevenue", netRevenue);
+                // AOV = Average Order Value = Net Revenue / Total Orders
+                BigDecimal aov = totalOrders > 0 ? netRevenue.divide(new BigDecimal(totalOrders), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+                dayData.put("aov", aov);
+                dataMap.put(date, dayData);
+            }
+            
+            // 5. Generate full date range với 0 cho ngày không có data
+            switch (finalPeriodType) {
+                case "daily":
+                    summaryData = generateOrderDailySummary(startTime, endTime, dataMap);
+                    break;
+                case "weekly":
+                    summaryData = generateOrderWeeklySummary(startTime, endTime, dataMap);
+                    break;
+                case "monthly":
+                    summaryData = generateOrderMonthlySummary(startTime, endTime, dataMap);
+                    break;
+                case "quarterly":
+                    summaryData = generateOrderQuarterlySummary(startTime, endTime, dataMap);
+                    break;
+                case "yearly":
+                    summaryData = generateOrderYearlySummary(startTime, endTime, dataMap);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported period type: " + finalPeriodType);
+            }
+            
+            // 🔥 Calculate summary totals and add to response 
+            Map<String, Object> responseWithSummary = calculateOrderSummaryTotals(summaryData);
+            
+            log.info("📊 Generated {} data points with summary totals for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
+            return new ApiResponse<>(200, "Lấy thống kê tổng quan đơn hàng thành công", responseWithSummary);
+            
+        } catch (Exception e) {
+            log.error("❌ Error getting order statistics summary", e);
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("data", new ArrayList<>());
+            errorData.put("totalOrdersSum", 0);
+            errorData.put("totalRevenueSum", 0.0);
+            errorData.put("averageAOV", 0.0);
+            errorData.put("completionRate", 0.0);
+            return new ApiResponse<>(500, "Lỗi khi lấy thống kê tổng quan đơn hàng", errorData);
+        }
+    }
+    
+    /**
+     * 🔥 Calculate summary totals from data list
+     * Returns Map with "data" array and summary totals
+     */
+    private Map<String, Object> calculateOrderSummaryTotals(List<Map<String, Object>> summaryData) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("data", summaryData);
+        
+        if (summaryData.isEmpty()) {
+            // Empty data case
+            result.put("totalOrdersSum", 0);
+            result.put("totalRevenueSum", 0.00);
+            result.put("averageAOV", 0.00);
+            result.put("completionRate", 0.00);
+            return result;
+        }
+        
+        // Calculate totals
+        int totalOrdersSum = 0;
+        int completedOrdersSum = 0; 
+        int canceledOrdersSum = 0;
+        int refundedOrdersSum = 0;
+        BigDecimal totalRevenueSum = BigDecimal.ZERO;
+        
+        for (Map<String, Object> record : summaryData) {
+            totalOrdersSum += (Integer) record.getOrDefault("totalOrders", 0);
+            completedOrdersSum += (Integer) record.getOrDefault("completedOrders", 0);
+            canceledOrdersSum += (Integer) record.getOrDefault("canceledOrders", 0);
+            refundedOrdersSum += (Integer) record.getOrDefault("refundedOrders", 0);
+            BigDecimal revenue = (BigDecimal) record.getOrDefault("netRevenue", BigDecimal.ZERO);
+            totalRevenueSum = totalRevenueSum.add(revenue);
+        }
+        
+        // Calculate averages and rates
+        BigDecimal averageAOV = totalOrdersSum > 0 ? 
+            totalRevenueSum.divide(new BigDecimal(totalOrdersSum), 2, RoundingMode.HALF_UP) : 
+            BigDecimal.ZERO;
+            
+        BigDecimal completionRate = totalOrdersSum > 0 ? 
+            new BigDecimal(completedOrdersSum).multiply(new BigDecimal("100")).divide(new BigDecimal(totalOrdersSum), 2, RoundingMode.HALF_UP) :
+            BigDecimal.ZERO;
+        
+        // Add summary fields
+        result.put("totalOrdersSum", totalOrdersSum);
+        result.put("completedOrdersSum", completedOrdersSum);
+        result.put("canceledOrdersSum", canceledOrdersSum);  
+        result.put("refundedOrdersSum", refundedOrdersSum);
+        result.put("totalRevenueSum", totalRevenueSum);
+        result.put("averageAOV", averageAOV);
+        result.put("completionRate", completionRate);
+        
+        return result;
+    }
+
+    /**
+     * 📊 API THỐNG KÊ CHI TIẾT ĐỚN HÀNG - TIER 2 (Details)  
+     * Tương tự BookServiceImpl.getBookStatisticsDetails() nhưng cho Order
+     */
+    @Override
+    public ApiResponse<List<Map<String, Object>>> getOrderStatisticsDetails(String period, Long date, Integer limit) {
+        try {
+            log.info("📊 Getting order statistics details - period: {}, date: {}, limit: {}", period, date, limit);
+            
+            // Parse timestamp và tính toán khoảng thời gian cụ thể
+            OrderTimeRangeInfo timeRange;
+            
+            if ("week".equalsIgnoreCase(period) || "weekly".equalsIgnoreCase(period)) {
+                // Sử dụng logic giống BookServiceImpl cho week calculation
+                LocalDate inputDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate();
+                LocalDate weekStart = inputDate.with(java.time.DayOfWeek.MONDAY);
+                LocalDate weekEnd = weekStart.plusDays(6);
+                
+                long weekStartMs = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long weekEndMs = weekEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                
+                log.info("🎯 Week calculation - Input: {} -> Week: {} to {} ({}ms to {}ms)", 
+                        inputDate, weekStart, weekEnd, weekStartMs, weekEndMs);
+                
+                timeRange = new OrderTimeRangeInfo(weekStartMs, weekEndMs);
+            } else {
+                // Other periods use existing logic
+                timeRange = calculateOrderTimeRangeFromTimestamp(period, date);
+            }
+            
+            log.info("📊 Calculated time range: {} to {} for period: {}", 
+                    Instant.ofEpochMilli(timeRange.getStartTime()).toString(), 
+                    Instant.ofEpochMilli(timeRange.getEndTime()).toString(), period);
+            
+            // Query chi tiết đơn hàng trong khoảng thời gian đó
+            List<Object[]> orderData = orderRepository.findOrderDetailsByDateRange(
+                    timeRange.getStartTime(), timeRange.getEndTime(), limit != null ? limit : 10);
+            
+            log.info("📊 Found {} orders in time range", orderData.size());
+            
+            // Build response với thông tin chi tiết
+            List<Map<String, Object>> detailsData = buildOrderDetailsResponse(orderData);
+            
+            String message = String.format("Order details retrieved successfully for %s on %s", period, date);
+            return new ApiResponse<>(200, message, detailsData);
+            
+        } catch (Exception e) {
+            log.error("❌ Error getting order statistics details", e);
+            return new ApiResponse<>(500, "Lỗi khi lấy chi tiết thống kê đơn hàng", new ArrayList<>());
+        }
+    }
+
+    // ================================================================
+    // HELPER CLASSES VÀ METHODS CHO ORDER STATISTICS
+    // ================================================================
+
+    /**
+     * Tương tự BookServiceImpl.PeriodCalculationResult
+     */
+    private static class OrderPeriodCalculationResult {
+        private final long startTime;
+        private final long endTime;
+        private final String finalPeriodType;
+        
+        public OrderPeriodCalculationResult(long startTime, long endTime, String finalPeriodType) {
+            this.startTime = startTime;
+            this.endTime = endTime;
+            this.finalPeriodType = finalPeriodType;
+        }
+        
+        public long getStartTime() { return startTime; }
+        public long getEndTime() { return endTime; }
+        public String getFinalPeriodType() { return finalPeriodType; }
+    }
+    
+    /**
+     * Tương tự BookServiceImpl.TimeRangeInfo
+     */
+    private static class OrderTimeRangeInfo {
+        private final long startTime;
+        private final long endTime;
+        
+        public OrderTimeRangeInfo(long startTime, long endTime) {
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+        
+        public long getStartTime() { return startTime; }
+        public long getEndTime() { return endTime; }
+    }
+
+    /**
+     * Calculate period và time range cho Order (copy từ BookServiceImpl)
+     */
+    /**
+     * 🔥 CORE: Tính toán period và time range với logic đúng (COPY từ BookServiceImpl)
+     * Logic:
+     * - Nếu không có fromDate/toDate → dùng default period ranges
+     * - Nếu có fromDate/toDate → kiểm tra validation và return exact range
+     */
+    private OrderPeriodCalculationResult calculateOrderPeriodAndTimeRange(String period, Long fromDate, Long toDate) {
+        long currentTime = System.currentTimeMillis();
+        
+        // Case 1: Không có fromDate/toDate → dùng default ranges
+        if (fromDate == null || toDate == null) {
+            return calculateOrderDefaultPeriodRange(period, currentTime);
+        }
+        
+        // Case 2: Có fromDate/toDate → return exact range (validation sẽ check sau)
+        return calculateOrderCustomPeriodRange(period, fromDate, toDate);
+    }
+    
+    /**
+     * Tính toán default period ranges khi không có fromDate/toDate (COPY từ BookServiceImpl)
+     */
+    private OrderPeriodCalculationResult calculateOrderDefaultPeriodRange(String period, long currentTime) {
+        switch (period.toLowerCase()) {
+            case "day":
+                // 30 ngày trước
+                return new OrderPeriodCalculationResult(
+                    currentTime - (30L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "daily"
+                );
+            case "week":
+                // 3 tuần trước (21 ngày)
+                return new OrderPeriodCalculationResult(
+                    currentTime - (21L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "weekly"
+                );
+            case "month":
+                // 3 tháng trước (~90 ngày)
+                return new OrderPeriodCalculationResult(
+                    currentTime - (90L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "monthly"
+                );
+            case "quarter":
+                // 3 quý trước (~270 ngày)
+                return new OrderPeriodCalculationResult(
+                    currentTime - (270L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "quarterly"
+                );
+            case "year":
+                // 1 năm trước
+                return new OrderPeriodCalculationResult(
+                    currentTime - (365L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "yearly"
+                );
+            default:
+                // Default: 30 ngày
+                return new OrderPeriodCalculationResult(
+                    currentTime - (30L * 24 * 60 * 60 * 1000), 
+                    currentTime, 
+                    "daily"
+                );
+        }
+    }
+    
+    /**
+     * 🔥 STRICT VALIDATION: Return exact period range (COPY từ BookServiceImpl)
+     * - Validation sẽ được thực hiện sau method này
+     */
+    private OrderPeriodCalculationResult calculateOrderCustomPeriodRange(String period, Long fromDate, Long toDate) {
+        long duration = toDate - fromDate;
+        long daysDuration = duration / (24 * 60 * 60 * 1000L);
+        
+        log.info("🔥 Order Custom period analysis: {} with {} days duration", period, daysDuration);
+        log.info("🔥 USING FULL RANGE: {} to {} (NO DATA CUTTING)", new java.util.Date(fromDate), new java.util.Date(toDate));
+        
+        // KHÔNG auto-downgrade, chỉ return period như user request
+        // Validation sẽ được thực hiện ở validateOrderDateRangeForPeriod method
+        switch (period.toLowerCase()) {
+            case "year":
+                log.info("✅ Using FULL yearly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new OrderPeriodCalculationResult(fromDate, toDate, "yearly");
+                
+            case "quarter":
+                log.info("✅ Using FULL quarterly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new OrderPeriodCalculationResult(fromDate, toDate, "quarterly");
+                
+            case "month":
+                log.info("✅ Using FULL monthly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new OrderPeriodCalculationResult(fromDate, toDate, "monthly");
+                
+            case "week":
+                log.info("✅ Using FULL weekly range: {} days (validation will check minimum requirements)", daysDuration);
+                return new OrderPeriodCalculationResult(fromDate, toDate, "weekly");
+                
+            case "day":
+            default:
+                log.info("✅ Using FULL daily range: {} days (validation will check minimum requirements)", daysDuration);
+                return new OrderPeriodCalculationResult(fromDate, toDate, "daily");
+        }
+    }
+    
+    /**
+     * Validate date range cho Order (copy từ BookServiceImpl)
+     */
+    /**
+     * 🔥 VALIDATE DATE RANGE FOR PERIOD TYPES (COPIED FROM BookServiceImpl)
+     * Kiểm tra khoảng thời gian có hợp lệ cho từng period type không
+     * - Giới hạn giống hệt Book APIs để đảm bảo consistency
+     */
+    private String validateOrderDateRangeForPeriod(String periodType, long startTime, long endTime) {
+        long durationMillis = endTime - startTime;
+        long durationDays = durationMillis / (24 * 60 * 60 * 1000L);
+        long durationYears = durationDays / 365L;
+        
+        switch (periodType.toLowerCase()) {
+            case "daily":
+                // Minimum: ít nhất 1 ngày
+                if (durationDays < 1) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ ngày (tối thiểu 1 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 90 ngày
+                if (durationDays > 90) {
+                    return "Khoảng thời gian quá lớn cho chế độ ngày (tối đa 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                break;
+            
+            case "weekly":
+                // Minimum: ít nhất 7 ngày (1 tuần)
+                if (durationDays < 7) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tuần (tối thiểu 7 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 2 năm
+                if (durationYears > 2) {
+                    return "Khoảng thời gian quá lớn cho chế độ tuần (tối đa 2 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "monthly":
+                // Minimum: ít nhất 28 ngày (1 tháng)
+                if (durationDays < 28) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ tháng (tối thiểu 28 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ tháng (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "quarterly":
+                // Minimum: ít nhất 90 ngày (1 quý)
+                if (durationDays < 90) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ quý (tối thiểu 90 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 5 năm
+                if (durationYears > 5) {
+                    return "Khoảng thời gian quá lớn cho chế độ quý (tối đa 5 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+            
+            case "yearly":
+                // Minimum: ít nhất 365 ngày (1 năm)
+                if (durationDays < 365) {
+                    return "Khoảng thời gian quá nhỏ cho chế độ năm (tối thiểu 365 ngày). Khoảng thời gian hiện tại: " + durationDays + " ngày.";
+                }
+                // Maximum: tối đa 25 năm
+                if (durationYears > 25) {
+                    return "Khoảng thời gian quá lớn cho chế độ năm (tối đa 25 năm). Khoảng thời gian hiện tại: " + durationYears + " năm.";
+                }
+                break;
+        }
+        
+        return null; // Valid
+    }
+    
+    /**
+     * Calculate time range từ timestamp cho Order
+     */
+    private OrderTimeRangeInfo calculateOrderTimeRangeFromTimestamp(String period, Long date) {
+        LocalDate inputDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        switch (period.toLowerCase()) {
+            case "day":
+            case "daily":
+                long dayStart = inputDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long dayEnd = inputDate.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(dayStart, dayEnd);
+                
+            case "month":
+            case "monthly":
+                LocalDate monthStart = inputDate.withDayOfMonth(1);
+                LocalDate monthEnd = inputDate.withDayOfMonth(inputDate.lengthOfMonth());
+                long monthStartMs = monthStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long monthEndMs = monthEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(monthStartMs, monthEndMs);
+                
+            case "year":
+            case "yearly":
+                LocalDate yearStart = inputDate.withDayOfYear(1);
+                LocalDate yearEnd = inputDate.withDayOfYear(inputDate.lengthOfYear());
+                long yearStartMs = yearStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long yearEndMs = yearEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(yearStartMs, yearEndMs);
+                
+            default:
+                // Default to day
+                long defaultStart = inputDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long defaultEnd = inputDate.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(defaultStart, defaultEnd);
+        }
+    }
+    
+    /**
+     * Build response cho Order details
+     */
+    private List<Map<String, Object>> buildOrderDetailsResponse(List<Object[]> orderData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (Object[] row : orderData) {
+            Map<String, Object> orderDetail = new HashMap<>();
+            
+            // Giả sử query trả về: order_code, customer_name, customer_email, product_list_json
+            orderDetail.put("orderCode", (String) row[0]);
+            orderDetail.put("customerName", (String) row[1]);
+            orderDetail.put("customerEmail", (String) row[2]);
+            orderDetail.put("totalAmount", row[3]);
+            orderDetail.put("orderStatus", row[4]);
+            orderDetail.put("createdAt", row[5]);
+            
+            // TODO: Parse product list from JSON or join query
+            // For now, placeholder
+            orderDetail.put("products", new ArrayList<>());
+            
+            result.add(orderDetail);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate daily summary cho Order (tương tự BookServiceImpl)
+     */
+    private List<Map<String, Object>> generateOrderDailySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            String dateStr = currentDate.toString();
+            Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dateStr, new HashMap<>());
+            
+            Map<String, Object> dayData = new HashMap<>();
+            dayData.put("date", dateStr);
+            dayData.put("totalOrders", dayDataFromDB.getOrDefault("totalOrders", 0));
+            dayData.put("completedOrders", dayDataFromDB.getOrDefault("completedOrders", 0));
+            dayData.put("canceledOrders", dayDataFromDB.getOrDefault("canceledOrders", 0));
+            dayData.put("refundedOrders", dayDataFromDB.getOrDefault("refundedOrders", 0));
+            dayData.put("netRevenue", dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
+            dayData.put("aov", dayDataFromDB.getOrDefault("aov", BigDecimal.ZERO));
+            dayData.put("period", "daily");
+            
+            result.add(dayData);
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate weekly summary cho Order (tương tự BookServiceImpl)
+     */
+    private List<Map<String, Object>> generateOrderWeeklySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from Monday of the week containing startDate
+        LocalDate weekStart = startDate.with(java.time.DayOfWeek.MONDAY);
+        
+        while (!weekStart.isAfter(endDate)) {
+            LocalDate weekEnd = weekStart.plusDays(6);
+            String weekLabel = weekStart.toString() + " to " + weekEnd.toString();
+            
+            // Calculate week number of year
+            int weekNumber = weekStart.get(WeekFields.ISO.weekOfYear());
+            int year = weekStart.getYear();
+            
+            // Sum all days in this week from dataMap
+            int weekTotalOrders = 0;
+            int weekCompletedOrders = 0;
+            int weekCanceledOrders = 0;
+            int weekRefundedOrders = 0;
+            BigDecimal weekNetRevenue = BigDecimal.ZERO;
+            
+            LocalDate currentDay = weekStart;
+            LocalDate actualWeekEnd = weekEnd.isAfter(endDate) ? endDate : weekEnd;
+            
+            while (!currentDay.isAfter(weekEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                weekTotalOrders += (Integer) dayDataFromDB.getOrDefault("totalOrders", 0);
+                weekCompletedOrders += (Integer) dayDataFromDB.getOrDefault("completedOrders", 0);
+                weekCanceledOrders += (Integer) dayDataFromDB.getOrDefault("canceledOrders", 0);
+                weekRefundedOrders += (Integer) dayDataFromDB.getOrDefault("refundedOrders", 0);
+                weekNetRevenue = weekNetRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            // Calculate week AOV
+            BigDecimal weekAov = weekTotalOrders > 0 ? 
+                weekNetRevenue.divide(new BigDecimal(weekTotalOrders), 2, RoundingMode.HALF_UP) : 
+                BigDecimal.ZERO;
+            
+            Map<String, Object> weekData = new HashMap<>();
+            weekData.put("date", weekStart.toString()); // Use week start as date
+            weekData.put("totalOrders", weekTotalOrders);
+            weekData.put("completedOrders", weekCompletedOrders);
+            weekData.put("canceledOrders", weekCanceledOrders);
+            weekData.put("refundedOrders", weekRefundedOrders);
+            weekData.put("netRevenue", weekNetRevenue);
+            weekData.put("aov", weekAov);
+            weekData.put("period", "weekly");
+            weekData.put("dateRange", weekLabel);
+            weekData.put("weekNumber", weekNumber);
+            weekData.put("year", year);
+            weekData.put("startDate", weekStart.toString());
+            weekData.put("endDate", actualWeekEnd.toString());
+            
+            result.add(weekData);
+            weekStart = weekStart.plusWeeks(1);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate monthly summary cho Order (tương tự BookServiceImpl)
+     */
+    private List<Map<String, Object>> generateOrderMonthlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from first day of the month containing startDate
+        LocalDate monthStart = startDate.withDayOfMonth(1);
+        
+        while (!monthStart.isAfter(endDate)) {
+            LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+            String monthLabel = monthStart.getMonth().toString() + " " + monthStart.getYear();
+            
+            // Calculate month info
+            int monthNumber = monthStart.getMonthValue();
+            int year = monthStart.getYear();
+            String monthName = monthStart.getMonth().getDisplayName(
+                java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("vi-VN"));
+            
+            // Sum all days in this month from dataMap
+            int monthTotalOrders = 0;
+            int monthCompletedOrders = 0;
+            int monthCanceledOrders = 0;
+            int monthRefundedOrders = 0;
+            BigDecimal monthNetRevenue = BigDecimal.ZERO;
+            
+            LocalDate currentDay = monthStart;
+            LocalDate actualMonthEnd = monthEnd.isAfter(endDate) ? endDate : monthEnd;
+            
+            while (!currentDay.isAfter(monthEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                monthTotalOrders += (Integer) dayDataFromDB.getOrDefault("totalOrders", 0);
+                monthCompletedOrders += (Integer) dayDataFromDB.getOrDefault("completedOrders", 0);
+                monthCanceledOrders += (Integer) dayDataFromDB.getOrDefault("canceledOrders", 0);
+                monthRefundedOrders += (Integer) dayDataFromDB.getOrDefault("refundedOrders", 0);
+                monthNetRevenue = monthNetRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            // Calculate month AOV
+            BigDecimal monthAov = monthTotalOrders > 0 ? 
+                monthNetRevenue.divide(new BigDecimal(monthTotalOrders), 2, RoundingMode.HALF_UP) : 
+                BigDecimal.ZERO;
+            
+            Map<String, Object> monthData = new HashMap<>();
+            monthData.put("date", monthStart.toString()); // Use month start as date
+            monthData.put("totalOrders", monthTotalOrders);
+            monthData.put("completedOrders", monthCompletedOrders);
+            monthData.put("canceledOrders", monthCanceledOrders);
+            monthData.put("refundedOrders", monthRefundedOrders);
+            monthData.put("netRevenue", monthNetRevenue);
+            monthData.put("aov", monthAov);
+            monthData.put("period", "monthly");
+            monthData.put("dateRange", monthLabel);
+            monthData.put("monthNumber", monthNumber);
+            monthData.put("monthName", monthName);
+            monthData.put("year", year);
+            monthData.put("startDate", monthStart.toString());
+            monthData.put("endDate", actualMonthEnd.toString());
+            
+            result.add(monthData);
+            monthStart = monthStart.plusMonths(1);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate quarterly summary cho Order (tương tự BookServiceImpl)
+     */
+    private List<Map<String, Object>> generateOrderQuarterlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from first day of the quarter containing startDate
+        LocalDate quarterStart = getQuarterStart(startDate);
+        
+        while (!quarterStart.isAfter(endDate)) {
+            LocalDate quarterEnd = getQuarterEnd(quarterStart);
+            int quarterNumber = getQuarterNumber(quarterStart);
+            int year = quarterStart.getYear();
+            String quarterLabel = "Quý " + quarterNumber + " năm " + year;
+            
+            // Sum all days in this quarter from dataMap
+            int quarterTotalOrders = 0;
+            int quarterCompletedOrders = 0;
+            int quarterCanceledOrders = 0;
+            int quarterRefundedOrders = 0;
+            BigDecimal quarterNetRevenue = BigDecimal.ZERO;
+            
+            LocalDate currentDay = quarterStart;
+            LocalDate actualQuarterEnd = quarterEnd.isAfter(endDate) ? endDate : quarterEnd;
+            
+            while (!currentDay.isAfter(quarterEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                quarterTotalOrders += (Integer) dayDataFromDB.getOrDefault("totalOrders", 0);
+                quarterCompletedOrders += (Integer) dayDataFromDB.getOrDefault("completedOrders", 0);
+                quarterCanceledOrders += (Integer) dayDataFromDB.getOrDefault("canceledOrders", 0);
+                quarterRefundedOrders += (Integer) dayDataFromDB.getOrDefault("refundedOrders", 0);
+                quarterNetRevenue = quarterNetRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            // Calculate quarter AOV
+            BigDecimal quarterAov = quarterTotalOrders > 0 ? 
+                quarterNetRevenue.divide(new BigDecimal(quarterTotalOrders), 2, RoundingMode.HALF_UP) : 
+                BigDecimal.ZERO;
+            
+            Map<String, Object> quarterData = new HashMap<>();
+            quarterData.put("date", quarterStart.toString()); // Use quarter start as date
+            quarterData.put("totalOrders", quarterTotalOrders);
+            quarterData.put("completedOrders", quarterCompletedOrders);
+            quarterData.put("canceledOrders", quarterCanceledOrders);
+            quarterData.put("refundedOrders", quarterRefundedOrders);
+            quarterData.put("netRevenue", quarterNetRevenue);
+            quarterData.put("aov", quarterAov);
+            quarterData.put("period", "quarterly");
+            quarterData.put("dateRange", quarterLabel);
+            quarterData.put("quarter", quarterNumber);
+            quarterData.put("year", year);
+            quarterData.put("startDate", quarterStart.toString());
+            quarterData.put("endDate", actualQuarterEnd.toString());
+            
+            result.add(quarterData);
+            quarterStart = quarterStart.plusMonths(3);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Generate yearly summary cho Order (tương tự BookServiceImpl)
+     */
+    private List<Map<String, Object>> generateOrderYearlySummary(Long startTime, Long endTime, Map<String, Map<String, Object>> dataMap) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        LocalDate startDate = Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault()).toLocalDate();
+        
+        // Start from January 1st of the year containing startDate
+        LocalDate yearStart = startDate.withDayOfYear(1);
+        
+        while (!yearStart.isAfter(endDate)) {
+            LocalDate yearEnd = yearStart.withDayOfYear(yearStart.lengthOfYear());
+            String yearLabel = "Year " + yearStart.getYear();
+            
+            // Sum all days in this year from dataMap
+            int yearTotalOrders = 0;
+            int yearCompletedOrders = 0;
+            int yearCanceledOrders = 0;
+            int yearRefundedOrders = 0;
+            BigDecimal yearNetRevenue = BigDecimal.ZERO;
+            
+            LocalDate currentDay = yearStart;
+            LocalDate actualYearEnd = yearEnd.isAfter(endDate) ? endDate : yearEnd;
+            
+            while (!currentDay.isAfter(yearEnd) && !currentDay.isAfter(endDate)) {
+                String dayStr = currentDay.toString();
+                Map<String, Object> dayDataFromDB = dataMap.getOrDefault(dayStr, new HashMap<>());
+                yearTotalOrders += (Integer) dayDataFromDB.getOrDefault("totalOrders", 0);
+                yearCompletedOrders += (Integer) dayDataFromDB.getOrDefault("completedOrders", 0);
+                yearCanceledOrders += (Integer) dayDataFromDB.getOrDefault("canceledOrders", 0);
+                yearRefundedOrders += (Integer) dayDataFromDB.getOrDefault("refundedOrders", 0);
+                yearNetRevenue = yearNetRevenue.add((BigDecimal) dayDataFromDB.getOrDefault("netRevenue", BigDecimal.ZERO));
+                currentDay = currentDay.plusDays(1);
+            }
+            
+            // Calculate year AOV
+            BigDecimal yearAov = yearTotalOrders > 0 ? 
+                yearNetRevenue.divide(new BigDecimal(yearTotalOrders), 2, RoundingMode.HALF_UP) : 
+                BigDecimal.ZERO;
+            
+            Map<String, Object> yearData = new HashMap<>();
+            yearData.put("date", yearStart.toString()); // Use year start as date
+            yearData.put("totalOrders", yearTotalOrders);
+            yearData.put("completedOrders", yearCompletedOrders);
+            yearData.put("canceledOrders", yearCanceledOrders);
+            yearData.put("refundedOrders", yearRefundedOrders);
+            yearData.put("netRevenue", yearNetRevenue);
+            yearData.put("aov", yearAov);
+            yearData.put("period", "yearly");
+            yearData.put("dateRange", yearLabel);
+            yearData.put("year", yearStart.getYear());
+            yearData.put("startDate", yearStart.toString());
+            yearData.put("endDate", actualYearEnd.toString());
+            
+            result.add(yearData);
+            yearStart = yearStart.plusYears(1);
+        }
+        
+        return result;
+    }
+    
+    // ============================================================================
+    // QUARTER HELPER METHODS (Copy from BookServiceImpl)
+    // ============================================================================
+    
+    private LocalDate getQuarterStart(LocalDate date) {
+        int month = date.getMonthValue();
+        if (month <= 3) {
+            return date.withMonth(1).withDayOfMonth(1); // Q1: Jan 1
+        } else if (month <= 6) {
+            return date.withMonth(4).withDayOfMonth(1); // Q2: Apr 1
+        } else if (month <= 9) {
+            return date.withMonth(7).withDayOfMonth(1); // Q3: Jul 1
+        } else {
+            return date.withMonth(10).withDayOfMonth(1); // Q4: Oct 1
+        }
+    }
+    
+    private LocalDate getQuarterEnd(LocalDate quarterStart) {
+        return quarterStart.plusMonths(3).minusDays(1);
+    }
+    
+    private int getQuarterNumber(LocalDate date) {
+        int month = date.getMonthValue();
+        return (month - 1) / 3 + 1;
     }
 }

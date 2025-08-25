@@ -12,7 +12,6 @@ import org.datn.bookstation.dto.request.OrderRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.OrderResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
-import org.datn.bookstation.dto.response.RevenueStatsResponse;
 import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.EnumOptionResponse;
 import org.datn.bookstation.entity.Order;
@@ -373,6 +372,68 @@ public class OrderController {
                                         .body(new ApiResponse<>(404, "Không tìm thấy đơn hàng với id: " + id, null));
                 }
                 return ResponseEntity.ok(new ApiResponse<>(200, "Thành công", orderResponse));
+        }
+
+        // ================================================================
+        // 📊 ORDER STATISTICS APIs - 2-TIER ARCHITECTURE (Copy from BookController)
+        // ================================================================
+
+        /**
+         * 📊 TIER 1: ORDER STATISTICS SUMMARY API
+         * 
+         * API tổng quan thống kê đơn hàng theo ngày trong khoảng thời gian
+         * Tương tự BookController.getBookStatisticsSummary() nhưng cho Order metrics
+         * 
+         * @param period   Loại thời gian: "day", "week", "month", "quarter", "year"
+         * @param fromDate Thời gian bắt đầu (timestamp, optional cho custom range)
+         * @param toDate   Thời gian kết thúc (timestamp, optional cho custom range)
+         * 
+         * @return List of order statistics summary by date
+         *         - date: Ngày (YYYY-MM-DD)
+         *         - totalOrders: Tổng số đơn hàng
+         *         - completedOrders: Số đơn hoàn thành (DELIVERED)
+         *         - canceledOrders: Số đơn hủy (CANCELED)
+         *         - refundedOrders: Số đơn hoàn trả (PARTIALLY_REFUNDED, REFUNDED)
+         *         - netRevenue: Doanh thu thuần (sau trừ refund)
+         *         - aov: Average Order Value (AOV)
+         */
+        @GetMapping("/statistics/summary")
+        public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getOrderStatisticsSummary(
+                        @RequestParam String period,
+                        @RequestParam(required = false) Long fromDate,
+                        @RequestParam(required = false) Long toDate) {
+                ApiResponse<java.util.Map<String, Object>> response = 
+                        orderService.getOrderStatisticsSummary(period, fromDate, toDate);
+                return ResponseEntity.ok(response);
+        }
+
+        /**
+         * 📊 TIER 2: ORDER STATISTICS DETAILS API
+         * 
+         * API chi tiết thống kê đơn hàng - hiển thị top N đơn hàng trong khoảng thời gian
+         * Tương tự BookController.getBookStatisticsDetails() nhưng cho Order details
+         * 
+         * @param period Loại thời gian: "day", "week", "month", "quarter", "year"
+         * @param date   Thời gian cụ thể (timestamp)
+         * @param limit  Giới hạn số đơn hàng trả về (default: 10)
+         * 
+         * @return List of order details in the period
+         *         - orderCode: Mã đơn hàng
+         *         - customerName: Tên khách hàng
+         *         - customerEmail: Email khách hàng
+         *         - totalAmount: Tổng giá trị đơn hàng
+         *         - orderStatus: Trạng thái đơn hàng
+         *         - createdAt: Thời gian tạo (timestamp)
+         *         - productInfo: Thông tin sản phẩm (danh sách sách)
+         */
+        @GetMapping("/statistics/details")
+        public ResponseEntity<ApiResponse<List<java.util.Map<String, Object>>>> getOrderStatisticsDetails(
+                        @RequestParam String period,
+                        @RequestParam Long date,
+                        @RequestParam(defaultValue = "10") Integer limit) {
+                ApiResponse<List<java.util.Map<String, Object>>> response = 
+                        orderService.getOrderStatisticsDetails(period, date, limit);
+                return ResponseEntity.ok(response);
         }
 
 }

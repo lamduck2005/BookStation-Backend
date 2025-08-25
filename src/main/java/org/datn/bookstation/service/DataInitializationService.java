@@ -34,10 +34,6 @@ public class DataInitializationService implements CommandLineRunner {
     private final UserVoucherRepository userVoucherRepository;
     private final FlashSaleRepository flashSaleRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
-    private final EventCategoryRepository eventCategoryRepository;
-    private final EventRepository eventRepository;
-    private final EventGiftRepository eventGiftRepository;
-    private final EventParticipantRepository eventParticipantRepository;
     private final AddressRepository addressRepository;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -45,10 +41,13 @@ public class DataInitializationService implements CommandLineRunner {
     private final OrderDetailRepository orderDetailRepository;
     private final PointRepository pointRepository;
     private final ReviewRepository reviewRepository;
+    private final CampaignRepository campaignRepository;
+    private final RewardRepository rewardRepository;
+    private final UserCampaignRepository userCampaignRepository;
+    private final BoxHistoryRepository boxHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Transactional
     public void run(String... args) {
         try {
             log.info("Starting data initialization...");
@@ -62,6 +61,7 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Data initialization completed successfully!");
         } catch (Exception e) {
             log.error("Error during data initialization: ", e);
+            // Don't rethrow to prevent application startup failure
         }
     }
 
@@ -157,33 +157,13 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Flash sales already exist, skipping initialization.");
         }
 
-        // Kiểm tra và khởi tạo EventCategories
-        if (eventCategoryRepository.count() == 0) {
-            initializeEventCategories();
-        } else {
-            log.info("Event categories already exist, skipping initialization.");
-        }
-
-        // Kiểm tra và khởi tạo Events
-        if (eventRepository.count() == 0) {
-            initializeEvents();
-        } else {
-            log.info("Events already exist, skipping initialization.");
-        }
-
-        // Kiểm tra và khởi tạo EventGifts
-        if (eventGiftRepository.count() == 0) {
-            initializeEventGifts();
-        } else {
-            log.info("Event gifts already exist, skipping initialization.");
-        }
-
-        // Kiểm tra và khởi tạo Addresses
-        if (addressRepository.count() == 0) {
-            initializeAddresses();
-        } else {
-            log.info("Addresses already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Addresses - DISABLED
+        // if (addressRepository.count() == 0) {
+        //     initializeAddresses();
+        // } else {
+        //     log.info("Addresses already exist, skipping initialization.");
+        // }
+        log.info("Address initialization is disabled - no address data will be created.");
 
         // Kiểm tra và khởi tạo Carts
         if (cartRepository.count() == 0) {
@@ -192,23 +172,25 @@ public class DataInitializationService implements CommandLineRunner {
             log.info("Carts already exist, skipping initialization.");
         }
 
-        // Kiểm tra và khởi tạo Orders
-        if (orderRepository.count() == 0) {
-            initializeOrders();
-            initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
-            
-            // ✅ THÊM: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C (chỉ khi chưa có đơn hàng nào)
-            initializeTestOrdersForLeVanC();
-        } else {
-            log.info("Orders already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Orders - DISABLED
+        // if (orderRepository.count() == 0) {
+        //     initializeOrders();
+        //     initializeTrendingOrderData(); // ✅ THÊM: Tạo thêm dữ liệu cho trending
+        //     
+        //     // ✅ THÊM: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C (chỉ khi chưa có đơn hàng nào)
+        //     initializeTestOrdersForLeVanC();
+        // } else {
+        //     log.info("Orders already exist, skipping initialization.");
+        // }
+        log.info("Order initialization is disabled - no order data will be created.");
 
-        // Kiểm tra và khởi tạo Points
-        if (pointRepository.count() == 0) {
-            initializePoints();
-        } else {
-            log.info("Points already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Points - DISABLED (vì không có order)
+        // if (pointRepository.count() == 0) {
+        //     initializePoints(); // Tạm thời skip để test phần khác trước
+        // } else {
+        //     log.info("Points already exist, skipping initialization.");
+        // }
+        log.info("Points initialization is disabled - requires orders to exist first.");
 
         // Kiểm tra và khởi tạo Reviews
         if (reviewRepository.count() == 0) {
@@ -217,12 +199,20 @@ public class DataInitializationService implements CommandLineRunner {
         } else {
             log.info("Reviews already exist, skipping initialization.");
         }
-
-        // Kiểm tra và khởi tạo EventParticipants
-        if (eventParticipantRepository.count() == 0) {
-            initializeEventParticipants();
+        
+        // ===== 🎮 MINIGAME INITIALIZATION =====
+        // Kiểm tra và khởi tạo Campaigns
+        if (campaignRepository.count() == 0) {
+            initializeCampaigns();
         } else {
-            log.info("Event participants already exist, skipping initialization.");
+            log.info("Campaigns already exist, skipping initialization.");
+        }
+        
+        // Kiểm tra và khởi tạo Rewards
+        if (rewardRepository.count() == 0) {
+            initializeRewards();
+        } else {
+            log.info("Rewards already exist, skipping initialization.");
         }
     }
 
@@ -863,109 +853,10 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
-    private void initializeEventCategories() {
-        log.info("Initializing event categories...");
-        
-        List<EventCategory> eventCategories = Arrays.asList(
-            createEventCategory("Sự kiện sách", "Các sự kiện liên quan đến sách", "📚"),
-            createEventCategory("Gặp gỡ tác giả", "Sự kiện gặp gỡ tác giả", "👨‍💼"),
-            createEventCategory("Khuyến mãi", "Sự kiện khuyến mãi đặc biệt", "🎉"),
-            createEventCategory("Thử thách đọc", "Thử thách đọc sách", "🏆"),
-            createEventCategory("Hội thảo", "Các hội thảo về sách", "💼")
-        );
-        eventCategoryRepository.saveAll(eventCategories);
-    }
-
-    private EventCategory createEventCategory(String name, String description, String icon) {
-        EventCategory category = new EventCategory();
-        category.setCategoryName(name);
-        category.setDescription(description);
-        category.setIconUrl(icon);
-        category.setIsActive(true);
-        return category;
-    }
-
-    private void initializeEvents() {
-        log.info("Initializing events...");
-        
-        List<EventCategory> categories = eventCategoryRepository.findAll();
-        List<User> users = userRepository.findAll();
-        
-        long currentTime = System.currentTimeMillis();
-        long oneWeek = 7L * 24 * 60 * 60 * 1000;
-        long oneMonth = 30L * 24 * 60 * 60 * 1000;
-        
-        List<Event> events = Arrays.asList(
-            createEvent("Ra mắt sách mới tháng 7", "Sự kiện ra mắt các đầu sách mới trong tháng", 
-                EventType.BOOK_LAUNCH, categories.get(0), EventStatus.ONGOING, 
-                currentTime, currentTime + oneWeek, 50, "BookStation HN", false, users.get(0)),
-            createEvent("Gặp gỡ Nguyễn Nhật Ánh", "Buổi gặp gỡ và ký tặng sách với tác giả Nguyễn Nhật Ánh", 
-                EventType.AUTHOR_MEET, categories.get(1), EventStatus.PUBLISHED, 
-                currentTime + oneWeek, currentTime + oneWeek * 2, 100, "BookStation HCM", false, users.get(1)),
-            createEvent("Thử thách đọc sách mùa hè", "Thử thách đọc 10 cuốn sách trong mùa hè", 
-                EventType.READING_CHALLENGE, categories.get(3), EventStatus.ONGOING, 
-                currentTime, currentTime + oneMonth * 2, 200, "Online", true, users.get(0)),
-            createEvent("Flash Sale sách kinh tế", "Giảm giá sâu các đầu sách kinh tế", 
-                EventType.PROMOTION, categories.get(2), EventStatus.ONGOING, 
-                currentTime, currentTime + oneWeek * 2, null, "Online", true, users.get(1)),
-            createEvent("Hội thảo xu hướng đọc 2025", "Thảo luận về xu hướng đọc sách năm 2025", 
-                EventType.WORKSHOP, categories.get(4), EventStatus.PUBLISHED, 
-                currentTime + oneWeek * 3, currentTime + oneWeek * 3 + 24 * 60 * 60 * 1000, 80, "BookStation HN", false, users.get(0))
-        );
-        eventRepository.saveAll(events);
-    }
-
-    private Event createEvent(String name, String description, EventType type, EventCategory category,
-                             EventStatus status, Long startDate, Long endDate, Integer maxParticipants, 
-                             String location, Boolean isOnline, User createdBy) {
-        Event event = new Event();
-        event.setEventName(name);
-        event.setDescription(description);
-        event.setEventType(type);
-        event.setEventCategory(category);
-        event.setStatus(status);
-        event.setStartDate(startDate);
-        event.setEndDate(endDate);
-        event.setMaxParticipants(maxParticipants);
-        event.setCurrentParticipants(0);
-        event.setLocation(location);
-        event.setIsOnline(isOnline);
-        event.setCreatedBy(createdBy);
-        return event;
-    }
-
-    private void initializeEventGifts() {
-        log.info("Initializing event gifts...");
-        
-        List<Event> events = eventRepository.findAll();
-        List<Book> books = bookRepository.findAll();
-        List<Voucher> vouchers = voucherRepository.findAll();
-        
-        for (Event event : events) {
-            // Tạo gift cho mỗi event
-            EventGift bookGift = createEventGift(event, "Sách miễn phí", 
-                "Nhận 1 cuốn sách miễn phí", new BigDecimal("100000"), 10, books.get(0), null);
-            EventGift voucherGift = createEventGift(event, "Voucher giảm giá", 
-                "Voucher giảm 20%", new BigDecimal("50000"), 20, null, vouchers.get(0));
-            
-            eventGiftRepository.saveAll(Arrays.asList(bookGift, voucherGift));
-        }
-    }
-
-    private EventGift createEventGift(Event event, String name, String description, 
-                                     BigDecimal value, Integer quantity, Book book, Voucher voucher) {
-        EventGift gift = new EventGift();
-        gift.setEvent(event);
-        gift.setGiftName(name);
-        gift.setDescription(description);
-        gift.setGiftValue(value);
-        gift.setQuantity(quantity);
-        gift.setRemainingQuantity(quantity);
-        gift.setBook(book);
-        gift.setVoucher(voucher);
-        return gift;
-    }
-
+    // ============== DISABLED ADDRESS INITIALIZATION METHODS ==============
+    // These methods are commented out to prevent automatic address data creation
+    
+    /*
     private void initializeAddresses() {
         log.info("Initializing addresses...");
         
@@ -992,6 +883,7 @@ public class DataInitializationService implements CommandLineRunner {
         address.setStatus((byte) 1);
         return address;
     }
+    */
 
     private void initializeCarts() {
         log.info("Initializing carts...");
@@ -1020,6 +912,10 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    // ============== DISABLED ORDER INITIALIZATION METHODS ==============
+    // These methods are commented out to prevent automatic order data creation
+    
+    /*
     private void initializeOrders() {
         log.info("Initializing orders...");
         
@@ -1114,6 +1010,7 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    /*
     private Order createOrder(User customer, Address address, OrderStatus status, String orderType) {
         Order order = new Order();
         order.setUser(customer);
@@ -1145,7 +1042,9 @@ public class DataInitializationService implements CommandLineRunner {
         detail.setCreatedBy(order.getCreatedBy());
         return detail;
     }
+    */
 
+    @Transactional
     private void initializePoints() {
         log.info("Initializing points...");
         
@@ -1156,7 +1055,9 @@ public class DataInitializationService implements CommandLineRunner {
                 Point point = new Point();
                 point.setUser(order.getUser());
                 point.setOrder(order);
-                point.setPointEarned((int) (order.getTotalAmount().doubleValue() / 1000)); // 1 điểm / 1000đ
+                // Giới hạn điểm tối đa 100 điểm mỗi đơn hàng để tránh overflow
+                int pointsToEarn = Math.min(100, (int) (order.getTotalAmount().doubleValue() / 1000)); 
+                point.setPointEarned(pointsToEarn);
                 point.setMinSpent(order.getTotalAmount());
                 point.setPointSpent(0);
                 point.setDescription("Tích điểm từ đơn hàng " + order.getCode());
@@ -1164,11 +1065,21 @@ public class DataInitializationService implements CommandLineRunner {
                 point.setStatus((byte) 1);
                 pointRepository.save(point);
                 
-                // Cập nhật tổng điểm cho user
-                User user = order.getUser();
-                user.setTotalPoint((user.getTotalPoint() != null ? user.getTotalPoint() : 0) + point.getPointEarned());
-                user.setTotalSpent((user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO).add(order.getTotalAmount()));
-                userRepository.save(user);
+                // Cập nhật tổng điểm cho user - fetch user explicitly to avoid lazy loading
+                User user = userRepository.findById(order.getUser().getId()).orElse(null);
+                if (user != null) {
+                    int currentTotalPoint = user.getTotalPoint() != null ? user.getTotalPoint() : 0;
+                    int newTotalPoint = Math.min(999999, currentTotalPoint + pointsToEarn); // Giới hạn tổng điểm < 1 triệu
+                    user.setTotalPoint(newTotalPoint);
+                    
+                    BigDecimal currentTotalSpent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
+                    BigDecimal newTotalSpent = currentTotalSpent.add(order.getTotalAmount());
+                    // Giới hạn tổng chi tiêu < 100 triệu để tránh overflow
+                    if (newTotalSpent.compareTo(new BigDecimal("99999999")) <= 0) {
+                        user.setTotalSpent(newTotalSpent);
+                    }
+                    userRepository.save(user);
+                }
             }
         }
     }
@@ -1252,31 +1163,6 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
-    private void initializeEventParticipants() {
-        log.info("Initializing event participants...");
-        
-        List<Event> events = eventRepository.findAll();
-        List<User> customers = userRepository.findByRole_RoleName(RoleName.CUSTOMER);
-        
-        for (Event event : events) {
-            // Thêm một số participant cho mỗi event
-            for (int i = 0; i < Math.min(3, customers.size()); i++) {
-                EventParticipant participant = new EventParticipant();
-                participant.setEvent(event);
-                participant.setUser(customers.get(i));
-                participant.setJoinedAt(System.currentTimeMillis());
-                participant.setIsWinner(i == 0); // Participant đầu tiên là winner
-                participant.setCompletionStatus(ParticipantStatus.COMPLETED);
-                participant.setNotes("Tham gia sự kiện " + event.getEventName());
-                eventParticipantRepository.save(participant);
-            }
-            
-            // Cập nhật số lượng participant hiện tại
-            event.setCurrentParticipants(Math.min(3, customers.size()));
-            eventRepository.save(event);
-        }
-    }
-
     /**
      * Method để reset toàn bộ dữ liệu và khởi tạo lại từ đầu
      * CHỈ SỬ DỤNG TRONG MÔI TRƯỜNG DEVELOPMENT/TEST
@@ -1287,7 +1173,6 @@ public class DataInitializationService implements CommandLineRunner {
         
         try {
             // Xóa dữ liệu theo thứ tự dependency (từ con đến cha)
-            eventParticipantRepository.deleteAll();
             reviewRepository.deleteAll();
             pointRepository.deleteAll();
             orderDetailRepository.deleteAll();
@@ -1295,9 +1180,6 @@ public class DataInitializationService implements CommandLineRunner {
             cartItemRepository.deleteAll();
             cartRepository.deleteAll();
             addressRepository.deleteAll();
-            eventGiftRepository.deleteAll();
-            eventRepository.deleteAll();
-            eventCategoryRepository.deleteAll();
             flashSaleItemRepository.deleteAll();
             flashSaleRepository.deleteAll();
             userVoucherRepository.deleteAll();
@@ -1342,24 +1224,24 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("User Vouchers: {}", userVoucherRepository.count());
         log.info("Flash Sales: {}", flashSaleRepository.count());
         log.info("Flash Sale Items: {}", flashSaleItemRepository.count());
-        log.info("Event Categories: {}", eventCategoryRepository.count());
-        log.info("Events: {}", eventRepository.count());
-        log.info("Event Gifts: {}", eventGiftRepository.count());
-        log.info("Event Participants: {}", eventParticipantRepository.count());
-        log.info("Addresses: {}", addressRepository.count());
+        log.info("Addresses: {} (initialization disabled)", addressRepository.count());
         log.info("Carts: {}", cartRepository.count());
         log.info("Cart Items: {}", cartItemRepository.count());
-        log.info("Orders: {}", orderRepository.count());
-        log.info("Order Details: {}", orderDetailRepository.count());
-        log.info("Points: {}", pointRepository.count());
+        log.info("Orders: {} (initialization disabled)", orderRepository.count());
+        log.info("Order Details: {} (initialization disabled)", orderDetailRepository.count());
+        log.info("Points: {} (initialization disabled)", pointRepository.count());
         log.info("Reviews: {}", reviewRepository.count());
         log.info("========================");
     }
     
+    
+    // ============== DISABLED TRENDING ORDER METHODS ==============
+    /*
     /**
      * ✅ THÊM METHOD: Tạo thêm dữ liệu đơn hàng để có sản phẩm xu hướng
      * Tạo nhiều đơn hàng trong 30 ngày qua với số lượng khác nhau cho các sách
      */
+    /*
     private void initializeTrendingOrderData() {
         log.info("Initializing trending order data...");
         
@@ -1428,7 +1310,9 @@ public class DataInitializationService implements CommandLineRunner {
         
         log.info("Created {} trending orders", Arrays.stream(trendingPattern).sum());
     }
+    */
     
+    /*
     /**
      * Tạo Order với thời gian tùy chỉnh cho trending data
      */
@@ -1451,7 +1335,8 @@ public class DataInitializationService implements CommandLineRunner {
         order.setStatus((byte) 1);
         return order;
     }
-
+    // ============== END DISABLED ORDER METHODS ==============
+    
     /**
      * ✅ THÊM METHOD: Tạo thêm review để có đánh giá cho trending products
      */
@@ -1548,10 +1433,14 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Created {} trending reviews", Arrays.stream(reviewPattern).sum());
     }
     
+    
+    // ============== DISABLED TEST ORDER METHODS ==============
+    /*
     /**
      * ✅ THÊM METHOD: Tạo dữ liệu đơn hàng test theo thời gian cho Lê Văn C 
      * Mua sách "Đắc Nhân Tâm" từ 2023 đến nay với tần suất khác nhau
      */
+    /*
     private void initializeTestOrdersForLeVanC() {
         log.info("Initializing test orders for Lê Văn C with time-based data...");
         
@@ -1582,7 +1471,6 @@ public class DataInitializationService implements CommandLineRunner {
         
         long currentTime = System.currentTimeMillis();
         long oneDay = 24L * 60 * 60 * 1000;
-        long oneWeek = 7L * oneDay;
         long oneMonth = 30L * oneDay;
         long oneYear = 365L * oneDay;
         
@@ -1655,10 +1543,13 @@ public class DataInitializationService implements CommandLineRunner {
         log.info("Orders distributed across different quarters and months for testing");
         log.info("Recent week has the most orders, previous month has good amount");
     }
+    */
     
+    /*
     /**
      * Tạo Order với thời gian tùy chỉnh cho test data
      */
+    /*
     private Order createTestOrder(User customer, Address address, OrderStatus status, String orderType, long orderTime) {
         Order order = new Order();
         order.setUser(customer);
@@ -1675,6 +1566,123 @@ public class DataInitializationService implements CommandLineRunner {
         order.setCreatedBy(customer.getId());
         order.setStatus((byte) 1);
         return order;
+    }
+    */
+    
+    // ===== 🎮 MINIGAME DATA INITIALIZATION =====
+    
+    /**
+     * Khởi tạo dữ liệu chiến dịch minigame
+     */
+    private void initializeCampaigns() {
+        log.info("Initializing minigame campaigns...");
+        
+        long currentTime = System.currentTimeMillis();
+        long oneWeek = 7L * 24 * 60 * 60 * 1000;
+        long oneMonth = 30L * 24 * 60 * 60 * 1000;
+        
+        List<Campaign> campaigns = Arrays.asList(
+            createCampaign("🎁 Chiến dịch mở hộp thần bí", 
+                          currentTime - oneWeek, currentTime + oneMonth,
+                          3, 100, "Chiến dịch mở hộp với nhiều phần thưởng hấp dẫn!"),
+            createCampaign("🎮 Event cuối tuần", 
+                          currentTime, currentTime + (7 * 24 * 60 * 60 * 1000L),
+                          5, 50, "Event đặc biệt cuối tuần với phần thưởng khủng!"),
+            createCampaign("💰 Săn voucher tháng 8", 
+                          currentTime + oneWeek, currentTime + (2 * oneMonth),
+                          2, 200, "Chiến dịch săn voucher với tỷ lệ trúng cao!")
+        );
+        campaignRepository.saveAll(campaigns);
+        log.info("Created {} campaigns", campaigns.size());
+    }
+    
+    private Campaign createCampaign(String name, Long startDate, Long endDate, 
+                                   Integer freeLimit, Integer pointCost, String description) {
+        Campaign campaign = new Campaign();
+        campaign.setName(name);
+        campaign.setStartDate(startDate);
+        campaign.setEndDate(endDate);
+        campaign.setConfigFreeLimit(freeLimit);
+        campaign.setConfigPointCost(pointCost);
+        campaign.setDescription(description);
+        campaign.setStatus((byte) 1);
+        campaign.setCreatedAt(System.currentTimeMillis());
+        campaign.setCreatedBy(1); // Admin
+        return campaign;
+    }
+    
+    /**
+     * Khởi tạo dữ liệu phần thưởng cho các chiến dịch
+     */
+    private void initializeRewards() {
+        log.info("Initializing minigame rewards...");
+        
+        List<Campaign> campaigns = campaignRepository.findAll();
+        if (campaigns.isEmpty()) {
+            log.warn("No campaigns found, skipping reward initialization");
+            return;
+        }
+        
+        Campaign firstCampaign = campaigns.get(0); // Lấy campaign đầu tiên
+        List<Voucher> availableVouchers = voucherRepository.findAll();
+        
+        List<Reward> rewards = new java.util.ArrayList<>();
+        
+        // ✅ FIX: Cập nhật để tổng xác suất = 100%
+        // 1. Phần thưởng "Không trúng gì" (65%)
+        rewards.add(createReward(firstCampaign, "Chúc bạn may mắn lần sau", "Không có phần thưởng", 
+                               RewardType.NONE, new java.math.BigDecimal("65.0"), null, null, null, 1000));
+        
+        // 2. Phần thưởng điểm (25% tổng)
+        rewards.add(createReward(firstCampaign, "Thưởng 50 điểm", "Nhận 50 điểm miễn phí", 
+                               RewardType.POINTS, new java.math.BigDecimal("15.0"), 50, null, null, 100));
+        rewards.add(createReward(firstCampaign, "Thưởng 100 điểm", "Nhận 100 điểm miễn phí", 
+                               RewardType.POINTS, new java.math.BigDecimal("7.0"), 100, null, null, 50));
+        rewards.add(createReward(firstCampaign, "Thưởng 500 điểm", "Nhận 500 điểm siêu khủng!", 
+                               RewardType.POINTS, new java.math.BigDecimal("3.0"), 500, null, null, 20));
+        
+        // 3. Phần thưởng voucher (10% còn lại)
+        if (!availableVouchers.isEmpty()) {
+            // Chỉ tạo 2 loại voucher với xác suất cố định để đảm bảo tổng = 100%
+            if (availableVouchers.size() >= 1) {
+                Voucher voucher1 = availableVouchers.get(0);
+                rewards.add(createReward(firstCampaign, "Voucher " + voucher1.getName(), 
+                                       "Trúng voucher " + voucher1.getName(), 
+                                       RewardType.VOUCHER, new java.math.BigDecimal("7.0"), 
+                                       null, voucher1, null, 30));
+            }
+            if (availableVouchers.size() >= 2) {
+                Voucher voucher2 = availableVouchers.get(1);
+                rewards.add(createReward(firstCampaign, "Voucher " + voucher2.getName(), 
+                                       "Trúng voucher " + voucher2.getName(), 
+                                       RewardType.VOUCHER, new java.math.BigDecimal("3.0"), 
+                                       null, voucher2, null, 15));
+            }
+        }
+        // Tổng: 65% + 15% + 7% + 3% + 7% + 3% = 100% ✅
+        
+        rewardRepository.saveAll(rewards);
+        log.info("Created {} rewards for campaign {}", rewards.size(), firstCampaign.getName());
+    }
+    
+    private Reward createReward(Campaign campaign, String name, String description, 
+                               RewardType type, java.math.BigDecimal probability, 
+                               Integer pointValue, Voucher voucher, Integer voucherId, 
+                               Integer quantity) {
+        Reward reward = new Reward();
+        reward.setCampaign(campaign);
+        reward.setName(name);
+        reward.setDescription(description);
+        reward.setType(type);
+        reward.setProbability(probability);
+        reward.setPointValue(pointValue);
+        reward.setVoucher(voucher);
+        // Note: voucherId parameter not used because Reward entity doesn't have voucherId field
+        reward.setStock(quantity);
+        reward.setStatus((byte) 1);
+        reward.setCreatedAt(System.currentTimeMillis());
+        reward.setCreatedBy(1); // Admin
+        return reward;
     }
     
     /**

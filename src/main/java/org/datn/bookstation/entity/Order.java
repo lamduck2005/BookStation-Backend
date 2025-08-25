@@ -34,7 +34,7 @@ public class Order {
     @JoinColumn(name = "address_id")
     private Address address;
 
-    // ✅ THÊM: Thông tin người nhận cho đơn hàng tại quầy (khi address_id null)
+    //  THÊM: Thông tin người nhận cho đơn hàng tại quầy (khi address_id null)
     @Size(max = 100)
     @Nationalized
     @Column(name = "recipient_name", length = 100)
@@ -79,7 +79,7 @@ public class Order {
     private Byte status;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_status", length = 30)  // ✅ Tăng từ 20 lên 30 để chứa GOODS_RETURNED_TO_WAREHOUSE
+    @Column(name = "order_status", length = 30)  //  Tăng từ 20 lên 30 để chứa GOODS_RETURNED_TO_WAREHOUSE
     private OrderStatus orderStatus;
     
     @Size(max = 20)
@@ -88,7 +88,7 @@ public class Order {
     @Column(name = "order_type", nullable = false, length = 20)
     private String orderType;
     
-    // ✅ THÊM MỚI: Phương thức thanh toán
+    //  THÊM MỚI: Phương thức thanh toán
     @Size(max = 20)
     @Nationalized
     @Column(name = "payment_method", length = 20)
