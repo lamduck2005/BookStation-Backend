@@ -1530,7 +1530,7 @@ public class OrderServiceImpl implements OrderService {
      * Tương tự BookServiceImpl.getBookStatisticsSummary() nhưng cho Order
      */
     @Override
-    public ApiResponse<List<Map<String, Object>>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate) {
+    public ApiResponse<Map<String, Object>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate) {
         try {
             log.info("📊 Getting order statistics summary - period: {}, fromDate: {}, toDate: {}", period, fromDate, toDate);
             
@@ -1548,7 +1548,13 @@ public class OrderServiceImpl implements OrderService {
             String validationError = validateOrderDateRangeForPeriod(finalPeriodType, startTime, endTime);
             if (validationError != null) {
                 log.warn("❌ Date range validation failed: {}", validationError);
-                return new ApiResponse<>(400, validationError, new ArrayList<>());
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("data", new ArrayList<>());
+                errorData.put("totalOrdersSum", 0);
+                errorData.put("totalRevenueSum", 0.0);
+                errorData.put("averageAOV", 0.0);
+                errorData.put("completionRate", 0.0);
+                return new ApiResponse<>(400, validationError, errorData);
             }
             
             log.info("📊 Final period: {}, timeRange: {} to {}", finalPeriodType, 
@@ -1600,12 +1606,76 @@ public class OrderServiceImpl implements OrderService {
                     throw new IllegalArgumentException("Unsupported period type: " + finalPeriodType);
             }
             
-            return new ApiResponse<>(200, "Lấy thống kê tổng quan đơn hàng thành công", summaryData);
+            // 🔥 Calculate summary totals and add to response 
+            Map<String, Object> responseWithSummary = calculateOrderSummaryTotals(summaryData);
+            
+            log.info("📊 Generated {} data points with summary totals for period: {} (final: {})", summaryData.size(), period, finalPeriodType);
+            return new ApiResponse<>(200, "Lấy thống kê tổng quan đơn hàng thành công", responseWithSummary);
             
         } catch (Exception e) {
             log.error("❌ Error getting order statistics summary", e);
-            return new ApiResponse<>(500, "Lỗi khi lấy thống kê tổng quan đơn hàng", new ArrayList<>());
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("data", new ArrayList<>());
+            errorData.put("totalOrdersSum", 0);
+            errorData.put("totalRevenueSum", 0.0);
+            errorData.put("averageAOV", 0.0);
+            errorData.put("completionRate", 0.0);
+            return new ApiResponse<>(500, "Lỗi khi lấy thống kê tổng quan đơn hàng", errorData);
         }
+    }
+    
+    /**
+     * 🔥 Calculate summary totals from data list
+     * Returns Map with "data" array and summary totals
+     */
+    private Map<String, Object> calculateOrderSummaryTotals(List<Map<String, Object>> summaryData) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("data", summaryData);
+        
+        if (summaryData.isEmpty()) {
+            // Empty data case
+            result.put("totalOrdersSum", 0);
+            result.put("totalRevenueSum", 0.00);
+            result.put("averageAOV", 0.00);
+            result.put("completionRate", 0.00);
+            return result;
+        }
+        
+        // Calculate totals
+        int totalOrdersSum = 0;
+        int completedOrdersSum = 0; 
+        int canceledOrdersSum = 0;
+        int refundedOrdersSum = 0;
+        BigDecimal totalRevenueSum = BigDecimal.ZERO;
+        
+        for (Map<String, Object> record : summaryData) {
+            totalOrdersSum += (Integer) record.getOrDefault("totalOrders", 0);
+            completedOrdersSum += (Integer) record.getOrDefault("completedOrders", 0);
+            canceledOrdersSum += (Integer) record.getOrDefault("canceledOrders", 0);
+            refundedOrdersSum += (Integer) record.getOrDefault("refundedOrders", 0);
+            BigDecimal revenue = (BigDecimal) record.getOrDefault("netRevenue", BigDecimal.ZERO);
+            totalRevenueSum = totalRevenueSum.add(revenue);
+        }
+        
+        // Calculate averages and rates
+        BigDecimal averageAOV = totalOrdersSum > 0 ? 
+            totalRevenueSum.divide(new BigDecimal(totalOrdersSum), 2, RoundingMode.HALF_UP) : 
+            BigDecimal.ZERO;
+            
+        BigDecimal completionRate = totalOrdersSum > 0 ? 
+            new BigDecimal(completedOrdersSum).multiply(new BigDecimal("100")).divide(new BigDecimal(totalOrdersSum), 2, RoundingMode.HALF_UP) :
+            BigDecimal.ZERO;
+        
+        // Add summary fields
+        result.put("totalOrdersSum", totalOrdersSum);
+        result.put("completedOrdersSum", completedOrdersSum);
+        result.put("canceledOrdersSum", canceledOrdersSum);  
+        result.put("refundedOrdersSum", refundedOrdersSum);
+        result.put("totalRevenueSum", totalRevenueSum);
+        result.put("averageAOV", averageAOV);
+        result.put("completionRate", completionRate);
+        
+        return result;
     }
 
     /**
@@ -1900,6 +1970,14 @@ public class OrderServiceImpl implements OrderService {
                 long monthStartMs = monthStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 long monthEndMs = monthEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 return new OrderTimeRangeInfo(monthStartMs, monthEndMs);
+                
+            case "year":
+            case "yearly":
+                LocalDate yearStart = inputDate.withDayOfYear(1);
+                LocalDate yearEnd = inputDate.withDayOfYear(inputDate.lengthOfYear());
+                long yearStartMs = yearStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long yearEndMs = yearEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(yearStartMs, yearEndMs);
                 
             default:
                 // Default to day

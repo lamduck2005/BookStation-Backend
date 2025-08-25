@@ -274,13 +274,13 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       """)
   Long countDeliveredOrders();
 
-  // Sửa findAllWeeklyRevenueByDateRange - Dùng net revenue (subtotal - voucher)
+  // FIXED findAllWeeklyRevenueByDateRange - Match Book API net revenue formula
   @Query(value = """
       WITH t AS (
         SELECT DATEADD(SECOND, o.order_date / 1000, '1970-01-01') AS dt,
-               CASE WHEN (o.subtotal - o.discount_amount) < 0
-                    THEN 0
-                    ELSE (o.subtotal - o.discount_amount)
+               CASE WHEN o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED')
+                    THEN (o.total_amount - COALESCE(o.shipping_fee, 0))
+                    ELSE 0
                END AS net_revenue
         FROM [Order] o
         WHERE o.order_date BETWEEN :start AND :end
@@ -304,14 +304,13 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       """, nativeQuery = true)
   List<Object[]> findAllWeeklyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
 
-  // Sửa findAllMonthlyRevenueByDateRange - Chỉ trừ voucher, KHÔNG trừ shipping
-  // fee
+  // FIXED findAllMonthlyRevenueByDateRange - Match Book API net revenue formula  
   @Query(value = """
       WITH t AS (
         SELECT DATEADD(SECOND, o.order_date / 1000, '1970-01-01') AS dt,
-               CASE WHEN (o.subtotal - o.discount_amount) < 0
-                    THEN 0
-                    ELSE (o.subtotal - o.discount_amount)
+               CASE WHEN o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED')
+                    THEN (o.total_amount - COALESCE(o.shipping_fee, 0))
+                    ELSE 0
                END AS net_revenue
         FROM [Order] o
         WHERE o.order_date BETWEEN :start AND :end
@@ -334,14 +333,14 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       """, nativeQuery = true)
   List<Object[]> findAllMonthlyRevenueByDateRange(@Param("start") Long start, @Param("end") Long end);
 
-  // findYearlyRevenueByDateRange ĐÃ ĐÚNG - giữ nguyên
+  // findYearlyRevenueByDateRange - FIXED TO MATCH BOOK API
   @Query(value = """
       SELECT
         CAST(DATEPART(YEAR, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS VARCHAR(4)) AS year_key,
         COALESCE(SUM(
-          CASE WHEN (o.subtotal - o.discount_amount  ) < 0
-               THEN 0
-               ELSE (o.subtotal - o.discount_amount )
+          CASE WHEN o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED')
+               THEN (o.total_amount - COALESCE(o.shipping_fee, 0))
+               ELSE 0
           END
         ), 0) AS revenue
       FROM [Order] o
@@ -357,22 +356,48 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
   // ================================================================
 
   /**
-   * 📊 ORDER STATISTICS SUMMARY - Query dữ liệu tổng quan theo ngày (SIMPLIFIED)
-   * Tương tự BookRepository.findBookSalesSummaryByDateRange() nhưng cho Order
+   * 📊 ORDER STATISTICS SUMMARY - Query dữ liệu tổng quan theo ngày (MATCHING BOOK API LOGIC)
+   * Sử dụng CÙNG logic tính netRevenue như Book API để đảm bảo consistency:
+   * - Proportional revenue allocation từ order_detail
+   * - Handles refunds correctly
+   * - Matches Book API exactly
    * 
    * Trả về: date, totalOrders, completedOrders, canceledOrders, refundedOrders, netRevenue
    */
-  @Query(value = "SELECT " +
-         "CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) as saleDate, " +
-         "COUNT(o.id) as totalOrders, " +
-         "SUM(CASE WHEN o.order_status = 'DELIVERED' THEN 1 ELSE 0 END) as completedOrders, " +
-         "SUM(CASE WHEN o.order_status = 'CANCELED' THEN 1 ELSE 0 END) as canceledOrders, " +
-         "SUM(CASE WHEN o.order_status IN ('PARTIALLY_REFUNDED', 'REFUNDED') THEN 1 ELSE 0 END) as refundedOrders, " +
-         "COALESCE(SUM(o.total_amount - COALESCE(o.shipping_fee, 0)), 0) as netRevenue " +
-         "FROM [order] o " +
-         "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
-         "GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) " +
-         "ORDER BY saleDate", nativeQuery = true)
+  @Query(value = "WITH order_stats AS (" +
+         "  SELECT " +
+         "    CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) as saleDate, " +
+         "    COUNT(DISTINCT o.id) as totalOrders, " +
+         "    SUM(CASE WHEN o.order_status = 'DELIVERED' THEN 1 ELSE 0 END) as completedOrders, " +
+         "    SUM(CASE WHEN o.order_status = 'CANCELED' THEN 1 ELSE 0 END) as canceledOrders, " +
+         "    SUM(CASE WHEN o.order_status IN ('PARTIALLY_REFUNDED', 'REFUNDED') THEN 1 ELSE 0 END) as refundedOrders " +
+         "  FROM [order] o " +
+         "  WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
+         "  GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.order_date / 1000, '1970-01-01')) AS DATE) " +
+         "), " +
+         "revenue_calc AS (" +
+         "  SELECT " +
+         "    CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) as saleDate, " +
+         "    COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((od.unit_price * od.quantity) / o.subtotal)), 0) - " +
+         "    COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as netRevenue " +
+         "  FROM order_detail od " +
+         "  JOIN [order] o ON od.order_id = o.id " +
+         "  LEFT JOIN ( " +
+         "    SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity " +
+         "    FROM refund_item ri " +
+         "    JOIN refund_request rr ON ri.refund_request_id = rr.id " +
+         "    WHERE rr.status = 'COMPLETED' " +
+         "    GROUP BY rr.order_id, ri.book_id " +
+         "  ) refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id " +
+         "  WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
+         "    AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
+         "  GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) " +
+         ") " +
+         "SELECT os.saleDate, os.totalOrders, os.completedOrders, os.canceledOrders, os.refundedOrders, " +
+         "       COALESCE(rc.netRevenue, 0) as netRevenue " +
+         "FROM order_stats os " +
+         "LEFT JOIN revenue_calc rc ON os.saleDate = rc.saleDate " +
+         "ORDER BY os.saleDate", nativeQuery = true)
   List<Object[]> findOrderStatisticsSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
   /**

@@ -111,15 +111,16 @@ public interface OrderService {
     // ================================================================
 
     /**
-     * 📊 API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary)
+     * 📊 API THỐNG KÊ TỔNG QUAN ĐỚN HÀNG - TIER 1 (Summary) - WITH SUMMARY TOTALS
      * Trả về dữ liệu tổng quan theo thời gian: tổng đơn, đơn hoàn thành, đơn hủy, đơn hoàn, doanh thu, AOV
+     * PLUS: Summary totals cho toàn bộ period
      * 
      * @param period day/week/month/quarter/year/custom (mặc định day)
      * @param fromDate timestamp bắt đầu (tùy chọn - bắt buộc nếu period=custom)
      * @param toDate timestamp kết thúc (tùy chọn - bắt buộc nếu period=custom)
-     * @return Danh sách thống kê theo từng khoảng thời gian
+     * @return Map với "data" array + summary totals (totalOrdersSum, totalRevenueSum, averageAOV, completionRate)
      */
-    ApiResponse<List<Map<String, Object>>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate);
+    ApiResponse<Map<String, Object>> getOrderStatisticsSummary(String period, Long fromDate, Long toDate);
 
     /**
      * 📊 API THỐNG KÊ CHI TIẾT ĐỚN HÀNG - TIER 2 (Details)

@@ -398,11 +398,11 @@ public class OrderController {
          *         - aov: Average Order Value (AOV)
          */
         @GetMapping("/statistics/summary")
-        public ResponseEntity<ApiResponse<List<java.util.Map<String, Object>>>> getOrderStatisticsSummary(
+        public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getOrderStatisticsSummary(
                         @RequestParam String period,
                         @RequestParam(required = false) Long fromDate,
                         @RequestParam(required = false) Long toDate) {
-                ApiResponse<List<java.util.Map<String, Object>>> response = 
+                ApiResponse<java.util.Map<String, Object>> response = 
                         orderService.getOrderStatisticsSummary(period, fromDate, toDate);
                 return ResponseEntity.ok(response);
         }
