@@ -387,7 +387,7 @@ public class BookController {
     }
 
     @GetMapping("/searchbook")
-    public ResponseEntity<ApiResponse<List<BookSearchRequest>>> findAllBooksByName(
+    public ResponseEntity<ApiResponse<List<FlashSaleItemBookRequest>>> findAllBooksByName(
             @RequestParam(name = "text", required = false) String text) {
         return ResponseEntity.ok(bookService.getBookByName(text));
     }
