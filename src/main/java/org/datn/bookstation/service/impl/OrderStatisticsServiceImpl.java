@@ -410,11 +410,11 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     // ============ PRIVATE HELPER METHODS ============
     
-    //  ✅ FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
+    //   FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
     private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
         log.info("🔍 DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
         
-        // ✅ SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
+        //  SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
         // Query này đã tính proportional revenue và trừ refund chính xác
         List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
         
