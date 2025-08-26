@@ -17,7 +17,7 @@ import org.datn.bookstation.repository.UserRepository;
 import org.datn.bookstation.repository.RefundItemRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
 import org.datn.bookstation.service.RefundService;
-import org.datn.bookstation.utils.RefundReasonUtil; // ✅ THÊM IMPORT MỚI
+import org.datn.bookstation.utils.RefundReasonUtil; //  THÊM IMPORT MỚI
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,7 +60,7 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     public RefundRequestResponse createRefundRequest(RefundRequestCreate request, Integer userId) {
-        log.info("🔄 CREATING REFUND REQUEST: orderId={}, userId={}, type={}", 
+        log.info(" CREATING REFUND REQUEST: orderId={}, userId={}, type={}", 
                  request.getOrderId(), userId, request.getRefundType());
 
         // 1. VALIDATE ORDER
@@ -164,7 +164,7 @@ public class RefundServiceImpl implements RefundService {
             }
         }
 
-        log.info("✅ REFUND REQUEST CREATED: id={}, orderId={}, amount={}, status=PENDING, orderStatus=REFUND_REQUESTED", 
+        log.info(" REFUND REQUEST CREATED: id={}, orderId={}, amount={}, status=PENDING, orderStatus=REFUND_REQUESTED", 
                  savedRequest.getId(), request.getOrderId(), refundAmount);
 
         return convertToResponse(savedRequest);
@@ -182,23 +182,23 @@ public class RefundServiceImpl implements RefundService {
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("Admin không tồn tại"));
 
-        // 🔥 Update RefundRequest status
+        //  Update RefundRequest status
         request.setStatus(RefundStatus.valueOf(approval.getStatus()));
         request.setApprovedBy(admin);
         request.setAdminNote(approval.getAdminNote());
         request.setApprovedAt(System.currentTimeMillis());
         request.setUpdatedAt(System.currentTimeMillis());
 
-        // ✅ CHUYỂN TRẠNG THÁI ĐỌN HÀNG THEO NGHIỆP VỤ THỰC TẾ
+        //  CHUYỂN TRẠNG THÁI ĐỌN HÀNG THEO NGHIỆP VỤ THỰC TẾ
         Order order = request.getOrder();
         if (approval.getStatus().equals("APPROVED")) {
-            // ✅ SỬA: Phê duyệt → Chuyển sang AWAITING_GOODS_RETURN (chờ lấy hàng hoàn trả)
+            //  SỬA: Phê duyệt → Chuyển sang AWAITING_GOODS_RETURN (chờ lấy hàng hoàn trả)
             order.setOrderStatus(OrderStatus.AWAITING_GOODS_RETURN);
-            log.info("✅ Order status changed to AWAITING_GOODS_RETURN - Waiting for customer to return goods");
+            log.info(" Order status changed to AWAITING_GOODS_RETURN - Waiting for customer to return goods");
         } else if (approval.getStatus().equals("REJECTED")) {
             // Từ chối → Trở về DELIVERED
             order.setOrderStatus(OrderStatus.DELIVERED);
-            log.info("✅ Order status reverted to DELIVERED - Refund request rejected");
+            log.info(" Order status reverted to DELIVERED - Refund request rejected");
         }
         order.setUpdatedAt(System.currentTimeMillis());
         order.setUpdatedBy(adminId);
@@ -206,7 +206,7 @@ public class RefundServiceImpl implements RefundService {
 
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("✅ REFUND REQUEST {}: id={}, adminId={}, refundStatus={}, orderStatus={}", 
+        log.info(" REFUND REQUEST {}: id={}, adminId={}, refundStatus={}, orderStatus={}", 
                  approval.getStatus(), refundRequestId, adminId, approval.getStatus(), order.getOrderStatus());
 
         return convertToResponse(savedRequest);
@@ -224,19 +224,19 @@ public class RefundServiceImpl implements RefundService {
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("Admin không tồn tại"));
 
-        // ✅ Update RefundRequest status thành REJECTED
+        //  Update RefundRequest status thành REJECTED
         request.setStatus(RefundStatus.REJECTED);
         request.setApprovedBy(admin);
         request.setAdminNote(rejection.getAdminNote());
         
-        // ✅ Lưu thông tin từ chối chi tiết
+        //  Lưu thông tin từ chối chi tiết
         request.setRejectReason(rejection.getRejectReason());
         request.setRejectReasonDisplay(rejection.getRejectReasonDisplay());
         request.setSuggestedAction(rejection.getSuggestedAction());
         request.setRejectedAt(System.currentTimeMillis());
         request.setUpdatedAt(System.currentTimeMillis());
 
-        // ✅ Trả về DELIVERED khi từ chối hoàn trả
+        //  Trả về DELIVERED khi từ chối hoàn trả
         Order order = request.getOrder();
         order.setOrderStatus(OrderStatus.DELIVERED);
         order.setUpdatedAt(System.currentTimeMillis());
@@ -245,7 +245,7 @@ public class RefundServiceImpl implements RefundService {
 
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("❌ REFUND REQUEST REJECTED: id={}, adminId={}, reason={}, order back to DELIVERED", 
+        log.info(" REFUND REQUEST REJECTED: id={}, adminId={}, reason={}, order back to DELIVERED", 
                  refundRequestId, adminId, rejection.getRejectReason());
 
         return convertToResponse(savedRequest);
@@ -262,7 +262,7 @@ public class RefundServiceImpl implements RefundService {
 
         Order order = request.getOrder();
         
-        // ✅ VALIDATION NGHIÊM NGẶT: CHỈ hoàn tiền khi hàng đã về kho
+        //  VALIDATION NGHIÊM NGẶT: CHỈ hoàn tiền khi hàng đã về kho
         if (order.getOrderStatus() != OrderStatus.GOODS_RETURNED_TO_WAREHOUSE) {
             throw new RuntimeException("Chỉ có thể hoàn tiền khi hàng đã về kho (GOODS_RETURNED_TO_WAREHOUSE). " +
                     "Trạng thái hiện tại: " + order.getOrderStatus() + ". " +
@@ -276,7 +276,7 @@ public class RefundServiceImpl implements RefundService {
                      order.getCode(), order.getRegularVoucherCount(), order.getShippingVoucherCount());
         }
 
-        // ✅ CHUYỂN TRẠNG THÁI CUỐI CÙNG
+        //  CHUYỂN TRẠNG THÁI CUỐI CÙNG
         OrderStatus finalStatus = (request.getRefundType() == RefundRequest.RefundType.FULL) 
             ? OrderStatus.REFUNDED 
             : OrderStatus.PARTIALLY_REFUNDED;
@@ -293,10 +293,10 @@ public class RefundServiceImpl implements RefundService {
 
         RefundRequest savedRequest = refundRequestRepository.save(request);
 
-        log.info("✅ REFUND PROCESSED: id={}, orderId={}, adminId={}, refundType={}, finalOrderStatus={}", 
+        log.info(" REFUND PROCESSED: id={}, orderId={}, adminId={}, refundType={}, finalOrderStatus={}", 
                  refundRequestId, request.getOrder().getId(), adminId, 
                  request.getRefundType(), finalStatus);
-        log.info("ℹ️  STOCK đã được cộng lại khi chuyển sang GOODS_RETURNED_TO_WAREHOUSE");
+        log.info("ℹ STOCK đã được cộng lại khi chuyển sang GOODS_RETURNED_TO_WAREHOUSE");
 
         return convertToResponse(savedRequest);
     }
@@ -329,7 +329,7 @@ public class RefundServiceImpl implements RefundService {
             return "Bạn không có quyền hoàn trả đơn hàng này";
         }
 
-        // ✅ CHO PHÉP TẠO YÊU CẦU HOÀN MỚI KHI:
+        //  CHO PHÉP TẠO YÊU CẦU HOÀN MỚI KHI:
         // 1. Đơn hàng đã giao thành công (DELIVERED) 
         // 2. Hoặc đã hoàn tiền một phần (PARTIALLY_REFUNDED) - khách muốn hoàn tiếp
         if (order.getOrderStatus() != OrderStatus.DELIVERED && 
@@ -337,7 +337,7 @@ public class RefundServiceImpl implements RefundService {
             return "Chỉ có thể hoàn trả đơn hàng đã giao thành công hoặc đã hoàn tiền một phần";
         }
 
-        // ✅ KIỂM TRA XEM CÓ YÊU CẦU HOÀN TRẢ ĐANG XỬ LÝ KHÔNG
+        //  KIỂM TRA XEM CÓ YÊU CẦU HOÀN TRẢ ĐANG XỬ LÝ KHÔNG
         boolean hasActiveRefund = refundRequestRepository.existsActiveRefundRequestForOrder(orderId);
         
         if (hasActiveRefund) {
@@ -367,7 +367,7 @@ public class RefundServiceImpl implements RefundService {
         response.setApprovedAt(request.getApprovedAt());
         response.setCompletedAt(request.getCompletedAt());
         
-        // ✅ THÊM: Thông tin voucher của order
+        //  THÊM: Thông tin voucher của order
         Order order = request.getOrder();
         response.setVoucherDiscountAmount(order.getDiscountAmount().add(order.getDiscountShipping()));
         response.setRegularVoucherCount(order.getRegularVoucherCount());
@@ -383,7 +383,7 @@ public class RefundServiceImpl implements RefundService {
             response.setApprovedByName(request.getApprovedBy().getFullName());
         }
         
-        // ✅ THÊM: Set refundItems với thông tin chi tiết sản phẩm hoàn trả
+        //  THÊM: Set refundItems với thông tin chi tiết sản phẩm hoàn trả
         if (request.getRefundItems() != null && !request.getRefundItems().isEmpty()) {
             List<RefundRequestResponse.RefundItemResponse> refundItemResponses = request.getRefundItems().stream()
                 .map(item -> {
@@ -395,7 +395,7 @@ public class RefundServiceImpl implements RefundService {
                     itemResponse.setRefundQuantity(item.getRefundQuantity());
                     itemResponse.setUnitPrice(item.getUnitPrice());
                     itemResponse.setTotalAmount(item.getTotalAmount());
-                    // ❌ REMOVED: reason và reasonDisplay vì response đã có sẵn ở cấp RefundRequest
+                    //  REMOVED: reason và reasonDisplay vì response đã có sẵn ở cấp RefundRequest
                     itemResponse.setCreatedAt(item.getCreatedAt());
                     return itemResponse;
                 })
@@ -407,6 +407,6 @@ public class RefundServiceImpl implements RefundService {
     }
     
     
-    // ✅ REMOVED: deductSoldCountForFullRefund, deductSoldCountForPartialRefund, deductSoldCountForOrderDetail methods
+    //  REMOVED: deductSoldCountForFullRefund, deductSoldCountForPartialRefund, deductSoldCountForOrderDetail methods
     // soldCount sẽ được trừ thông qua OrderStatusTransitionService khi admin chuyển sang GOODS_RECEIVED_FROM_CUSTOMER
 }

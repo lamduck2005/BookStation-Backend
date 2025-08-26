@@ -35,7 +35,7 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
     @Override
     public ApiResponse<OrderCalculationResponse> calculateOrderTotal(OrderCalculationRequest request) {
         try {
-            log.info("🔄 Starting order calculation for user: {}", request.getUserId());
+            log.info(" Starting order calculation for user: {}", request.getUserId());
             
             // 1. Validate cơ bản
             ApiResponse<String> validation = validateOrderConditions(request);
@@ -121,11 +121,11 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
                 .message(generateCalculationMessage(itemDetails, appliedVouchers))
                 .build();
             
-            log.info("✅ Order calculation completed. Final total: {}", finalTotal);
+            log.info(" Order calculation completed. Final total: {}", finalTotal);
             return new ApiResponse<>(200, "Tính toán thành công", response);
             
         } catch (Exception e) {
-            log.error("❌ Error calculating order total", e);
+            log.error(" Error calculating order total", e);
             return new ApiResponse<>(500, "Lỗi khi tính toán: " + e.getMessage(), null);
         }
     }
@@ -185,7 +185,7 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
             return new ApiResponse<>(200, "Validation thành công", "OK");
             
         } catch (Exception e) {
-            log.error("❌ Error validating order conditions", e);
+            log.error(" Error validating order conditions", e);
             return new ApiResponse<>(500, "Lỗi khi validate: " + e.getMessage(), null);
         }
     }
@@ -205,19 +205,19 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
             BigDecimal savedAmount = BigDecimal.ZERO;
             String flashSaleName = null;
             
-            // 🔥 THÊM: Áp dụng discount thường nếu có discountActive = true
+            //  THÊM: Áp dụng discount thường nếu có discountActive = true
             if (book.getDiscountActive() != null && book.getDiscountActive()) {
                 if (book.getDiscountValue() != null) {
                     // Discount theo giá trị cố định
                     unitPrice = originalPrice.subtract(book.getDiscountValue());
-                    log.info("💰 Applied discount value for book {}: {} -> {}", book.getId(), originalPrice, unitPrice);
+                    log.info(" Applied discount value for book {}: {} -> {}", book.getId(), originalPrice, unitPrice);
                 } else if (book.getDiscountPercent() != null) {
                     // Discount theo phần trăm
                     BigDecimal discountAmount = originalPrice
                         .multiply(BigDecimal.valueOf(book.getDiscountPercent()))
                         .divide(BigDecimal.valueOf(100));
                     unitPrice = originalPrice.subtract(discountAmount);
-                    log.info("💰 Applied discount percent {}% for book {}: {} -> {}", 
+                    log.info(" Applied discount percent {}% for book {}: {} -> {}", 
                         book.getDiscountPercent(), book.getId(), originalPrice, unitPrice);
                 }
             }
@@ -235,7 +235,7 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
                     savedAmount = originalPrice.subtract(unitPrice).multiply(BigDecimal.valueOf(item.getQuantity()));
                     flashSaleName = flashSaleItem.getFlashSale().getName();
                     
-                    log.info("🔥 Applied flash sale for book {}: {} -> {}", book.getId(), originalPrice, unitPrice);
+                    log.info(" Applied flash sale for book {}: {} -> {}", book.getId(), originalPrice, unitPrice);
                 }
             }
             
@@ -256,7 +256,7 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
                 .build();
                 
         } catch (Exception e) {
-            log.error("❌ Error calculating item detail for book ID: {}", item.getBookId(), e);
+            log.error(" Error calculating item detail for book ID: {}", item.getBookId(), e);
             return null;
         }
     }
@@ -291,16 +291,16 @@ public class OrderCalculationServiceImpl implements OrderCalculationService {
         // Thống kê flash sale
         long flashSaleCount = itemDetails.stream().mapToLong(item -> item.getIsFlashSale() ? 1 : 0).sum();
         if (flashSaleCount > 0) {
-            message.append(String.format("🔥 %d sản phẩm được áp dụng flash sale. ", flashSaleCount));
+            message.append(String.format(" %d sản phẩm được áp dụng flash sale. ", flashSaleCount));
         }
         
         // Thống kê voucher
         if (!appliedVouchers.isEmpty()) {
-            message.append(String.format("🎫 Áp dụng %d voucher. ", appliedVouchers.size()));
+            message.append(String.format(" Áp dụng %d voucher. ", appliedVouchers.size()));
         }
         
         if (message.length() == 0) {
-            message.append("💰 Đơn hàng thường, không có ưu đãi đặc biệt.");
+            message.append(" Đơn hàng thường, không có ưu đãi đặc biệt.");
         }
         
         return message.toString().trim();

@@ -45,7 +45,7 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
 
     @Override
     public SurvivalKpiResponse getSurvivalKpis() {
-        log.info("📊 Getting survival KPIs...");
+        log.info(" Getting survival KPIs...");
         
         try {
             LocalDate today = LocalDate.now();
@@ -79,14 +79,14 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ Error getting survival KPIs: {}", e.getMessage(), e);
+            log.error(" Error getting survival KPIs: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get survival KPIs", e);
         }
     }
 
     @Override
     public OpportunityRadarResponse getOpportunityRadar() {
-        log.info("🎯 Getting opportunity radar...");
+        log.info(" Getting opportunity radar...");
         
         try {
             // Hot Today Books (mock data for now - would use real inventory system)
@@ -110,14 +110,14 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ Error getting opportunity radar: {}", e.getMessage(), e);
+            log.error(" Error getting opportunity radar: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get opportunity radar", e);
         }
     }
 
     @Override
     public OrderHealthMapResponse getOrderHealthMap() {
-        log.info("🗺️ Getting order health map...");
+        log.info(" Getting order health map...");
         
         try {
             // Region Health Analysis
@@ -142,14 +142,14 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ Error getting order health map: {}", e.getMessage(), e);
+            log.error(" Error getting order health map: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get order health map", e);
         }
     }
 
     @Override
     public RealTimeAlertsResponse getRealTimeAlerts() {
-        log.info("🚨 Getting real-time alerts...");
+        log.info(" Getting real-time alerts...");
         
         try {
             List<RealTimeAlertsResponse.Alert> criticalAlerts = new ArrayList<>();
@@ -185,14 +185,14 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ Error getting real-time alerts: {}", e.getMessage(), e);
+            log.error(" Error getting real-time alerts: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to get real-time alerts", e);
         }
     }
 
     @Override
     public QuickActionResponse executeQuickAction(QuickActionRequest request) {
-        log.info("⚡ Executing quick action: {}", request.getActionType());
+        log.info(" Executing quick action: {}", request.getActionType());
         
         try {
             String actionId = "action_" + System.currentTimeMillis();
@@ -222,7 +222,7 @@ public class AdvancedAnalyticsServiceImpl implements AdvancedAnalyticsService {
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ Error executing quick action: {}", e.getMessage(), e);
+            log.error(" Error executing quick action: {}", e.getMessage(), e);
             return QuickActionResponse.builder()
                     .actionId("action_" + System.currentTimeMillis())
                     .actionType(request.getActionType())

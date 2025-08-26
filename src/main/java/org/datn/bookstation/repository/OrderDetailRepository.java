@@ -69,7 +69,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT 1 as bookId, 'Sample' as title, 0 as quantity, 0.0 as revenue")
     List<Object[]> findBookPerformanceDataByDateRange(@Param("startDate") long startDate, @Param("endDate") long endDate);
     
-    // 📊 Book Statistics API - Summary by date range (FIXED VERSION with refunds and Vietnam timezone)
+    //  Book Statistics API - Summary by date range (FIXED VERSION with refunds and Vietnam timezone)
     @Query(value = "SELECT " +
            "    CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) as saleDate, " +
            "    COALESCE(SUM(od.quantity), 0) - COALESCE(SUM(refunds.refund_quantity), 0) as netBooksSold, " +
@@ -93,7 +93,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "ORDER BY saleDate", nativeQuery = true)
     List<Object[]> findBookSalesSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
-    // 📚 Book Statistics API - Top books by date range (FIXED: Net revenue with refunds deducted)
+    //  Book Statistics API - Top books by date range (FIXED: Net revenue with refunds deducted)
     @Query(value = "SELECT TOP (:limit) " +
            "    od.book_id as bookId, " +
            "    b.book_code, " +

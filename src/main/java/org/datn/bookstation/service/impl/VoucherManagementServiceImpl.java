@@ -40,7 +40,7 @@ public class VoucherManagementServiceImpl implements VoucherManagementService {
     
     @Override
     public void refundVouchersFromCancelledOrder(Order order) {
-        // ✅ THEO YÊU CẦU: Khi hủy đơn KHÔNG hoàn lại voucher
+        //  THEO YÊU CẦU: Khi hủy đơn KHÔNG hoàn lại voucher
         // Method này chỉ ghi log để theo dõi, không thực hiện hoàn voucher
         if (order == null) {
             return;
@@ -62,7 +62,7 @@ public class VoucherManagementServiceImpl implements VoucherManagementService {
     
     @Override
     public void refundVouchersFromReturnedOrder(Order order) {
-        // ✅ HOÀN VOUCHER KHI TRẢ HÀNG
+        //  HOÀN VOUCHER KHI TRẢ HÀNG
         log.info("Bắt đầu hoàn voucher cho đơn hàng trả {} ", order.getCode());
         
         if (order == null) {
@@ -82,7 +82,7 @@ public class VoucherManagementServiceImpl implements VoucherManagementService {
                     voucher.setUpdatedAt(System.currentTimeMillis());
                     voucherRepository.save(voucher);
                     
-                    log.info("✅ Đã hoàn voucher {} cho đơn hàng trả {}", voucher.getCode(), order.getCode());
+                    log.info(" Đã hoàn voucher {} cho đơn hàng trả {}", voucher.getCode(), order.getCode());
                 }
             }
         }

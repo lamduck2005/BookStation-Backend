@@ -19,7 +19,7 @@ public class RefundReasonUtil {
         reasonMap.put("DEFECTIVE_ITEM", "Sản phẩm lỗi");
         reasonMap.put("PRODUCT_DEFECT", "Sản phẩm có lỗi");
         reasonMap.put("NOT_AS_DESCRIBED", "Không đúng mô tả");
-        reasonMap.put("DAMAGED_SHIPPING", "Hỏng trong quá trình vận chuyển"); // ✅ THÊM MỚI
+        reasonMap.put("DAMAGED_SHIPPING", "Hỏng trong quá trình vận chuyển"); //  THÊM MỚI
         reasonMap.put("POOR_QUALITY", "Chất lượng kém");
         reasonMap.put("SIZE_ISSUE", "Vấn đề về kích thước");
         reasonMap.put("COLOR_ISSUE", "Vấn đề về màu sắc");

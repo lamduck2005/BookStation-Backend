@@ -193,7 +193,7 @@ public class CheckoutSessionController {
             @RequestParam Integer userId,
             @Valid @RequestBody CreateOrderFromSessionRequest request) {
         try {
-            log.info("🛒 Creating order from checkout session: {} for user: {} with price validation", sessionId, userId);
+            log.info(" Creating order from checkout session: {} for user: {} with price validation", sessionId, userId);
             
             // Input validation
             if (sessionId == null || sessionId <= 0) {
@@ -234,17 +234,17 @@ public class CheckoutSessionController {
             
             // Log result for monitoring
             if (response.getStatus() == 201) {
-                log.info("✅ Successfully created order from session {} for user {}: {}", 
+                log.info(" Successfully created order from session {} for user {}: {}", 
                     sessionId, userId, response.getData());
             } else {
-                log.warn("❌ Failed to create order from session {} for user {}: {} - {}", 
+                log.warn(" Failed to create order from session {} for user {}: {} - {}", 
                     sessionId, userId, response.getStatus(), response.getMessage());
             }
             
             return ResponseEntity.status(status).body(response);
             
         } catch (Exception e) {
-            log.error("💥 Unexpected error in createOrderFromSession controller for session {} user {}: {}", 
+            log.error(" Unexpected error in createOrderFromSession controller for session {} user {}: {}", 
                 sessionId, userId, e.getMessage(), e);
             
             ApiResponse<String> errorResponse = new ApiResponse<>(

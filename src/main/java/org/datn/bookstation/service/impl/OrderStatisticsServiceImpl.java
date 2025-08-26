@@ -24,21 +24,11 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     private final OrderRepository orderRepository;
     
-    // ✅ Các trạng thái đơn hàng được tính doanh thu HOÀN TOÀN
+    //  Các trạng thái đơn hàng được tính doanh thu HOÀN TOÀN
     // Chỉ DELIVERED và PARTIALLY_REFUNDED (đã hoàn thành công một phần)
     private static final List<OrderStatus> SUCCESS_STATUSES = Arrays.asList(
         OrderStatus.DELIVERED, 
         OrderStatus.PARTIALLY_REFUNDED
-    );
-    
-    // ✅ THÊM: Các trạng thái đang trong quá trình hoàn hàng - KHÔNG trừ doanh thu
-    // Vì khách hàng vẫn chưa được hoàn tiền thực sự
-    private static final List<OrderStatus> REFUND_PROCESSING_STATUSES = Arrays.asList(
-        OrderStatus.REFUND_REQUESTED,
-        OrderStatus.AWAITING_GOODS_RETURN,
-        OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,
-        OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,
-        OrderStatus.REFUNDING
     );
     
     // Các trạng thái đơn hàng COD thất bại
@@ -68,11 +58,11 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
             .totalOrdersToday(totalOrdersToday)
             .totalOrdersThisMonth(totalOrdersThisMonth)
             
-            // ✅ SỬA: Doanh thu (subtotal trừ đi số tiền đã hoàn trả)
+            //  SỬA: Doanh thu (subtotal trừ đi số tiền đã hoàn trả)
             .revenueToday(revenueToday)
             .revenueThisMonth(revenueThisMonth)
             
-            // ✅ THÊM: Doanh thu trung bình trên mỗi đơn
+            //  THÊM: Doanh thu trung bình trên mỗi đơn
             .averageRevenuePerOrderToday(calculateAverageRevenuePerOrder(revenueToday, totalOrdersToday))
             .averageRevenuePerOrderThisMonth(calculateAverageRevenuePerOrder(revenueThisMonth, totalOrdersThisMonth))
             
@@ -115,7 +105,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
         Long startTime = getStartOfDay(-days);
         Long endTime = getEndOfDay(0);
         
-        // 🔥 FIX: Sử dụng query khác nhau theo period type
+        //  FIX: Sử dụng query khác nhau theo period type
         List<Object[]> rawData;
         switch (period.toLowerCase()) {
             case "weekly":
@@ -138,7 +128,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
                 BigDecimal revenue = (BigDecimal) row[1];
                 Long orderCount = ((Number) row[2]).longValue();
                 
-                // 🔥 NEW: Xử lý start/end date cho weekly/monthly
+                //  NEW: Xử lý start/end date cho weekly/monthly
                 String startDate = null;
                 String endDate = null; 
                 String dateRange = null;
@@ -420,36 +410,27 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     // ============ PRIVATE HELPER METHODS ============
     
-    // ✅ SỬA LẠI HOÀN TOÀN: Tính doanh thu ròng theo logic đúng
+    //   FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
     private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
-        // 1. Tất cả các đơn đã hoàn thành giao hàng (bao gồm cả đang hoàn trả)
-        // - DELIVERED: Đơn bình thường 
-        // - REFUND_REQUESTED, APPROVED: Đang yêu cầu/duyệt hoàn trả (nhưng vẫn giữ tiền)
-        // - PARTIALLY_REFUNDED: Hoàn một phần
-        List<OrderStatus> allSuccessfulStatuses = new ArrayList<>();
-        allSuccessfulStatuses.add(OrderStatus.DELIVERED);
-        allSuccessfulStatuses.add(OrderStatus.PARTIALLY_REFUNDED);
-        allSuccessfulStatuses.addAll(REFUND_PROCESSING_STATUSES);
+        log.info("🔍 DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
         
-        log.info("🔍 DEBUG: Calculating revenue for period {} to {}", startTime, endTime);
-        log.info("🔍 DEBUG: Using statuses: {}", allSuccessfulStatuses);
+        //  SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
+        // Query này đã tính proportional revenue và trừ refund chính xác
+        List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
         
-        BigDecimal totalGrossRevenue = orderRepository.sumRevenueByDateRangeAndStatuses(
-            startTime, endTime, allSuccessfulStatuses
-        );
+        BigDecimal totalNetRevenue = BigDecimal.ZERO;
+        for (Object[] row : rawData) {
+            // row[5] là netRevenue từ query (đã tính proportional và trừ refund)
+            BigDecimal dayNetRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+            totalNetRevenue = totalNetRevenue.add(dayNetRevenue);
+        }
         
-        // 2. CHỈ trừ số tiền đã hoàn trả THỰC SỰ (COMPLETED)
-        BigDecimal actuallyRefundedAmount = orderRepository.sumRefundedAmountByDateRange(startTime, endTime);
+        log.info("🔍 DEBUG: Calculated total net revenue = {} (using same logic as summary API)", totalNetRevenue);
         
-        BigDecimal netRevenue = totalGrossRevenue.subtract(actuallyRefundedAmount);
-        
-        log.info("🔍 DEBUG: totalGross={}, actuallyRefunded={}, net={}", 
-                 totalGrossRevenue, actuallyRefundedAmount, netRevenue);
-        
-        return netRevenue;
+        return totalNetRevenue;
     }
     
-    // ✅ THÊM: Tính doanh thu trung bình trên mỗi đơn
+    //  THÊM: Tính doanh thu trung bình trên mỗi đơn
     private BigDecimal calculateAverageRevenuePerOrder(BigDecimal totalRevenue, Long totalOrders) {
         if (totalOrders == null || totalOrders == 0) {
             return BigDecimal.ZERO;
@@ -458,7 +439,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     }
     
     private BigDecimal calculateNetProfit(Long startTime, Long endTime) {
-        // ✅ SỬA: Sử dụng doanh thu ròng thay vì gross revenue
+        //  SỬA: Sử dụng doanh thu ròng thay vì gross revenue
         BigDecimal netRevenue = calculateNetRevenue(startTime, endTime);
         BigDecimal shippingCost = orderRepository.sumShippingFeeByDateRangeAndStatuses(startTime, endTime, SUCCESS_STATUSES);
         // Tạm thời tính lợi nhuận = doanh thu ròng - phí ship (có thể mở rộng thêm chi phí khác)
@@ -483,7 +464,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     }
     
     private String formatPeriodDisplay(String dateStr, String period) {
-        // 🔥 FIX: Format hiển thị theo period type
+        //  FIX: Format hiển thị theo period type
         switch (period.toLowerCase()) {
             case "weekly":
                 // dateStr format: "2025-W32" -> "Tuần 32, 2025"
@@ -511,7 +492,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     }
     
     private String formatDateRange(String startDate, String endDate, String period) {
-        // 🔥 NEW: Format khoảng thời gian đẹp cho frontend
+        //  NEW: Format khoảng thời gian đẹp cho frontend
         try {
             if (startDate == null || endDate == null) return null;
             

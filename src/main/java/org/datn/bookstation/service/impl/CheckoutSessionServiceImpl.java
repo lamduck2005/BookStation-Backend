@@ -14,6 +14,7 @@ import org.datn.bookstation.dto.response.CheckoutSessionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.CartItemResponse;
 import org.datn.bookstation.entity.*;
+import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.mapper.CheckoutSessionMapper;
 import org.datn.bookstation.mapper.CheckoutSessionResponseMapper;
 import org.datn.bookstation.repository.*;
@@ -64,7 +65,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
         try {
             log.info("Creating checkout session for user: {}", userId);
 
-            // ✅ ENHANCED: Validate request với flash sale limits
+            //  ENHANCED: Validate request với flash sale limits
             validateCheckoutSessionWithUser(request, userId);
 
             // Create entity
@@ -372,7 +373,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             }
             
             // Always recalculate pricing (with or without vouchers)
-            log.info("🔄 Recalculating session pricing for session: {}", sessionId);
+            log.info(" Recalculating session pricing for session: {}", sessionId);
             List<CheckoutSessionRequest.BookQuantity> items = parseCheckoutItems(session.getCheckoutItems());
             if (items != null && !items.isEmpty()) {
                 CheckoutSessionRequest request = new CheckoutSessionRequest();
@@ -383,12 +384,12 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 if (voucherIds != null && !voucherIds.isEmpty()) {
                     // Calculate with vouchers
                     calculateSessionPricingWithVouchers(session, request, userId);
-                    log.info("✅ Updated session pricing with voucher discounts: totalDiscount={}, totalAmount={}", 
+                    log.info(" Updated session pricing with voucher discounts: totalDiscount={}, totalAmount={}", 
                         session.getTotalDiscount(), session.getTotalAmount());
                 } else {
                     // Calculate without vouchers
                     calculateSessionPricing(session, request);
-                    log.info("✅ Updated session pricing without vouchers: subtotal={}, totalAmount={}", 
+                    log.info(" Updated session pricing without vouchers: subtotal={}, totalAmount={}", 
                         session.getSubtotal(), session.getTotalAmount());
                 }
                 session = checkoutSessionRepository.save(session);
@@ -409,26 +410,26 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
     @Override
     public ApiResponse<String> createOrderFromSession(Integer sessionId, Integer userId, CreateOrderFromSessionRequest request) {
         try {
-            log.info("🛒 Creating order from checkout session: {} for user: {} with price validation", sessionId, userId);
+            log.info(" Creating order from checkout session: {} for user: {} with price validation", sessionId, userId);
 
             // 1. KIỂM TRA SESSION TỒN TẠI VÀ QUYỀN TRUY CẬP
             CheckoutSession session = getSessionEntity(sessionId, userId);
             if (session == null) {
-                log.error("❌ Session {} not found for user {}", sessionId, userId);
+                log.error(" Session {} not found for user {}", sessionId, userId);
                 return new ApiResponse<>(404, "Không tìm thấy checkout session", null);
             }
 
             // 2. VALIDATE TOÀN BỘ SESSION TRƯỚC KHI TẠO ORDER
             ApiResponse<String> validationResult = performComprehensiveSessionValidation(session, userId);
             if (validationResult.getStatus() != 200) {
-                log.error("❌ Session validation failed for session {}: {}", sessionId, validationResult.getMessage());
+                log.error(" Session validation failed for session {}: {}", sessionId, validationResult.getMessage());
                 return new ApiResponse<>(validationResult.getStatus(), validationResult.getMessage(), null);
             }
 
-            // 2.5. ✅ VALIDATE GIÁ FRONTEND VỚI GIÁ HIỆN TẠI (THỰC SỰ)
+            // 2.5.  VALIDATE GIÁ FRONTEND VỚI GIÁ HIỆN TẠI (THỰC SỰ)
             ApiResponse<String> priceValidationResult = validateFrontendPricesWithCurrent(session, request.getFrontendPrices());
             if (priceValidationResult.getStatus() != 200) {
-                log.warn("⚠️ Price validation failed for session {}: {}", sessionId, priceValidationResult.getMessage());
+                log.warn(" Price validation failed for session {}: {}", sessionId, priceValidationResult.getMessage());
                 return priceValidationResult; // Trả về lỗi để user reload trang
             }
 
@@ -438,7 +439,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 // Double-check session vẫn còn active
                 session = getSessionEntity(sessionId, userId);
                 if (session == null || !session.isActive()) {
-                    log.error("❌ Session {} no longer active for user {}", sessionId, userId);
+                    log.error(" Session {} no longer active for user {}", sessionId, userId);
                     return new ApiResponse<>(400, "Session đã hết hạn hoặc không khả dụng", null);
                 }
 
@@ -446,10 +447,10 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 OrderRequest orderRequest;
                 try {
                     orderRequest = buildOrderRequestFromSession(session);
-                    log.info("🔄 Built OrderRequest from session {}: {} items", sessionId, 
+                    log.info(" Built OrderRequest from session {}: {} items", sessionId, 
                         orderRequest.getOrderDetails() != null ? orderRequest.getOrderDetails().size() : 0);
                 } catch (Exception buildEx) {
-                    log.error("❌ Failed to build OrderRequest from session {}: {}", sessionId, buildEx.getMessage(), buildEx);
+                    log.error(" Failed to build OrderRequest from session {}: {}", sessionId, buildEx.getMessage(), buildEx);
                     return new ApiResponse<>(400, analyzeOrderCreationError(buildEx.getMessage(), session), null);
                 }
 
@@ -457,21 +458,21 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 ApiResponse<org.datn.bookstation.dto.response.OrderResponse> orderResponse;
                 try {
                     orderResponse = orderService.create(orderRequest);
-                    log.info("🔄 Order service response: status={}, message={}", 
+                    log.info(" Order service response: status={}, message={}", 
                         orderResponse != null ? orderResponse.getStatus() : "null",
                         orderResponse != null ? orderResponse.getMessage() : "null");
                 } catch (Exception ex) {
-                    log.error("❌ Order service threw exception for session {}: {}", sessionId, ex.getMessage(), ex);
+                    log.error(" Order service threw exception for session {}: {}", sessionId, ex.getMessage(), ex);
                     return new ApiResponse<>(500, analyzeExceptionForUserMessage(ex), null);
                 }
 
                 if (orderResponse == null) {
-                    log.error("❌ Order service returned null response for session {}", sessionId);
+                    log.error(" Order service returned null response for session {}", sessionId);
                     return new ApiResponse<>(500, "Lỗi hệ thống: Order service không phản hồi", null);
                 }
 
                 if (orderResponse.getStatus() != 201) {
-                    log.error("❌ Order creation failed for session {}: status={}, message={}", 
+                    log.error(" Order creation failed for session {}: status={}, message={}", 
                         sessionId, orderResponse.getStatus(), orderResponse.getMessage());
                     return new ApiResponse<>(orderResponse.getStatus(), 
                         analyzeOrderCreationError(orderResponse.getMessage(), session), null);
@@ -480,37 +481,37 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 // 6. MARK SESSION COMPLETED VÀ CLEANUP
                 try {
                     markSessionCompleted(sessionId, userId);
-                    log.info("✅ Session {} marked as completed", sessionId);
+                    log.info(" Session {} marked as completed", sessionId);
                 } catch (Exception markEx) {
-                    log.warn("⚠️ Failed to mark session {} as completed, but order was created successfully: {}", 
+                    log.warn(" Failed to mark session {} as completed, but order was created successfully: {}", 
                         sessionId, markEx.getMessage());
                 }
 
-                // 7. 🔄 CLEAR CART AFTER SUCCESSFUL ORDER CREATION
+                // 7.  CLEAR CART AFTER SUCCESSFUL ORDER CREATION
                 try {
                     cartService.clearCart(userId);
-                    log.info("✅ Cart cleared for user {} after successful order creation", userId);
+                    log.info(" Cart cleared for user {} after successful order creation", userId);
                 } catch (Exception cartEx) {
                     // Không throw error vì order đã tạo thành công, chỉ log warning
-                    log.warn("⚠️ Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
+                    log.warn(" Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
                 }
 
                 // 8. Đặt hết hạn các session cũ (status != 2) để tránh user back-order
                 try {
                     int expiredCount = checkoutSessionRepository.expireSessionsExceptCompleted(userId, System.currentTimeMillis());
-                    log.info("✅ Expired {} old sessions for user {} after order creation", expiredCount, userId);
+                    log.info(" Expired {} old sessions for user {} after order creation", expiredCount, userId);
                 } catch (Exception expireEx) {
-                    log.warn("⚠️  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
+                    log.warn("  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
                 }
 
                 String orderCode = orderResponse.getData().getCode();
-                log.info("✅ Successfully created order: {} from session: {}", orderCode, sessionId);
+                log.info(" Successfully created order: {} from session: {}", orderCode, sessionId);
 
                 return new ApiResponse<>(201, "Đặt hàng thành công! Mã đơn hàng: " + orderCode, orderCode);
             }
 
         } catch (Exception e) {
-            log.error("💥 Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
+            log.error(" Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
             
             // Phân tích chi tiết lỗi cho user
             String userFriendlyError = analyzeExceptionForUserMessage(e);
@@ -521,7 +522,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
     @Override
     public ApiResponse<String> createOrderFromSession(Integer sessionId, Integer userId) {
         // Backward compatibility - gọi method cũ nhưng không validate frontend prices
-        log.info("🛒 Creating order from checkout session: {} for user: {} (no price validation)", sessionId, userId);
+        log.info(" Creating order from checkout session: {} for user: {} (no price validation)", sessionId, userId);
         return createOrderFromSessionWithoutPriceValidation(sessionId, userId);
     }
 
@@ -530,26 +531,26 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
      */
     private ApiResponse<String> createOrderFromSessionWithoutPriceValidation(Integer sessionId, Integer userId) {
         try {
-            log.info("🛒 Creating order from checkout session: {} for user: {}", sessionId, userId);
+            log.info(" Creating order from checkout session: {} for user: {}", sessionId, userId);
 
             // 1. KIỂM TRA SESSION TỒN TẠI VÀ QUYỀN TRUY CẬP
             CheckoutSession session = getSessionEntity(sessionId, userId);
             if (session == null) {
-                log.error("❌ Session {} not found for user {}", sessionId, userId);
+                log.error(" Session {} not found for user {}", sessionId, userId);
                 return new ApiResponse<>(404, "Không tìm thấy checkout session", null);
             }
 
             // 2. VALIDATE TOÀN BỘ SESSION TRƯỚC KHI TẠO ORDER
             ApiResponse<String> validationResult = performComprehensiveSessionValidation(session, userId);
             if (validationResult.getStatus() != 200) {
-                log.error("❌ Session validation failed for session {}: {}", sessionId, validationResult.getMessage());
+                log.error(" Session validation failed for session {}: {}", sessionId, validationResult.getMessage());
                 return new ApiResponse<>(validationResult.getStatus(), validationResult.getMessage(), null);
             }
 
-            // 2.5. ✅ VALIDATE GIÁ HIỆN TẠI VỚI GIÁ TRONG SESSION
+            // 2.5.  VALIDATE GIÁ HIỆN TẠI VỚI GIÁ TRONG SESSION
             ApiResponse<String> priceValidationResult = validateSessionPricesWithCurrent(session);
             if (priceValidationResult.getStatus() != 200) {
-                log.warn("⚠️ Price changed for session {}: {}", sessionId, priceValidationResult.getMessage());
+                log.warn(" Price changed for session {}: {}", sessionId, priceValidationResult.getMessage());
                 return priceValidationResult; // Trả về lỗi để user reload trang
             }
 
@@ -559,7 +560,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 // Double-check session vẫn còn active
                 session = getSessionEntity(sessionId, userId);
                 if (session == null || !session.isActive()) {
-                    log.error("❌ Session {} no longer active or available for user {}", sessionId, userId);
+                    log.error(" Session {} no longer active or available for user {}", sessionId, userId);
                     return new ApiResponse<>(400, "Session đã hết hạn hoặc không khả dụng", null);
                 }
 
@@ -567,23 +568,23 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 OrderRequest orderRequest;
                 try {
                     orderRequest = buildOrderRequestFromSession(session);
-                    log.info("🔄 Built order request with {} items, {} vouchers", 
+                    log.info(" Built order request with {} items, {} vouchers", 
                         orderRequest.getOrderDetails().size(), 
                         orderRequest.getVoucherIds() != null ? orderRequest.getVoucherIds().size() : 0);
                 } catch (Exception buildEx) {
-                    log.error("❌ Failed to build order request from session {}: {}", sessionId, buildEx.getMessage(), buildEx);
+                    log.error(" Failed to build order request from session {}: {}", sessionId, buildEx.getMessage(), buildEx);
                     return new ApiResponse<>(400, "Lỗi khi xây dựng đơn hàng: " + buildEx.getMessage(), null);
                 }
 
                 // 5. GỌI ORDER SERVICE VỚI ERROR HANDLING CHI TIẾT
                 ApiResponse<org.datn.bookstation.dto.response.OrderResponse> orderResponse;
                 try {
-                    log.info("🔄 Calling orderService.create for session {}", sessionId);
+                    log.info(" Calling orderService.create for session {}", sessionId);
                     orderResponse = orderService.create(orderRequest);
-                    log.info("🔄 OrderService.create returned status: {} for session {}", 
+                    log.info(" OrderService.create returned status: {} for session {}", 
                         orderResponse != null ? orderResponse.getStatus() : "null", sessionId);
                 } catch (Exception ex) {
-                    log.error("❌ Exception khi gọi orderService.create for session {}: {}", sessionId, ex.getMessage(), ex);
+                    log.error("Exception khi gọi orderService.create for session {}: {}", sessionId, ex.getMessage(), ex);
                     
                     // Phân tích chi tiết lỗi từ exception
                     String detailedError = analyzeExceptionForUserMessage(ex);
@@ -591,12 +592,12 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 }
 
                 if (orderResponse == null) {
-                    log.error("❌ OrderService.create returned null response for session {}", sessionId);
+                    log.error(" OrderService.create returned null response for session {}", sessionId);
                     return new ApiResponse<>(500, "Không nhận được phản hồi từ hệ thống tạo đơn hàng", null);
                 }
 
                 if (orderResponse.getStatus() != 201) {
-                    log.error("❌ Order creation failed for session {}: status={}, message={}", 
+                    log.error(" Order creation failed for session {}: status={}, message={}", 
                         sessionId, orderResponse.getStatus(), orderResponse.getMessage());
                     String detailedMessage = analyzeOrderCreationError(orderResponse.getMessage(), session);
                     return new ApiResponse<>(orderResponse.getStatus(), detailedMessage, null);
@@ -605,37 +606,37 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 // 6. MARK SESSION COMPLETED VÀ CLEANUP
                 try {
                     markSessionCompleted(sessionId, userId);
-                    log.info("✅ Session {} marked as completed", sessionId);
+                    log.info(" Session {} marked as completed", sessionId);
                 } catch (Exception markEx) {
-                    log.warn("⚠️ Failed to mark session {} as completed, but order was created successfully: {}", 
+                    log.warn(" Failed to mark session {} as completed, but order was created successfully: {}", 
                         sessionId, markEx.getMessage());
                 }
 
-                // 7. 🔄 CLEAR CART AFTER SUCCESSFUL ORDER CREATION
+                // 7.  CLEAR CART AFTER SUCCESSFUL ORDER CREATION
                 try {
                     cartService.clearCart(userId);
-                    log.info("✅ Cart cleared for user {} after successful order creation", userId);
+                    log.info(" Cart cleared for user {} after successful order creation", userId);
                 } catch (Exception cartEx) {
                     // Không throw error vì order đã tạo thành công, chỉ log warning
-                    log.warn("⚠️ Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
+                    log.warn(" Failed to clear cart for user {} after order creation: {}", userId, cartEx.getMessage());
                 }
 
                 // 8. Đặt hết hạn các session cũ (status != 2) để tránh user back-order
                 try {
                     int expiredCount = checkoutSessionRepository.expireSessionsExceptCompleted(userId, System.currentTimeMillis());
-                    log.info("✅ Expired {} old sessions for user {} after order creation", expiredCount, userId);
+                    log.info(" Expired {} old sessions for user {} after order creation", expiredCount, userId);
                 } catch (Exception expireEx) {
-                    log.warn("⚠️  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
+                    log.warn("  Failed to expire old sessions for user {}: {}", userId, expireEx.getMessage());
                 }
 
                 String orderCode = orderResponse.getData().getCode();
-                log.info("✅ Successfully created order: {} from session: {}", orderCode, sessionId);
+                log.info(" Successfully created order: {} from session: {}", orderCode, sessionId);
 
                 return new ApiResponse<>(201, "Đặt hàng thành công! Mã đơn hàng: " + orderCode, orderCode);
             }
 
         } catch (Exception e) {
-            log.error("💥 Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
+            log.error(" Critical error creating order from session {}: {}", sessionId, e.getMessage(), e);
             
             // Phân tích chi tiết lỗi cho user
             String userFriendlyError = analyzeExceptionForUserMessage(e);
@@ -691,7 +692,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             if (errors.isEmpty()) {
                 return new ApiResponse<>(200, "Validation passed", "OK");
             } else {
-                String errorMessage = "❌ Có lỗi khi kiểm tra đơn hàng: " + String.join("; ", errors);
+                String errorMessage = " Có lỗi khi kiểm tra đơn hàng: " + String.join("; ", errors);
                 log.warn("Session validation failed for session {}: {}", session.getId(), errorMessage);
                 return new ApiResponse<>(400, errorMessage, null);
             }
@@ -721,7 +722,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     continue;
                 }
                 
-                // ✅ ENHANCED: Validate flash sale và stock phức tạp hơn
+                //  ENHANCED: Validate flash sale và stock phức tạp hơn
                 Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleItemRepository
                     .findActiveFlashSalesByBookId(item.getBookId().longValue(), System.currentTimeMillis())
                     .stream()
@@ -743,29 +744,29 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                                 regularStock + " cuốn (cần " + item.getQuantity() + " cuốn)");
                         } else {
                             // Có thể mua hỗn hợp, nhưng log warning
-                            log.info("⚠️ User {} sẽ mua hỗn hợp: {} flash sale + {} thường cho book {}", 
+                            log.info(" User {} sẽ mua hỗn hợp: {} flash sale + {} thường cho book {}", 
                                 userId, flashSaleItem.getStockQuantity(), remainingNeeded, book.getId());
                         }
                     }
                     
-                    // ✅ ENHANCED: Kiểm tra giới hạn mua per user với hai loại thông báo
+                    //  ENHANCED: Kiểm tra giới hạn mua per user với hai loại thông báo
                     if (flashSaleItem.getMaxPurchasePerUser() != null) {
                         if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, item.getQuantity())) {
                             int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
                             int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
                             
-                            // ✅ LOẠI 1: Đã đạt giới hạn tối đa
+                            //  LOẠI 1: Đã đạt giới hạn tối đa
                             if (currentPurchased >= maxAllowed) {
                                 errors.add("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" + 
                                     book.getBookName() + "' cho phép. Không thể mua thêm.");
                             } else {
-                                // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                                //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
                                 int remainingAllowed = maxAllowed - currentPurchased;
                                 if (item.getQuantity() > remainingAllowed) {
                                     errors.add("Bạn đã mua " + currentPurchased + " sản phẩm, chỉ được mua thêm tối đa " + 
                                         remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
                                 } else {
-                                    // ✅ LOẠI 3: Thông báo chung
+                                    //  LOẠI 3: Thông báo chung
                                     errors.add("Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
                                         book.getBookName() + "'.");
                                 }
@@ -854,25 +855,25 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         // Stock issues
         if (lowerError.contains("stock") || lowerError.contains("kho") || lowerError.contains("hết hàng")) {
-            return "❌ Một số sản phẩm đã hết hàng. Vui lòng cập nhật lại giỏ hàng.";
+            return " Một số sản phẩm đã hết hàng. Vui lòng cập nhật lại giỏ hàng.";
         }
         
         // Flash sale issues  
         if (lowerError.contains("flash sale") || lowerError.contains("khuyến mãi")) {
-            return "❌ Flash sale đã kết thúc hoặc hết hàng. Vui lòng kiểm tra lại.";
+            return " Flash sale đã kết thúc hoặc hết hàng. Vui lòng kiểm tra lại.";
         }
         
         // Voucher issues
         if (lowerError.contains("voucher") || lowerError.contains("mã giảm giá")) {
-            return "❌ Voucher không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.";
+            return " Voucher không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.";
         }
         
         // Price issues
         if (lowerError.contains("price") || lowerError.contains("giá")) {
-            return "❌ Giá sản phẩm đã thay đổi. Vui lòng cập nhật lại đơn hàng.";
+            return " Giá sản phẩm đã thay đổi. Vui lòng cập nhật lại đơn hàng.";
         }
         
-        return "❌ " + originalError;
+        return " " + originalError;
     }
 
     @Override
@@ -943,7 +944,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     continue; // Bỏ qua sản phẩm hết hàng
                 }
 
-                log.info("🔍 DEBUGGING Cart Item: bookId={}, flashSaleItemId={}, itemType={}, unitPrice={}, flashSalePrice={}", 
+                log.info(" DEBUGGING Cart Item: bookId={}, flashSaleItemId={}, itemType={}, unitPrice={}, flashSalePrice={}", 
                     cartItem.getBookId(), cartItem.getFlashSaleItemId(), cartItem.getItemType(), 
                     cartItem.getUnitPrice(), cartItem.getFlashSalePrice());
 
@@ -954,7 +955,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 // Note: BookQuantity chỉ cần bookId và quantity
                 // Flash sale logic và pricing sẽ được xử lý trong calculateSessionPricing()
                 
-                log.info("🎯 Added checkout item: bookId={}, quantity={}", 
+                log.info(" Added checkout item: bookId={}, quantity={}", 
                     item.getBookId(), item.getQuantity());
 
                 checkoutItems.add(item);
@@ -985,7 +986,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
     // Private helper methods
 
     /**
-     * ✅ ENHANCED: Validate checkout session request với flash sale validation
+     *  ENHANCED: Validate checkout session request với flash sale validation
      */
     private void validateCheckoutSessionRequest(CheckoutSessionRequest request) {
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -1000,12 +1001,12 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
     }
     
     /**
-     * ✅ NEW: Validate checkout session với user để check flash sale limits
+     *  NEW: Validate checkout session với user để check flash sale limits
      */
     private void validateCheckoutSessionWithUser(CheckoutSessionRequest request, Integer userId) {
         validateCheckoutSessionRequest(request); // Basic validation first
         
-        // ✅ Enhanced validation với flash sale limits
+        //  Enhanced validation với flash sale limits
         List<String> errors = validateSessionItemsForOrder(request.getItems(), userId);
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", errors));
@@ -1015,8 +1016,8 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
     private void calculateSessionPricingWithVouchers(CheckoutSession session, CheckoutSessionRequest request, Integer userId) {
         final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
-        // 🔄 BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
-        log.info("🔄 Backend recalculating session pricing with vouchers for {} items", 
+        //  BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
+        log.info(" Backend recalculating session pricing with vouchers for {} items", 
             request.getItems() != null ? request.getItems().size() : 0);
         
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -1026,7 +1027,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         BigDecimal calculatedSubtotal = BigDecimal.ZERO;
         
-        // 🔥 TỰ TÍNH GIÁ CHO TỪNG ITEM - KHÔNG TIN FRONTEND
+        //  TỰ TÍNH GIÁ CHO TỪNG ITEM - KHÔNG TIN FRONTEND
         for (CheckoutSessionRequest.BookQuantity item : request.getItems()) {
             try {
                 // 1. Validate book exists
@@ -1036,8 +1037,8 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 }
                 Book book = bookOpt.get();
                 
-                // 2. TỰ ĐỘNG TÌM FLASH SALE TỐT NHẤT - ✅ FIX: Dùng effective price làm baseline
-                BigDecimal unitPrice = book.getEffectivePrice(); // ✅ FIX: Dùng giá thực tế
+                // 2. TỰ ĐỘNG TÌM FLASH SALE TỐT NHẤT -  FIX: Dùng effective price làm baseline
+                BigDecimal unitPrice = book.getEffectivePrice(); //  FIX: Dùng giá thực tế
                 Optional<FlashSaleItem> bestFlashSaleOpt = flashSaleItemRepository
                     .findActiveFlashSalesByBookId(item.getBookId().longValue(), System.currentTimeMillis())
                     .stream()
@@ -1047,10 +1048,10 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 if (bestFlashSaleOpt.isPresent()) {
                     FlashSaleItem flashSale = bestFlashSaleOpt.get();
                     unitPrice = flashSale.getDiscountPrice();
-                    log.info("✅ WITH_VOUCHERS Applied flash sale for book {}: regular={}, effective={}, flash={}", 
+                    log.info(" WITH_VOUCHERS Applied flash sale for book {}: regular={}, effective={}, flash={}", 
                         item.getBookId(), book.getPrice(), book.getEffectivePrice(), unitPrice);
                 } else {
-                    log.info("💰 WITH_VOUCHERS Using effective price for book {}: regular={}, effective={}", 
+                    log.info(" WITH_VOUCHERS Using effective price for book {}: regular={}, effective={}", 
                         item.getBookId(), book.getPrice(), unitPrice);
                 }
                 
@@ -1068,7 +1069,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         }
         
         session.setSubtotal(calculatedSubtotal);
-        log.info("🔄 Calculated subtotal: {}", calculatedSubtotal);
+        log.info(" Calculated subtotal: {}", calculatedSubtotal);
         
         // 4. TÍNH SHIPPING FEE
         BigDecimal shippingFee;
@@ -1089,21 +1090,21 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
             try {
-                log.info("🎫 Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
+                log.info(" Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
                 
                 // Create a temporary order for voucher calculation
                 Order tempOrder = new Order();
                 tempOrder.setSubtotal(calculatedSubtotal);
                 tempOrder.setShippingFee(shippingFee);
                 
-                log.debug("🎫 Temp order for voucher calc: subtotal={}, shipping={}", calculatedSubtotal, shippingFee);
+                log.debug(" Temp order for voucher calc: subtotal={}, shipping={}", calculatedSubtotal, shippingFee);
                 
                 VoucherCalculationService.VoucherCalculationResult voucherResult = 
                     voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getSelectedVoucherIds(), userId);
                 
                 totalVoucherDiscount = voucherResult.getTotalProductDiscount().add(voucherResult.getTotalShippingDiscount());
                 
-                log.info("🎫 Applied voucher discounts: product={}, shipping={}, total={}", 
+                log.info(" Applied voucher discounts: product={}, shipping={}, total={}", 
                     voucherResult.getTotalProductDiscount(), 
                     voucherResult.getTotalShippingDiscount(), 
                     totalVoucherDiscount);
@@ -1124,15 +1125,15 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         BigDecimal totalAmount = calculatedSubtotal.add(shippingFee).subtract(totalVoucherDiscount);
         session.setTotalAmount(totalAmount.max(BigDecimal.ZERO));
         
-        log.info("🔄 Final pricing with vouchers: subtotal={}, shipping={}, discount={}, total={}", 
+        log.info(" Final pricing with vouchers: subtotal={}, shipping={}, discount={}, total={}", 
             calculatedSubtotal, shippingFee, totalVoucherDiscount, session.getTotalAmount());
     }
 
     private void calculateSessionPricing(CheckoutSession session, CheckoutSessionRequest request) {
         final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
-        // ✅ BACKEND TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
-        log.info("🔄 Backend recalculating session pricing for {} items", 
+        // BACKED TỰ TÍNH TOÁN MỌI THỨ - KHÔNG TIN FRONTEND
+        log.info(" Backend recalculating session pricing for {} items", 
             request.getItems() != null ? request.getItems().size() : 0);
         
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -1142,7 +1143,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         BigDecimal calculatedSubtotal = BigDecimal.ZERO;
         
-        // 🔥 TỰ TÍNH GIÁ CHO TỪNG ITEM - KHÔNG TIN FRONTEND
+        //  TỰ TÍNH GIÁ CHO TỪNG ITEM - KHÔNG TIN FRONTEND
         for (CheckoutSessionRequest.BookQuantity item : request.getItems()) {
             try {
                 // 1. Validate book exists
@@ -1152,8 +1153,8 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 }
                 Book book = bookOpt.get();
                 
-                // 2. TỰ ĐỘNG TÌM FLASH SALE TỐT NHẤT - ✅ FIX: Dùng effective price làm baseline
-                BigDecimal unitPrice = book.getEffectivePrice(); // ✅ FIX: Dùng giá thực tế
+                // 2. TỰ ĐỘNG TÌM FLASH SALE TỐT NHẤT -  FIX: Dùng effective price làm baseline
+                BigDecimal unitPrice = book.getEffectivePrice(); //  FIX: Dùng giá thực tế
                 Optional<FlashSaleItem> bestFlashSaleOpt = flashSaleItemRepository
                     .findActiveFlashSalesByBookId(item.getBookId().longValue(), System.currentTimeMillis())
                     .stream()
@@ -1163,10 +1164,10 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 if (bestFlashSaleOpt.isPresent()) {
                     FlashSaleItem flashSale = bestFlashSaleOpt.get();
                     unitPrice = flashSale.getDiscountPrice();
-                    log.info("✅ NO_VOUCHERS Applied flash sale for book {}: regular={}, effective={}, flash={}", 
+                    log.info(" NO_VOUCHERS Applied flash sale for book {}: regular={}, effective={}, flash={}", 
                         item.getBookId(), book.getPrice(), book.getEffectivePrice(), unitPrice);
                 } else {
-                    log.info("💰 NO_VOUCHERS Using effective price for book {}: regular={}, effective={}", 
+                    log.info(" NO_VOUCHERS Using effective price for book {}: regular={}, effective={}", 
                         item.getBookId(), book.getPrice(), unitPrice);
                 }
                 
@@ -1184,7 +1185,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         }
         
         session.setSubtotal(calculatedSubtotal);
-        log.info("🔄 Calculated subtotal: {}", calculatedSubtotal);
+        log.info(" Calculated subtotal: {}", calculatedSubtotal);
         
         // 4. TÍNH SHIPPING FEE
         BigDecimal shippingFee;
@@ -1209,7 +1210,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         BigDecimal totalAmount = calculatedSubtotal.add(shippingFee).subtract(totalDiscount);
         session.setTotalAmount(totalAmount.max(BigDecimal.ZERO));
         
-        log.info("🔄 Final pricing: subtotal={}, shipping={}, total={}", 
+        log.info(" Final pricing: subtotal={}, shipping={}, total={}", 
             calculatedSubtotal, shippingFee, session.getTotalAmount());
     }
     
@@ -1348,62 +1349,62 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         // Transaction rollback issues
         if (exMessage.contains("rollback") || exMessage.contains("transaction")) {
-            return "❌ Có lỗi trong quá trình xử lý đơn hàng. Vui lòng kiểm tra lại thông tin và thử lại.";
+            return " Có lỗi trong quá trình xử lý đơn hàng. Vui lòng kiểm tra lại thông tin và thử lại.";
         }
         
         // Data integrity issues
         if (exMessage.contains("constraint") || exMessage.contains("foreign key") || exMessage.contains("unique")) {
-            return "❌ Có xung đột dữ liệu. Vui lòng làm mới trang và thử lại.";
+            return " Có xung đột dữ liệu. Vui lòng làm mới trang và thử lại.";
         }
         
         // Stock/inventory issues
         if (exMessage.contains("stock") || exMessage.contains("inventory") || exMessage.contains("quantity")) {
-            return "❌ Sản phẩm đã hết hàng hoặc không đủ số lượng. Vui lòng cập nhật lại giỏ hàng.";
+            return " Sản phẩm đã hết hàng hoặc không đủ số lượng. Vui lòng cập nhật lại giỏ hàng.";
         }
         
         // Flash sale issues
         if (exMessage.contains("flash sale") || exMessage.contains("flashsale")) {
-            return "❌ Flash sale đã kết thúc hoặc có vấn đề. Vui lòng kiểm tra lại.";
+            return " Flash sale đã kết thúc hoặc có vấn đề. Vui lòng kiểm tra lại.";
         }
         
         // Voucher issues
         if (exMessage.contains("voucher") || exMessage.contains("discount")) {
-            return "❌ Có lỗi với voucher/mã giảm giá. Vui lòng bỏ voucher và thử lại.";
+            return " Có lỗi với voucher/mã giảm giá. Vui lòng bỏ voucher và thử lại.";
         }
         
         // Price/calculation issues
         if (exMessage.contains("price") || exMessage.contains("calculation") || exMessage.contains("amount")) {
-            return "❌ Có vấn đề với tính toán giá. Vui lòng cập nhật lại đơn hàng.";
+            return " Có vấn đề với tính toán giá. Vui lòng cập nhật lại đơn hàng.";
         }
         
         // User/permission issues
         if (exMessage.contains("user") || exMessage.contains("permission") || exMessage.contains("unauthorized")) {
-            return "❌ Có vấn đề với tài khoản. Vui lòng đăng nhập lại.";
+            return " Có vấn đề với tài khoản. Vui lòng đăng nhập lại.";
         }
         
         // Address issues
         if (exMessage.contains("address") || exMessage.contains("shipping")) {
-            return "❌ Có vấn đề với địa chỉ giao hàng. Vui lòng kiểm tra lại địa chỉ.";
+            return " Có vấn đề với địa chỉ giao hàng. Vui lòng kiểm tra lại địa chỉ.";
         }
         
         // Database connection issues
         if (exMessage.contains("connection") || exMessage.contains("timeout") || exMessage.contains("database")) {
-            return "❌ Lỗi kết nối hệ thống. Vui lòng thử lại sau ít phút.";
+            return " Lỗi kết nối hệ thống. Vui lòng thử lại sau ít phút.";
         }
         
         // JSON/parsing issues
         if (exMessage.contains("json") || exMessage.contains("parse") || exMessage.contains("format")) {
-            return "❌ Có lỗi dữ liệu. Vui lòng làm mới trang và thử lại.";
+            return " Có lỗi dữ liệu. Vui lòng làm mới trang và thử lại.";
         }
         
         // Null pointer issues
         if (exType.contains("nullpointer") || exMessage.contains("null")) {
-            return "❌ Thiếu thông tin bắt buộc. Vui lòng kiểm tra lại thông tin đơn hàng.";
+            return " Thiếu thông tin bắt buộc. Vui lòng kiểm tra lại thông tin đơn hàng.";
         }
         
         // Runtime issues
         if (exType.contains("runtime") || exType.contains("illegal")) {
-            return "❌ Có lỗi xử lý. Vui lòng kiểm tra lại thông tin và thử lại.";
+            return " Có lỗi xử lý. Vui lòng kiểm tra lại thông tin và thử lại.";
         }
         
         // Generic fallback with partial original message for debugging
@@ -1412,11 +1413,11 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
             shortMessage = shortMessage.substring(0, 100) + "...";
         }
         
-        return "❌ Lỗi hệ thống: " + (shortMessage != null ? shortMessage : "Vui lòng thử lại sau");
+        return " Lỗi hệ thống: " + (shortMessage != null ? shortMessage : "Vui lòng thử lại sau");
     }
 
     private OrderRequest buildOrderRequestFromSession(CheckoutSession session) {
-        log.info("🔄 Building OrderRequest from session: {}", session.getId());
+        log.info(" Building OrderRequest from session: {}", session.getId());
         
         OrderRequest orderRequest = new OrderRequest();
         orderRequest.setUserId(session.getUser().getId());
@@ -1452,12 +1453,15 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         orderRequest.setOrderType("ONLINE"); // Default order type for checkout sessions
         orderRequest.setNotes(session.getNotes());
         
-        // ✅ SET PAYMENT METHOD FROM SESSION
+        // SET PAYMENT METHOD FROM SESSION
         if (session.getPaymentMethod() != null) {
             orderRequest.setPaymentMethod(session.getPaymentMethod());
         } else {
             orderRequest.setPaymentMethod("COD"); // Default COD if not specified
         }
+        
+        // SET ORDER STATUS - Default PENDING, will be overridden to CONFIRMED for VNPAY in OrderService
+        orderRequest.setOrderStatus(OrderStatus.PENDING);
 
         // Log session data for debugging
         log.debug("Building OrderRequest from session {}: subtotal={}, totalAmount={}, shippingFee={}", 
@@ -1481,7 +1485,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 detail.setBookId(item.getBookId());
                 detail.setQuantity(item.getQuantity());
 
-                // 🔄 ENHANCED: Handle flash sale logic properly
+                //  ENHANCED: Handle flash sale logic properly
                 BigDecimal unitPrice = null;
                 
                 // Validate book exists first
@@ -1491,8 +1495,8 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 }
                 Book book = bookOpt.get();
 
-                // 🔥 BACKEND TỰ QUYẾT ĐỊNH FLASH SALE - KHÔNG TIN FRONTEND
-                log.info("🔍 AUTO-DETECTING flash sale for book: {}", item.getBookId());
+                //  BACKEND TỰ QUYẾT ĐỊNH FLASH SALE - KHÔNG TIN FRONTEND
+                log.info(" AUTO-DETECTING flash sale for book: {}", item.getBookId());
                 
                 // Tự động tìm flash sale tốt nhất cho book này
                 Optional<FlashSaleItem> bestFlashSaleOpt = flashSaleItemRepository
@@ -1506,13 +1510,13 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     FlashSaleItem flashSaleItem = bestFlashSaleOpt.get();
                     unitPrice = flashSaleItem.getDiscountPrice();
                     detail.setFlashSaleItemId(flashSaleItem.getId());
-                    log.info("✅ Applied flash sale for book {}: price={}, flashSaleItemId={}", 
+                    log.info(" Applied flash sale for book {}: price={}, flashSaleItemId={}", 
                         item.getBookId(), unitPrice, flashSaleItem.getId());
                 } else {
-                    // Không có flash sale hoặc hết stock - dùng giá thực tế ✅ FIX
-                    unitPrice = book.getEffectivePrice(); // ✅ FIX: Dùng giá thực tế thay vì giá gốc
+                    // Không có flash sale hoặc hết stock - dùng giá thực tế  FIX
+                    unitPrice = book.getEffectivePrice(); //  FIX: Dùng giá thực tế thay vì giá gốc
                     detail.setFlashSaleItemId(null);
-                    log.info("💰 Using effective price for book {}: regular={}, effective={}", 
+                    log.info(" Using effective price for book {}: regular={}, effective={}", 
                         item.getBookId(), book.getPrice(), unitPrice);
                 }
 
@@ -1521,7 +1525,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     throw new RuntimeException("Không thể xác định giá cho sản phẩm: " + book.getBookName());
                 }
                 
-                // 🔥 BACKEND TỰ TÍNH GIÁ - KHÔNG TIN Frontend unitPrice
+                //  BACKEND TỰ TÍNH GIÁ - KHÔNG TIN Frontend unitPrice
                 // LUÔN LUÔN dùng giá backend tính toán, không tin frontend
                 detail.setUnitPrice(unitPrice);
 
@@ -1538,14 +1542,14 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         }
 
         orderRequest.setOrderDetails(orderDetails);
-        log.info("✅ Successfully built OrderRequest with {} order details for session {}", 
+        log.info(" Successfully built OrderRequest with {} order details for session {}", 
             orderDetails.size(), session.getId());
 
         return orderRequest;
     }
 
     /**
-     * ✅ NEW: Update payment method cho session (VNPay, COD, etc.)
+     * NEW: Update payment method cho session (VNPay, COD, etc.)
      */
     @Override
     public ApiResponse<String> updateSessionPaymentMethod(Integer sessionId, String paymentMethod) {
@@ -1560,23 +1564,23 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
             session.setUpdatedAt(System.currentTimeMillis());
 
             checkoutSessionRepository.save(session);
-            log.info("✅ Updated payment method for session {} to {}", sessionId, paymentMethod);
+            log.info(" Updated payment method for session {} to {}", sessionId, paymentMethod);
 
             return new ApiResponse<>(200, "Cập nhật phương thức thanh toán thành công", null);
         } catch (Exception e) {
-            log.error("❌ Error updating payment method for session {}: {}", sessionId, e.getMessage(), e);
+            log.error(" Error updating payment method for session {}: {}", sessionId, e.getMessage(), e);
             return new ApiResponse<>(500, "Lỗi khi cập nhật phương thức thanh toán", null);
         }
     }
 
     /**
-     * ✅ VALIDATE giá frontend gửi lên với giá hiện tại trên backend  
+     *  VALIDATE giá frontend gửi lên với giá hiện tại trên backend  
      * Đây là method thực sự để detect price changes
      */
     private ApiResponse<String> validateFrontendPricesWithCurrent(CheckoutSession session, 
             List<CreateOrderFromSessionRequest.ItemPriceValidation> frontendPrices) {
         try {
-            log.info("💰 Validating frontend prices with current backend prices for session {}", session.getId());
+            log.info(" Validating frontend prices with current backend prices for session {}", session.getId());
             
             if (frontendPrices == null || frontendPrices.isEmpty()) {
                 return new ApiResponse<>(400, "Frontend chưa gửi thông tin giá để validation", null);
@@ -1609,7 +1613,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                         continue;
                     }
 
-                    log.info("🔍 DEBUG - Processing item: bookId={}, sessionQty={}, frontendQty={}, frontendPrice={}, frontendFlashSaleId={}", 
+                    log.info(" DEBUG - Processing item: bookId={}, sessionQty={}, frontendQty={}, frontendPrice={}, frontendFlashSaleId={}", 
                         sessionItem.getBookId(), sessionItem.getQuantity(), frontendItem.getQuantity(), 
                         frontendItem.getFrontendUnitPrice(), frontendItem.getFrontendFlashSaleId());
 
@@ -1628,9 +1632,9 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     }
 
                     Book book = bookOpt.get();
-                    BigDecimal currentBackendPrice = book.getEffectivePrice(); // ✅ FIX: Dùng giá thực tế sau discount
+                    BigDecimal currentBackendPrice = book.getEffectivePrice(); //  FIX: Dùng giá thực tế sau discount
 
-                    log.info("🔍 DEBUG - Book info: bookId={}, regularPrice={}, effectivePrice={}, discountActive={}", 
+                    log.info(" DEBUG - Book info: bookId={}, regularPrice={}, effectivePrice={}, discountActive={}", 
                         book.getId(), book.getPrice(), currentBackendPrice, book.getDiscountActive());
 
                     // Tìm flash sale hiện tại
@@ -1643,7 +1647,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     if (activeFlashSaleOpt.isPresent()) {
                         FlashSaleItem flashSale = activeFlashSaleOpt.get();
                         
-                        log.info("🔍 DEBUG - Found active flash sale: flashSaleId={}, discountPrice={}, stockQty={}, maxPerUser={}", 
+                        log.info(" DEBUG - Found active flash sale: flashSaleId={}, discountPrice={}, stockQty={}, maxPerUser={}", 
                             flashSale.getId(), flashSale.getDiscountPrice(), flashSale.getStockQuantity(), 
                             flashSale.getMaxPurchasePerUser());
                         
@@ -1651,11 +1655,11 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                         if (flashSale.getMaxPurchasePerUser() == null || 
                             flashSaleService.canUserPurchaseMore(flashSale.getId().longValue(), session.getUser().getId(), sessionItem.getQuantity())) {
                             
-                            log.info("🔍 DEBUG - User can purchase more, using flash sale price: {}", flashSale.getDiscountPrice());
+                            log.info(" DEBUG - User can purchase more, using flash sale price: {}", flashSale.getDiscountPrice());
                             
                             // Validate flash sale ID nếu frontend có gửi
                             if (frontendItem.getFrontendFlashSaleId() != null) {
-                                log.info("🔍 DEBUG - Comparing flash sale IDs: frontend={} (Long), backend={} (Integer)", 
+                                log.info(" DEBUG - Comparing flash sale IDs: frontend={} (Long), backend={} (Integer)", 
                                     frontendItem.getFrontendFlashSaleId(), flashSale.getId());
                                     
                                 // Convert Integer to Long để so sánh
@@ -1676,7 +1680,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                             currentBackendPrice = flashSale.getDiscountPrice();
                             
                         } else {
-                            log.info("🔍 DEBUG - User purchase limit exceeded, using regular price: {}", currentBackendPrice);
+                            log.info(" DEBUG - User purchase limit exceeded, using regular price: {}", currentBackendPrice);
                             
                             // User đã đạt giới hạn mua flash sale, phải dùng regular price
                             if (frontendItem.getFrontendFlashSaleId() != null) {
@@ -1686,7 +1690,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                             }
                         }
                     } else {
-                        log.info("🔍 DEBUG - No active flash sale found for book {}", sessionItem.getBookId());
+                        log.info(" DEBUG - No active flash sale found for book {}", sessionItem.getBookId());
                         
                         // Không có flash sale hiện tại
                         if (frontendItem.getFrontendFlashSaleId() != null) {
@@ -1696,7 +1700,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                         }
                     }
 
-                    log.info("🔍 DEBUG - Final price comparison: frontendPrice={}, backendPrice={}", 
+                    log.info(" DEBUG - Final price comparison: frontendPrice={}, backendPrice={}", 
                         frontendItem.getFrontendUnitPrice(), currentBackendPrice);
 
                     // So sánh giá frontend với backend
@@ -1707,7 +1711,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                         continue;
                     }
 
-                    log.debug("✅ Price validation passed for book {}: frontend={}, backend={}", 
+                    log.debug(" Price validation passed for book {}: frontend={}, backend={}", 
                         sessionItem.getBookId(), frontendItem.getFrontendUnitPrice(), currentBackendPrice);
 
                 } catch (Exception itemEx) {
@@ -1718,14 +1722,14 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
 
             if (!priceChangeErrors.isEmpty()) {
                 String errorMessage = String.join("; ", priceChangeErrors);
-                log.warn("⚠️ Price validation failed for session {}: {}", session.getId(), errorMessage);
+                log.warn(" Price validation failed for session {}: {}", session.getId(), errorMessage);
                 
                 return new ApiResponse<>(409, 
                     "Giá sản phẩm đã thay đổi. " + errorMessage + " Vui lòng tải lại trang để xem giá mới nhất.", 
                     null);
             }
 
-            log.info("✅ All frontend prices match current backend prices for session {}", session.getId());
+            log.info(" All frontend prices match current backend prices for session {}", session.getId());
             return new ApiResponse<>(200, "OK", "OK");
             
         } catch (Exception e) {
@@ -1735,12 +1739,12 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
     }
 
     /**
-     * ✅ THÊM: Validate giá trong session có khớp với giá hiện tại không
+     *  THÊM: Validate giá trong session có khớp với giá hiện tại không
      * Nếu không khớp, báo user phải reload trang
      */
     private ApiResponse<String> validateSessionPricesWithCurrent(CheckoutSession session) {
         try {
-            log.info("💰 Validating session {} prices with current prices", session.getId());
+            log.info(" Validating session {} prices with current prices", session.getId());
             
             List<CheckoutSessionRequest.BookQuantity> items = parseCheckoutItems(session.getCheckoutItems());
             if (items == null || items.isEmpty()) {
@@ -1757,7 +1761,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                 }
 
                 Book book = bookOpt.get();
-                BigDecimal currentPrice = book.getEffectivePrice(); // ✅ FIX: Dùng giá thực tế
+                BigDecimal currentPrice = book.getEffectivePrice(); //  FIX: Dùng giá thực tế
 
                 // Tìm flash sale hiện tại
                 Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleItemRepository
@@ -1782,7 +1786,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
             // So sánh với subtotal trong session
             BigDecimal sessionSubtotal = session.getSubtotal();
             if (sessionSubtotal != null && currentSubtotal.compareTo(sessionSubtotal) != 0) {
-                log.warn("⚠️ Price changed for session {}: session={}, current={}", 
+                log.warn(" Price changed for session {}: session={}, current={}", 
                     session.getId(), sessionSubtotal, currentSubtotal);
                 
                 return new ApiResponse<>(409, 
@@ -1790,7 +1794,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                     null);
             }
 
-            log.info("✅ Session {} prices are up to date", session.getId());
+            log.info(" Session {} prices are up to date", session.getId());
             return new ApiResponse<>(200, "OK", "OK");
             
         } catch (Exception e) {

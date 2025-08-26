@@ -17,7 +17,7 @@ public interface RefundItemRepository extends JpaRepository<RefundItem, Integer>
     // Tìm các item hoàn trả theo sách
     List<RefundItem> findByBookId(Integer bookId);
     
-    // ✅ THÊM MỚI: Tìm các item hoàn trả theo đơn hàng và sách
+    //  THÊM MỚI: Tìm các item hoàn trả theo đơn hàng và sách
     @Query("SELECT ri FROM RefundItem ri " +
            "JOIN ri.refundRequest rr " +
            "WHERE rr.order.id = :orderId AND ri.book.id = :bookId " +

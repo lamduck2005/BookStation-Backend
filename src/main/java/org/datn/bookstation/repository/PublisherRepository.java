@@ -28,7 +28,7 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
     Optional<Publisher> findByEmail(String email);
     Optional<Publisher> findByPhoneNumber(String phoneNumber);
 
-    // ✅ THÊM MỚI: Thống kê sách theo nhà xuất bản
+    //  THÊM MỚI: Thống kê sách theo nhà xuất bản
     @Query("""
             SELECT p.publisherName,
                    COUNT(b.id) as totalBooks,
@@ -42,7 +42,7 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
             """)
     List<Object[]> getPublisherBookStatistics(@Param("oneMonthAgo") long oneMonthAgo);
 
-    // ✅ THÊM MỚI: Doanh thu theo nhà xuất bản
+    //  THÊM MỚI: Doanh thu theo nhà xuất bản
     @Query("""
             SELECT p.publisherName,
                    COALESCE(SUM(od.unitPrice * od.quantity), 0) as totalRevenue,
@@ -56,7 +56,7 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
             """)
     List<Object[]> getPublisherRevenueStatistics();
 
-    // ✅ THÊM MỚI: Top nhà xuất bản theo doanh thu
+    //  THÊM MỚI: Top nhà xuất bản theo doanh thu
     @Query("""
             SELECT p.publisherName,
                    COALESCE(SUM(od.unitPrice * od.quantity), 0) as totalRevenue,
@@ -70,7 +70,7 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
             """)
     List<Object[]> getTopPublishersByRevenue(Pageable pageable);
 
-    // ✅ THÊM MỚI: Top nhà xuất bản theo số lượng
+    //  THÊM MỚI: Top nhà xuất bản theo số lượng
     @Query("""
             SELECT p.publisherName,
                    COALESCE(SUM(od.quantity), 0) as totalQuantity,

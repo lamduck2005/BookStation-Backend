@@ -18,7 +18,7 @@ public interface UserRankRepository extends JpaRepository<UserRank, Integer>, Jp
 
     List<UserRank> getByUserId(Integer userId);
 
-    // ✅ THÊM MỚI: Số user theo từng rank
+    //  THÊM MỚI: Số user theo từng rank
     @Query("""
             SELECT r.rankName, COUNT(ur.id) 
             FROM UserRank ur 
@@ -28,7 +28,7 @@ public interface UserRankRepository extends JpaRepository<UserRank, Integer>, Jp
             """)
     List<Object[]> getUserCountByRank();
 
-    // ✅ THÊM MỚI: Điểm trung bình theo rank
+    //  THÊM MỚI: Điểm trung bình theo rank
     @Query("""
             SELECT r.rankName, AVG(u.totalPoint), r.minSpent
             FROM UserRank ur 
@@ -39,7 +39,7 @@ public interface UserRankRepository extends JpaRepository<UserRank, Integer>, Jp
             """)
     List<Object[]> getAveragePointsByRank();
 
-    // ✅ THÊM MỚI: Tỷ lệ tăng giảm theo tháng
+    //  THÊM MỚI: Tỷ lệ tăng giảm theo tháng
     @Query("""
             SELECT r.rankName, 
                    (SELECT COUNT(ur2.id) FROM UserRank ur2 

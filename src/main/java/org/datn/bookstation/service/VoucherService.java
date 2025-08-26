@@ -24,7 +24,7 @@ public interface VoucherService {
     void deleteVoucher(Integer id);
 
     /**
-     * ✅ Search voucher cho counter sales
+     *  Search voucher cho counter sales
      * Tìm theo mã voucher hoặc tên voucher
      */
     List<VoucherResponse> searchVouchersForCounterSales(String query, int limit);

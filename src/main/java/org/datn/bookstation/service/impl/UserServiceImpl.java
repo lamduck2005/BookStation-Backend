@@ -339,7 +339,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     *  THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
      */
     @Override
     public List<UserResponse> searchCustomers(String search) {

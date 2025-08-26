@@ -37,13 +37,13 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
   @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime")
   Long countAllOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-  // ✅ SỬA: Tính tổng doanh thu theo khoảng thời gian và trạng thái (chỉ tính
+  //  SỬA: Tính tổng doanh thu theo khoảng thời gian và trạng thái (chỉ tính
   // subtotal, không tính phí ship)
   @Query("SELECT COALESCE(SUM(o.subtotal), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
   BigDecimal sumRevenueByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime,
       @Param("statuses") List<OrderStatus> statuses);
 
-  // ✅ SỬA: Chỉ tính tiền đã hoàn trả THỰC SỰ (COMPLETED) - không tính APPROVED
+  //  SỬA: Chỉ tính tiền đã hoàn trả THỰC SỰ (COMPLETED) - không tính APPROVED
   @Query("SELECT COALESCE(SUM(rr.totalRefundAmount), 0) FROM RefundRequest rr " +
       "WHERE rr.order.orderDate >= :startTime AND rr.order.orderDate <= :endTime " +
       "AND rr.status = 'COMPLETED'")
@@ -54,18 +54,18 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
   BigDecimal sumShippingFeeByDateRangeAndStatuses(@Param("startTime") Long startTime,
       @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
 
-  // ✅ SỬA: Đếm số đơn COD theo khoảng thời gian (sử dụng paymentMethod)
+  //  SỬA: Đếm số đơn COD theo khoảng thời gian (sử dụng paymentMethod)
   @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.paymentMethod = 'COD' AND o.orderStatus IN :statuses")
   Long countCodOrdersByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime,
       @Param("statuses") List<OrderStatus> statuses);
 
-  // ✅ SỬA: Đếm số đơn COD thất bại (DELIVERY_FAILED, CANCELED) theo khoảng thời
+  //  SỬA: Đếm số đơn COD thất bại (DELIVERY_FAILED, CANCELED) theo khoảng thời
   // gian
   @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.paymentMethod = 'COD' AND o.orderStatus IN :statuses")
   Long countFailedCodOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime,
       @Param("statuses") List<OrderStatus> statuses);
 
-  // ✅ FIXED: Tính refund bằng subquery để tránh duplicate từ LEFT JOIN
+  //  FIXED: Tính refund bằng subquery để tránh duplicate từ LEFT JOIN
   @Query(value = "SELECT " +
       "CAST(DATEADD(SECOND, o.order_date/1000, '1970-01-01') AS DATE) as date, " +
       "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
@@ -97,7 +97,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       "ORDER BY SUM(od.quantity) DESC", nativeQuery = true)
   List<Object[]> findTopProductsByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-  // ✅ FIXED: Payment method stats với refund logic đúng
+  //  FIXED: Payment method stats với refund logic đúng
   @Query(value = "SELECT o.order_type, COUNT(o.id), " +
       "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
       "(SELECT SUM(rr.total_refund_amount) " +
@@ -112,7 +112,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       "GROUP BY o.order_type", nativeQuery = true)
   List<Object[]> findPaymentMethodStatsByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-  // ✅ FIXED: Location stats với refund logic đúng
+  //  FIXED: Location stats với refund logic đúng
   @Query(value = "SELECT a.province_name, a.province_id, COUNT(o.id), " +
       "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +
       "(SELECT SUM(rr.total_refund_amount) " +
@@ -182,7 +182,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
 //      """, nativeQuery = true)
 //  List<Object[]> getMonthlyRevenue(@Param("start") Long start, @Param("end") Long end);
 
-  // ✅ FIXED: Weekly revenue với refund logic đúng
+  //  FIXED: Weekly revenue với refund logic đúng
   @Query(value = "SELECT " +
       "CONCAT(YEAR(DATEADD(SECOND, o.order_date/1000, '1970-01-01')), '-W', " +
       "FORMAT(DATEPART(WEEK, DATEADD(SECOND, o.order_date/1000, '1970-01-01')), '00')) as week_period, " +
@@ -207,7 +207,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       "ORDER BY week_period", nativeQuery = true)
   List<Object[]> findWeeklyRevenueByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
-  // ✅ FIXED: Monthly revenue với refund logic đúng
+  //  FIXED: Monthly revenue với refund logic đúng
   @Query(value = "SELECT " +
       "FORMAT(DATEADD(SECOND, o.order_date/1000, '1970-01-01'), 'yyyy-MM') as month_period, " +
       "COALESCE(SUM(o.subtotal), 0) - COALESCE(" +

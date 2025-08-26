@@ -265,7 +265,7 @@ public class MinigameServiceImpl implements MinigameService {
             selectedReward.setStock(selectedReward.getStock() - 1);
             rewardRepository.save(selectedReward);
         } else if (pointsSpent > 0) {
-            // ✅ FIX: Trường hợp không trúng gì (NONE) nhưng đã chi điểm
+            //  FIX: Trường hợp không trúng gì (NONE) nhưng đã chi điểm
             Point spentOnlyPoint = new Point();
             spentOnlyPoint.setUser(user);
             spentOnlyPoint.setPointSpent(pointsSpent);
@@ -338,13 +338,13 @@ public class MinigameServiceImpl implements MinigameService {
                 user.setTotalPoint(user.getTotalPoint() + reward.getPointValue());
                 userRepository.save(user);
                 
-                // 🔥 FIX: Tạo 1 bản ghi Point duy nhất với cả pointSpent và pointEarned
+                //  FIX: Tạo 1 bản ghi Point duy nhất với cả pointSpent và pointEarned
                 Point combinedPoint = new Point();
                 combinedPoint.setUser(user);
                 combinedPoint.setPointEarned(reward.getPointValue());
                 
                 if (pointsSpent > 0) {
-                    // ✅ GỘP: Bao gồm cả điểm chi và điểm nhận trong 1 record
+                    //  GỘP: Bao gồm cả điểm chi và điểm nhận trong 1 record
                     combinedPoint.setPointSpent(pointsSpent);
                     combinedPoint.setDescription("Trúng thưởng " + reward.getPointValue() + " điểm từ chiến dịch " + campaignName + 
                                                " (đã chi " + pointsSpent + " điểm để mở hộp)");
@@ -356,12 +356,12 @@ public class MinigameServiceImpl implements MinigameService {
                 combinedPoint.setStatus((byte) 1);
                 pointRepository.save(combinedPoint);
                 
-                log.info("🔥 FIXED: Combined point record - Awarded {} points to user {} (spent {} points to open box)", 
+                log.info(" FIXED: Combined point record - Awarded {} points to user {} (spent {} points to open box)", 
                          reward.getPointValue(), user.getId(), pointsSpent);
                 break;
                 
             case VOUCHER:
-                // ✅ Tạo bản ghi riêng cho việc tiêu điểm (nếu có) khi nhận voucher
+                //  Tạo bản ghi riêng cho việc tiêu điểm (nếu có) khi nhận voucher
                 if (pointsSpent > 0) {
                     Point spentPoint = new Point();
                     spentPoint.setUser(user);
@@ -374,13 +374,13 @@ public class MinigameServiceImpl implements MinigameService {
                 }
                 
                 if (reward.getVoucher() != null) {
-                    // 🔥 FIXED: Always create new UserVoucher record, no limit checking
+                    //  FIXED: Always create new UserVoucher record, no limit checking
                     // User requirement: "không có ngăn ngừa gì hết phải tạo thêm bản ghi"
                     UserVoucher userVoucher = new UserVoucher();
                     userVoucher.setUser(user);
                     userVoucher.setVoucher(reward.getVoucher());
                     userVoucherRepository.save(userVoucher);
-                    log.info("✅ FIXED: Always awarded voucher {} to user {} (new record created)", 
+                    log.info(" FIXED: Always awarded voucher {} to user {} (new record created)", 
                              reward.getVoucher().getCode(), user.getId());
                 }
                 break;
@@ -438,7 +438,7 @@ public class MinigameServiceImpl implements MinigameService {
     }
 
     /**
-     * 🔥 REMOVED: No longer checking voucher limits per user request
+     *  REMOVED: No longer checking voucher limits per user request
      * User requirement: "không có ngăn ngừa gì hết phải tạo thêm bản ghi"
      */
     /*
@@ -447,7 +447,7 @@ public class MinigameServiceImpl implements MinigameService {
             return true; // No user limit set
         }
         
-        // ✅ UPDATED: Đếm số records UserVoucher của user cho voucher này
+        //  UPDATED: Đếm số records UserVoucher của user cho voucher này
         // Mỗi record = 1 lần nhận voucher (không dùng quantity nữa)
         List<UserVoucher> userVouchers = userVoucherRepository.findAll().stream()
                 .filter(uv -> uv.getUser().getId().equals(userId) && 
@@ -459,7 +459,7 @@ public class MinigameServiceImpl implements MinigameService {
     */
     
     /**
-     * 🔍 VALIDATION - Kiểm tra dữ liệu frontend có khớp với backend không
+     *  VALIDATION - Kiểm tra dữ liệu frontend có khớp với backend không
      * Mục đích: Tránh trường hợp user đang xem giao diện cũ nhưng admin đã thay đổi config
      */
     private List<String> validateFrontendData(OpenBoxRequest request) {

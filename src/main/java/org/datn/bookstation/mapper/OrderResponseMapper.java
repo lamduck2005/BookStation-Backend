@@ -117,9 +117,24 @@ public class OrderResponseMapper {
         // Stock information
         response.setAvailableStock(detail.getBook() != null ? detail.getBook().getStockQuantity() : null);
         
-        // Book image - use cover image
-        if (detail.getBook() != null && detail.getBook().getCoverImageUrl() != null) {
-            response.setBookImageUrl(detail.getBook().getCoverImageUrl());
+        // ✅ FIX: Book image - check both images field and coverImageUrl
+        if (detail.getBook() != null) {
+            String bookImage = null;
+            
+            // First, try to get from images field (comma-separated)
+            if (detail.getBook().getImages() != null && !detail.getBook().getImages().trim().isEmpty()) {
+                String[] imageUrls = detail.getBook().getImages().split(",");
+                if (imageUrls.length > 0 && !imageUrls[0].trim().isEmpty()) {
+                    bookImage = imageUrls[0].trim(); // Use the first image
+                }
+            }
+            
+            // Fallback to coverImageUrl if images field is empty
+            if (bookImage == null && detail.getBook().getCoverImageUrl() != null) {
+                bookImage = detail.getBook().getCoverImageUrl();
+            }
+            
+            response.setBookImageUrl(bookImage);
         }
         
         response.setQuantity(detail.getQuantity());

@@ -37,7 +37,7 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
     User getByPhoneNumber(@Size(max = 20) String phoneNumber);
 
     /**
-     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+     *  THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
      */
     @Query("SELECT u FROM User u WHERE " +
             "LOWER(u.fullName) LIKE LOWER(:searchTerm) OR " +
@@ -64,23 +64,23 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
     @Query("SELECT COUNT(u) FROM User u WHERE u.status = 1")
     long countActiveUsers();
 
-    // ✅ THÊM MỚI: Đếm user mới trong khoảng thời gian
+    //  THÊM MỚI: Đếm user mới trong khoảng thời gian
     @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :startTime AND :endTime")
     long countByCreatedAtBetween(@Param("startTime") long startTime, @Param("endTime") long endTime);
 
-    // ✅ THÊM MỚI: Đếm user đã mua hàng
+    //  THÊM MỚI: Đếm user đã mua hàng
     @Query("SELECT COUNT(DISTINCT o.createdBy) FROM Order o WHERE o.createdBy IS NOT NULL")
     long countUsersWithOrders();
 
-    // ✅ THÊM MỚI: Điểm trung bình mỗi user
+    //  THÊM MỚI: Điểm trung bình mỗi user
     @Query("SELECT AVG(u.totalPoint) FROM User u WHERE u.totalPoint IS NOT NULL")
     Double getAveragePointsPerUser();
 
-    // ✅ THÊM MỚI: Tổng điểm toàn hệ thống
+    //  THÊM MỚI: Tổng điểm toàn hệ thống
     @Query("SELECT COALESCE(SUM(u.totalPoint), 0) FROM User u")
     Long getTotalSystemPoints();
 
-    // ✅ THÊM MỚI: Top user theo điểm
+    //  THÊM MỚI: Top user theo điểm
     @Query(value = """
             SELECT TOP 10 u.full_name, u.email, u.total_point, 
                    (SELECT TOP 1 r.rank_name FROM user_rank ur 

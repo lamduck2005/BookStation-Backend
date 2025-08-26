@@ -170,6 +170,7 @@ public class AuthorServiceImpl implements AuthorService {
             }
 
             // Update các trường
+            // Update các trường
             authorToUpdate.setAuthorName(trimmedName);
             authorToUpdate.setBiography(author.getBiography());
             authorToUpdate.setBirthDate(author.getBirthDate());

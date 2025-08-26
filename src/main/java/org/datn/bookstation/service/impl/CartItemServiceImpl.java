@@ -65,7 +65,7 @@ public class CartItemServiceImpl implements CartItemService {
     }
 
     /**
-     * 🔥 ENHANCED: Thêm cart item với AUTO-DETECTION và validation toàn diện
+     *  ENHANCED: Thêm cart item với AUTO-DETECTION và validation toàn diện
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -88,18 +88,18 @@ public class CartItemServiceImpl implements CartItemService {
                 return new ApiResponse<>(400, "Sách đã ngừng bán", null);
             }
             
-            // 3. 🔥 AUTO-DETECT: Tìm flash sale tốt nhất cho sách này
+            // 3.  AUTO-DETECT: Tìm flash sale tốt nhất cho sách này
             FlashSaleItem flashSaleItem = null;
             String flashSaleMessage = "";
             Optional<FlashSaleItem> activeFlashSaleOpt = flashSaleService.findActiveFlashSaleForBook(request.getBookId().longValue());
             
             if (activeFlashSaleOpt.isPresent()) {
                 FlashSaleItem candidate = activeFlashSaleOpt.get();
-                flashSaleItem = candidate; // ✅ FIX: Luôn sử dụng flash sale nếu có, để validate đúng
+                flashSaleItem = candidate; //  FIX: Luôn sử dụng flash sale nếu có, để validate đúng
                 flashSaleMessage = " 🔥 Đã áp dụng flash sale!";
             }
             
-            // 4. ✅ ENHANCED: Validate stock và flash sale limit với userId
+            // 4.  ENHANCED: Validate stock và flash sale limit với userId
             ApiResponse<String> stockValidation = validateStockWithUser(book, flashSaleItem, request.getQuantity(), request.getUserId());
             if (stockValidation.getStatus() != 200) {
                 return new ApiResponse<>(stockValidation.getStatus(), stockValidation.getMessage(), null);
@@ -108,7 +108,7 @@ public class CartItemServiceImpl implements CartItemService {
             // 5. Get or create cart directly
             Cart cart = getOrCreateCart(request.getUserId());
             
-            // 6. 🔥 SMART EXISTING ITEM DETECTION: Check by book first, then merge intelligently
+            // 6.  SMART EXISTING ITEM DETECTION: Check by book first, then merge intelligently
             List<CartItem> existingItems = cartItemRepository.findExistingCartItemsByBook(
                 cart.getId(), request.getBookId());
                 
@@ -118,29 +118,29 @@ public class CartItemServiceImpl implements CartItemService {
                 cartItem = existingItems.get(0); // Get most recent item
                 int newQuantity = cartItem.getQuantity() + request.getQuantity();
                 
-                // ✅ ENHANCED: Re-validate stock và flash sale limit cho tổng số lượng mới
+                //  ENHANCED: Re-validate stock và flash sale limit cho tổng số lượng mới
                 ApiResponse<String> updateStockValidation = validateStockWithUser(book, flashSaleItem, newQuantity, request.getUserId());
                 if (updateStockValidation.getStatus() != 200) {
                     return new ApiResponse<>(updateStockValidation.getStatus(), 
                         "Bạn đã có " + cartItem.getQuantity() + " trong giỏ. " + updateStockValidation.getMessage(), null);
                 }
                 
-                // 🔥 SMART FLASH SALE UPDATE: Apply new flash sale if available
+                //  SMART FLASH SALE UPDATE: Apply new flash sale if available
                 if (flashSaleItem != null) {
                     cartItem.setFlashSaleItem(flashSaleItem);
-                    flashSaleMessage = " 🔥 Đã áp dụng flash sale và cộng vào số lượng hiện có!";
+                    flashSaleMessage = "  Đã áp dụng flash sale và cộng vào số lượng hiện có!";
                 } else if (cartItem.getFlashSaleItem() != null) {
                     // Keep existing flash sale if new request doesn't have one
-                    flashSaleMessage = " ✅ Đã cộng vào số lượng hiện có (giữ flash sale cũ)!";
+                    flashSaleMessage = "  Đã cộng vào số lượng hiện có (giữ flash sale cũ)!";
                 } else {
-                    flashSaleMessage = " ✅ Đã cộng vào số lượng hiện có!";
+                    flashSaleMessage = "  Đã cộng vào số lượng hiện có!";
                 }
                 
                 cartItem.setQuantity(newQuantity);
                 cartItem.setUpdatedBy(request.getUserId());
                 cartItem.setUpdatedAt(System.currentTimeMillis());
                 
-                // 🧹 CLEANUP: Remove duplicate items if any
+                //  CLEANUP: Remove duplicate items if any
                 for (int i = 1; i < existingItems.size(); i++) {
                     CartItem duplicate = existingItems.get(i);
                     cartItem.setQuantity(cartItem.getQuantity() + duplicate.getQuantity());
@@ -258,7 +258,7 @@ public class CartItemServiceImpl implements CartItemService {
     }
 
     /**
-     * 🔥 ENHANCED: Validate cart với nhiều business rules
+     *  ENHANCED: Validate cart với nhiều business rules
      */
     @Override
     public ApiResponse<List<CartItemResponse>> validateAndUpdateCartItems(Integer userId) {
@@ -411,7 +411,7 @@ public class CartItemServiceImpl implements CartItemService {
 
     @Override
     /**
-     * ✅ DEPRECATED: Không còn cần batch update cart items khi flash sale hết hạn
+     *  DEPRECATED: Không còn cần batch update cart items khi flash sale hết hạn
      * Logic mới: Chỉ update status của FlashSaleItem, cart item giữ nguyên flashSaleItemId
      */
     @Deprecated
@@ -421,20 +421,20 @@ public class CartItemServiceImpl implements CartItemService {
                 return 0;
             }
             
-            // ✅ NEW LOGIC: Gọi FlashSaleService để update status thay vì set null cart item
+            //  NEW LOGIC: Gọi FlashSaleService để update status thay vì set null cart item
             int totalUpdatedItems = 0;
             for (Integer flashSaleId : flashSaleIds) {
                 try {
                     int updatedCount = flashSaleService.autoUpdateFlashSaleItemsStatus(flashSaleId);
                     totalUpdatedItems += updatedCount;
                 } catch (Exception e) {
-                    System.err.println("❌ ERROR: Failed to update status for flash sale " + flashSaleId + ": " + e.getMessage());
+                    System.err.println(" ERROR: Failed to update status for flash sale " + flashSaleId + ": " + e.getMessage());
                 }
             }
             
             // Log để tracking
             if (totalUpdatedItems > 0) {
-                System.out.println("🔥 BATCH EXPIRATION: Updated " + totalUpdatedItems + " flash sale items status for flash sales: " + flashSaleIds);
+                System.out.println(" BATCH EXPIRATION: Updated " + totalUpdatedItems + " flash sale items status for flash sales: " + flashSaleIds);
             }
             
             return totalUpdatedItems;
@@ -472,7 +472,7 @@ public class CartItemServiceImpl implements CartItemService {
                 }
             }
             
-            System.out.println("🔄 FLASH SALE SYNC: Updated " + syncCount + " cart items for flash sale " + flashSaleId);
+            System.out.println(" FLASH SALE SYNC: Updated " + syncCount + " cart items for flash sale " + flashSaleId);
             return syncCount;
         } catch (Exception e) {
             e.printStackTrace();
@@ -514,13 +514,13 @@ public class CartItemServiceImpl implements CartItemService {
                 }
                 
                 totalSyncCount += syncCount;
-                log.info("🔄 NEW FLASH SALE SYNC: Updated {} cart items for book {} in flash sale {}", 
+                log.info(" NEW FLASH SALE SYNC: Updated {} cart items for book {} in flash sale {}", 
                         syncCount, bookId, flashSaleId);
             }
             
             return totalSyncCount;
         } catch (Exception e) {
-            log.error("❌ ERROR: syncCartItemsWithNewFlashSale failed for flash sale {}", flashSaleId, e);
+            log.error(" ERROR: syncCartItemsWithNewFlashSale failed for flash sale {}", flashSaleId, e);
             return 0;
         }
     }
@@ -562,7 +562,7 @@ public class CartItemServiceImpl implements CartItemService {
                 }
             }
             
-            System.out.println("🧹 CLEANUP: Merged " + mergedCount + " duplicate cart items for user " + userId);
+            System.out.println(" CLEANUP: Merged " + mergedCount + " duplicate cart items for user " + userId);
             return mergedCount;
         } catch (Exception e) {
             e.printStackTrace();
@@ -573,14 +573,14 @@ public class CartItemServiceImpl implements CartItemService {
     // ================== PRIVATE HELPER METHODS ==================
     
     /**
-     * ✅ ENHANCED: Validate stock và flash sale limit cho book hoặc flash sale
+     *  ENHANCED: Validate stock và flash sale limit cho book hoặc flash sale
      */
     private ApiResponse<String> validateStock(Book book, FlashSaleItem flashSaleItem, Integer requestedQuantity) {
         return validateStockWithUser(book, flashSaleItem, requestedQuantity, null);
     }
     
     /**
-     * ✅ ENHANCED: Validate stock và flash sale limit với user validation
+     *  ENHANCED: Validate stock và flash sale limit với user validation
      */
     private ApiResponse<String> validateStockWithUser(Book book, FlashSaleItem flashSaleItem, Integer requestedQuantity, Integer userId) {
         if (flashSaleItem != null) {
@@ -589,20 +589,20 @@ public class CartItemServiceImpl implements CartItemService {
                 return new ApiResponse<>(400, "Flash sale không đủ hàng. Còn lại: " + flashSaleItem.getStockQuantity(), null);
             }
             
-            // 2. ✅ ENHANCED: Validate flash sale purchase limit per user với hai loại thông báo
+            // 2.  ENHANCED: Validate flash sale purchase limit per user với hai loại thông báo
             if (userId != null && flashSaleItem.getMaxPurchasePerUser() != null) {
                 if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, requestedQuantity)) {
                     int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
                     int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
-                    
-                    // ✅ LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
+                
+                    //  LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
                     if (currentPurchased >= maxAllowed) {
                         return new ApiResponse<>(400, String.format(
                             "Bạn đã mua đủ %d sản phẩm flash sale '%s' cho phép. Không thể thêm vào giỏ hàng.", 
                             maxAllowed, book.getBookName()), null);
                     }
                     
-                    // ✅ LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
+                    //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
                     int remainingAllowed = maxAllowed - currentPurchased;
                     if (requestedQuantity > remainingAllowed) {
                         return new ApiResponse<>(400, String.format(
@@ -610,7 +610,7 @@ public class CartItemServiceImpl implements CartItemService {
                             currentPurchased, remainingAllowed, book.getBookName()), null);
                     }
                     
-                    // ✅ LOẠI 3: Thông báo chung
+                    //  LOẠI 3: Thông báo chung
                     return new ApiResponse<>(400, String.format(
                         "Bạn chỉ được mua tối đa %d sản phẩm flash sale '%s'.", 
                         maxAllowed, book.getBookName()), null);

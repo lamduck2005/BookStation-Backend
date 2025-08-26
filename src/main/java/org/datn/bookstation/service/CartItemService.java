@@ -101,7 +101,7 @@ public interface CartItemService {
     int handleExpiredFlashSalesInCartBatch(List<Integer> flashSaleIds);
 
     /**
-     * 🔥 NEW: Sync cart items khi flash sale được gia hạn/cập nhật
+     *  NEW: Sync cart items khi flash sale được gia hạn/cập nhật
      * Tự động apply flash sale mới cho cart items của sản phẩm tương ứng
      * @param flashSaleId ID của flash sale được gia hạn
      * @return Số lượng cart items đã được sync
@@ -109,7 +109,7 @@ public interface CartItemService {
     int syncCartItemsWithUpdatedFlashSale(Integer flashSaleId);
 
     /**
-     * 🔥 NEW: Sync cart items khi tạo flash sale mới
+     *  NEW: Sync cart items khi tạo flash sale mới
      * Tự động apply flash sale cho cart items đã có của sản phẩm đó
      * @param flashSaleId ID của flash sale mới tạo
      * @return Số lượng cart items đã được sync
@@ -117,7 +117,7 @@ public interface CartItemService {
     int syncCartItemsWithNewFlashSale(Integer flashSaleId);
 
     /**
-     * 🧹 CLEANUP: Merge duplicate cart items cho cùng book
+     *  CLEANUP: Merge duplicate cart items cho cùng book
      * @param userId User ID để cleanup
      * @return Số lượng items đã được merge
      */
