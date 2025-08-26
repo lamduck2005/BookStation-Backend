@@ -68,6 +68,20 @@ public class PublisherServiceImpl implements PublisherService {
 
     @Override
     public void addPublisher(PublisherRequest request) {
+        // Validate email không trùng
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            if (publisherRepository.existsByEmail(request.getEmail())) {
+                throw new RuntimeException("Email '" + request.getEmail() + "' đã tồn tại, vui lòng sử dụng email khác");
+            }
+        }
+        
+        // Validate số điện thoại không trùng
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()) {
+            if (publisherRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+                throw new RuntimeException("Số điện thoại '" + request.getPhoneNumber() + "' đã tồn tại, vui lòng sử dụng số điện thoại khác");
+            }
+        }
+        
         Publisher publisher = new Publisher();
         publisher.setPublisherName(request.getPublisherName());
         publisher.setPhoneNumber(request.getPhoneNumber());
@@ -89,6 +103,20 @@ public class PublisherServiceImpl implements PublisherService {
     public void editPublisher(PublisherRequest request) {
         Publisher publisher = publisherRepository.findById(request.getId())
                 .orElseThrow(() -> new RuntimeException("Publisher not found"));
+
+        // Validate email không trùng (loại trừ chính nó)
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            if (publisherRepository.existsByEmailAndIdNot(request.getEmail(), request.getId())) {
+                throw new RuntimeException("Email '" + request.getEmail() + "' đã tồn tại, vui lòng sử dụng email khác");
+            }
+        }
+        
+        // Validate số điện thoại không trùng (loại trừ chính nó)
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()) {
+            if (publisherRepository.existsByPhoneNumberAndIdNot(request.getPhoneNumber(), request.getId())) {
+                throw new RuntimeException("Số điện thoại '" + request.getPhoneNumber() + "' đã tồn tại, vui lòng sử dụng số điện thoại khác");
+            }
+        }
 
         publisher.setPublisherName(request.getPublisherName());
         publisher.setPhoneNumber(request.getPhoneNumber());

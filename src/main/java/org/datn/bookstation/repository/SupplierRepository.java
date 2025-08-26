@@ -8,10 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface SupplierRepository extends JpaRepository<Supplier, Integer> {
     Page<Supplier> findAll(Specification<Supplier> spec, Pageable pageable);
     List<Supplier> findByStatus(Byte status);
+    
+    // Methods for validation
+    boolean existsByEmail(String email);
+    boolean existsByPhoneNumber(String phoneNumber);
+    boolean existsByEmailAndIdNot(String email, Integer id);
+    boolean existsByPhoneNumberAndIdNot(String phoneNumber, Integer id);
+    Optional<Supplier> findByEmail(String email);
+    Optional<Supplier> findByPhoneNumber(String phoneNumber);
 
     // ✅ THÊM MỚI: Thống kê sách theo nhà cung cấp
     @Query("""

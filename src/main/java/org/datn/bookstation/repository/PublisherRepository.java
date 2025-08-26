@@ -19,6 +19,14 @@ public interface PublisherRepository extends JpaRepository<Publisher, Integer>, 
     boolean existsByPublisherNameIgnoreCaseAndIdNot(String publisherName, Integer id);
     
     boolean existsByPublisherNameIgnoreCase(String publisherName);
+    
+    // Methods for validation
+    boolean existsByEmail(String email);
+    boolean existsByPhoneNumber(String phoneNumber);
+    boolean existsByEmailAndIdNot(String email, Integer id);
+    boolean existsByPhoneNumberAndIdNot(String phoneNumber, Integer id);
+    Optional<Publisher> findByEmail(String email);
+    Optional<Publisher> findByPhoneNumber(String phoneNumber);
 
     // ✅ THÊM MỚI: Thống kê sách theo nhà xuất bản
     @Query("""

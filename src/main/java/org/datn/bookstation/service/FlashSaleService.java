@@ -120,6 +120,15 @@ public interface FlashSaleService {
     int autoUpdateFlashSaleItemsStatus(Integer flashSaleId);
 
     /**
+     * ✅ THÊM: Cập nhật status flash sale items dựa trên thời gian hiệu lực
+     * (không override admin decision)
+     * 
+     * @param flashSaleId ID của flash sale
+     * @return Số lượng items được update
+     */
+    int updateFlashSaleItemsStatusByTime(Integer flashSaleId);
+
+    /**
      * Tìm flash sale diễn ra trong một ngày cụ thể (ngày truyền vào nằm trong
      * khoảng startTime và endTime)
      * 

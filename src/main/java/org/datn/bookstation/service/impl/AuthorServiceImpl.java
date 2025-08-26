@@ -52,28 +52,28 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public ApiResponse<Author> add(Author author) {
         try {
-            // ✅ Validate tên tác giả không được null hoặc rỗng
+            // Validate tên tác giả không được null hoặc rỗng
             if (author.getAuthorName() == null || author.getAuthorName().trim().isEmpty()) {
                 return new ApiResponse<>(400, "Tên tác giả không được để trống", null);
             }
 
-            // ✅ Validate tên tác giả đã tồn tại
+            // Validate tên tác giả đã tồn tại
             String trimmedName = author.getAuthorName().trim();
             if (authorRepository.existsByAuthorNameIgnoreCase(trimmedName)) {
                 return new ApiResponse<>(400, "Tên tác giả đã tồn tại", null);
             }
 
-            // ✅ Validate độ dài tên tác giả (max 100 ký tự theo entity)
+            // Validate độ dài tên tác giả (max 100 ký tự theo entity)
             if (trimmedName.length() > 100) {
                 return new ApiResponse<>(400, "Tên tác giả không được vượt quá 100 ký tự", null);
             }
 
-            // ✅ Validate biography length (nếu có)
+            // Validate biography length (nếu có)
             if (author.getBiography() != null && author.getBiography().length() > 1000) {
                 return new ApiResponse<>(400, "Tiểu sử không được vượt quá 1000 ký tự", null);
             }
 
-            // ✅ Validate birth date (không được trong tương lai và phải trên 18 tuổi)
+            // Validate birth date (không được trong tương lai và phải trên 18 tuổi)
             if (author.getBirthDate() != null) {
                 LocalDate today = LocalDate.now();
 
@@ -89,17 +89,17 @@ public class AuthorServiceImpl implements AuthorService {
                 }
             }
 
-            // ✅ Reset ID và set default values
+            // Reset ID và set default values
             author.setId(null);
             author.setAuthorName(trimmedName);
             author.setCreatedBy(1);
 
-            // ✅ Set default status nếu chưa có
+            // Set default status nếu chưa có
             if (author.getStatus() == null) {
                 author.setStatus((byte) 1); // Active by default
             }
 
-            // ✅ Validate status
+            // Validate status
             if (author.getStatus() != null && author.getStatus() != 0 && author.getStatus() != 1) {
                 return new ApiResponse<>(400, "Trạng thái chỉ được là 0 hoặc 1", null);
             }
@@ -115,40 +115,40 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public ApiResponse<Author> update(Author author, Integer id) {
         try {
-            // ✅ Validate ID
+            // Validate ID
             if (id == null || id <= 0) {
                 return new ApiResponse<>(400, "ID tác giả không hợp lệ", null);
             }
 
-            // ✅ Tìm tác giả cần update
+            // Tìm tác giả cần update
             Author authorToUpdate = authorRepository.findById(id).orElse(null);
             if (authorToUpdate == null) {
                 return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
             }
 
-            // ✅ Validate tên tác giả không được null hoặc rỗng
+            // Validate tên tác giả không được null hoặc rỗng
             if (author.getAuthorName() == null || author.getAuthorName().trim().isEmpty()) {
                 return new ApiResponse<>(400, "Tên tác giả không được để trống", null);
             }
 
-            // ✅ Validate độ dài tên tác giả
+            // Validate độ dài tên tác giả
             String trimmedName = author.getAuthorName().trim();
             if (trimmedName.length() > 100) {
                 return new ApiResponse<>(400, "Tên tác giả không được vượt quá 100 ký tự", null);
             }
 
-            // ✅ Kiểm tra tên tác giả trùng (loại trừ chính nó)
+            // Kiểm tra tên tác giả trùng (loại trừ chính nó)
             Author existingAuthor = authorRepository.findByAuthorNameIgnoreCase(trimmedName);
             if (existingAuthor != null && !existingAuthor.getId().equals(id)) {
                 return new ApiResponse<>(400, "Tên tác giả đã tồn tại", null);
             }
 
-            // ✅ Validate biography length
+            // Validate biography length
             if (author.getBiography() != null && author.getBiography().length() > 1000) {
                 return new ApiResponse<>(400, "Tiểu sử không được vượt quá 1000 ký tự", null);
             }
 
-            // ✅ Validate birth date (không được trong tương lai và phải trên 18 tuổi)
+            // Validate birth date (không được trong tương lai và phải trên 18 tuổi)
             if (author.getBirthDate() != null) {
                 LocalDate today = LocalDate.now();
 
@@ -164,12 +164,12 @@ public class AuthorServiceImpl implements AuthorService {
                 }
             }
 
-            // ✅ Validate status
+            // Validate status
             if (author.getStatus() != null && author.getStatus() != 0 && author.getStatus() != 1) {
                 return new ApiResponse<>(400, "Trạng thái chỉ được là 0 hoặc 1", null);
             }
 
-            // ✅ Update các trường
+            // Update các trường
             authorToUpdate.setAuthorName(trimmedName);
             authorToUpdate.setBiography(author.getBiography());
             authorToUpdate.setBirthDate(author.getBirthDate());
@@ -193,7 +193,7 @@ public class AuthorServiceImpl implements AuthorService {
                 return new ApiResponse<>(404, "Không tìm thấy tác giả với ID: " + id, null);
             }
 
-            // ✅ Không cho phép xóa nếu có sách thuộc tác giả này
+            // Không cho phép xóa nếu có sách thuộc tác giả này
             boolean hasBook = bookRepository.existsByAuthorBooks_Author_Id(id); // hoặc existsByAuthorBooks_Author_Id(id)
             if (hasBook) {
                 return new ApiResponse<>(400, "Không thể xóa vì có sách thuộc tác giả này!", null);

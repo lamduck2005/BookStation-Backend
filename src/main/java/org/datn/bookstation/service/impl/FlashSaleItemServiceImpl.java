@@ -52,7 +52,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
     @Lazy
     private CartItemService cartItemService;
 
-    // ✅ THÊM dependency OrderDetailRepository
+    // THÊM dependency OrderDetailRepository
     @Autowired
     private OrderDetailRepository orderDetailRepository;
 
@@ -118,7 +118,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             return new ApiResponse<>(404, "Sách không tồn tại", null);
         }
 
-        // ✅ VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
+        // VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
         // sách
         if (request.getStockQuantity() > book.getStockQuantity()) {
             return new ApiResponse<>(400,
@@ -137,13 +137,13 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         item.setBook(book);
         FlashSaleItem savedItem = flashSaleItemRepository.save(item);
 
-        // 🔥 AUTO-SYNC: Tự động đồng bộ cart items khi tạo flash sale item mới
+        // AUTO-SYNC: Tự động đồng bộ cart items khi tạo flash sale item mới
         try {
             int syncedCartCount = cartItemService.syncCartItemsWithNewFlashSale(flashSale.getId());
-            log.info("🔄 AUTO-SYNC CART: Created flash sale item {} for book {}, synced {} cart items",
+            log.info("AUTO-SYNC CART: Created flash sale item {} for book {}, synced {} cart items",
                     savedItem.getId(), book.getId(), syncedCartCount);
         } catch (Exception e) {
-            log.warn("⚠️ WARNING: Failed to sync cart items after creating flash sale item {}: {}",
+            log.warn("WARNING: Failed to sync cart items after creating flash sale item {}: {}",
                     savedItem.getId(), e.getMessage());
         }
 
@@ -183,7 +183,7 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             targetBook = newBook; // Dùng book mới nếu thay đổi
         }
 
-        // ✅ VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
+        // VALIDATION MỚI: Kiểm tra số lượng flash sale không được lớn hơn tồn kho
         // sách
         Integer newStockQuantity = request.getStockQuantity() != null ? request.getStockQuantity()
                 : existing.getStockQuantity();
@@ -235,15 +235,15 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
         existing.setUpdatedAt(System.currentTimeMillis());
         FlashSaleItem updatedItem = flashSaleItemRepository.save(existing);
 
-        // 🔥 AUTO-SYNC: Đồng bộ cart nếu admin thay đổi bookId hoặc flashSaleId
+        // AUTO-SYNC: Đồng bộ cart nếu admin thay đổi bookId hoặc flashSaleId
         if (request.getBookId() != null || request.getFlashSaleId() != null) {
             try {
                 int syncedCartCount = cartItemService.syncCartItemsWithNewFlashSale(flashSaleId);
                 log.info(
-                        "🔄 AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items",
+                        "AUTO-SYNC CART: Updated flash sale item {} (flashSale: {}, book: {}), synced {} cart items",
                         id, flashSaleId, bookId, syncedCartCount);
             } catch (Exception e) {
-                log.warn("⚠️ WARNING: Failed to sync cart items after updating flash sale item {}: {}",
+                log.warn("WARNING: Failed to sync cart items after updating flash sale item {}: {}",
                         id, e.getMessage());
             }
         }

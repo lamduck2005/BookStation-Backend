@@ -55,9 +55,10 @@ public class VoucherController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String voucherType,
+            @RequestParam(required = false) String voucherCategory,
+            @RequestParam(required = false) String discountType,
             @RequestParam(required = false) Byte status) {
-        return voucherService.getAllWithPagination(page, size, code, name, voucherType, status);
+        return voucherService.getAllWithPagination(page, size, code, name, voucherCategory, discountType, status);
     }
 
     @GetMapping("/userVoucher/{userId}")
@@ -239,7 +240,7 @@ public class VoucherController {
 
         userVoucherRepository.saveAll(userVouchers);
 
-        return ResponseEntity.ok("✅ Đã phát voucher cho " + userVouchers.size() + " người dùng thuộc role USER");
+        return ResponseEntity.ok("Đã phát voucher cho " + userVouchers.size() + " người dùng");
     }
 
     /**
@@ -286,5 +287,23 @@ public class VoucherController {
                     null);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
+    }
+
+    @PostMapping("/distribute/silver")
+    public ApiResponse<String> distributeVouchersToSilverRank(
+            @RequestParam("voucherId") Integer voucherId) {
+        return voucherService.distributeVouchersToSilverRank(voucherId);
+    }
+
+    @PostMapping("/distribute/gold")
+    public ApiResponse<String> distributeVouchersToGoldRank(
+            @RequestParam("voucherId") Integer voucherId) {
+        return voucherService.distributeVouchersToGoldRank(voucherId);
+    }
+
+    @PostMapping("/distribute/diamond")
+    public ApiResponse<String> distributeVouchersToDiamondRank(
+            @RequestParam("voucherId") Integer voucherId) {
+        return voucherService.distributeVouchersToDiamondRank(voucherId);
     }
 }

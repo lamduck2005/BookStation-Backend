@@ -68,6 +68,20 @@ public class SupplierServiceImpl implements SupplierService {
 
     @Override
     public void addSupplier(SupplierRepuest request) {
+        // Validate email không trùng
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            if (supplierRepository.existsByEmail(request.getEmail())) {
+                throw new RuntimeException("Email '" + request.getEmail() + "' đã tồn tại, vui lòng sử dụng email khác");
+            }
+        }
+        
+        // Validate số điện thoại không trùng
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()) {
+            if (supplierRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+                throw new RuntimeException("Số điện thoại '" + request.getPhoneNumber() + "' đã tồn tại, vui lòng sử dụng số điện thoại khác");
+            }
+        }
+        
         Supplier supplier = new Supplier();
         supplier.setSupplierName(request.getSupplierName());
         supplier.setContactName(request.getContactName());
@@ -84,6 +98,21 @@ public class SupplierServiceImpl implements SupplierService {
     public void editSupplier(SupplierRepuest request) {
         Supplier supplier = supplierRepository.findById(request.getId())
             .orElseThrow(() -> new RuntimeException("Supplier not found"));
+        
+        // Validate email không trùng (loại trừ chính nó)
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            if (supplierRepository.existsByEmailAndIdNot(request.getEmail(), request.getId())) {
+                throw new RuntimeException("Email '" + request.getEmail() + "' đã tồn tại, vui lòng sử dụng email khác");
+            }
+        }
+        
+        // Validate số điện thoại không trùng (loại trừ chính nó)
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()) {
+            if (supplierRepository.existsByPhoneNumberAndIdNot(request.getPhoneNumber(), request.getId())) {
+                throw new RuntimeException("Số điện thoại '" + request.getPhoneNumber() + "' đã tồn tại, vui lòng sử dụng số điện thoại khác");
+            }
+        }
+        
         supplier.setSupplierName(request.getSupplierName());
         supplier.setContactName(request.getContactName());
         supplier.setPhoneNumber(request.getPhoneNumber());

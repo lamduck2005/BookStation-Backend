@@ -21,6 +21,11 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer>, JpaS
      * Tìm voucher theo mã code
      */
     Optional<Voucher> findByCode(String code);
+    
+    /**
+     * Kiểm tra voucher có tồn tại theo mã code không
+     */
+    boolean existsByCode(String code);
 
     // Đếm tổng số voucher
     @Query("SELECT COUNT(v) FROM Voucher v")

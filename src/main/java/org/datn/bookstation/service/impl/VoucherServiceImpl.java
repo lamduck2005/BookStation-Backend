@@ -1,12 +1,21 @@
 package org.datn.bookstation.service.impl;
 
 import org.datn.bookstation.dto.request.VoucherRepuest;
+import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.VoucherResponse;
 import org.datn.bookstation.dto.response.VoucherStatsResponse;
 import org.datn.bookstation.dto.response.VoucherDropdownResponse;
 import org.datn.bookstation.entity.Voucher;
+import org.datn.bookstation.entity.User;
+import org.datn.bookstation.entity.UserVoucher;
+import org.datn.bookstation.entity.UserRank;
+import org.datn.bookstation.entity.Rank;
 import org.datn.bookstation.repository.VoucherRepository;
+import org.datn.bookstation.repository.UserRepository;
+import org.datn.bookstation.repository.UserRankRepository;
+import org.datn.bookstation.repository.UserVoucherRepository;
+import org.datn.bookstation.repository.RankRepository;
 import org.datn.bookstation.service.VoucherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties;
@@ -29,7 +38,7 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     public java.util.List<org.datn.bookstation.dto.response.AvailableVoucherResponse> getAvailableVouchersForUser(
             Integer userId) {
-        PaginationResponse<VoucherResponse> allVouchers = getAllWithPagination(0, 1000, null, null, null, (byte) 1);
+        PaginationResponse<VoucherResponse> allVouchers = getAllWithPagination(0, 1000, null, null, null, null, (byte) 1);
         long currentTime = System.currentTimeMillis();
         return allVouchers.getContent().stream()
                 .filter(voucher -> {
@@ -90,9 +99,21 @@ public class VoucherServiceImpl implements VoucherService {
     @Autowired
     private VoucherRepository voucherRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private UserRankRepository userRankRepository;
+
+    @Autowired
+    private UserVoucherRepository userVoucherRepository;
+
+    @Autowired
+    private RankRepository rankRepository;
+
     @Override
     public PaginationResponse<VoucherResponse> getAllWithPagination(
-            int page, int size, String code, String name, String voucherType, Byte status) {
+            int page, int size, String code, String name, String voucherCategory, String discountType, Byte status) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Specification<Voucher> spec = Specification.where(null);
@@ -103,9 +124,26 @@ public class VoucherServiceImpl implements VoucherService {
         if (name != null && !name.isEmpty()) {
             spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
         }
-        if (voucherType != null && !voucherType.isEmpty()) {
-            spec = spec
-                    .and((root, query, cb) -> cb.equal(cb.lower(root.get("voucherType")), voucherType.toLowerCase()));
+        if (voucherCategory != null && !voucherCategory.isEmpty()) {
+            try {
+                org.datn.bookstation.entity.enums.VoucherCategory category = 
+                    org.datn.bookstation.entity.enums.VoucherCategory.valueOf(voucherCategory.toUpperCase());
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("voucherCategory"), category));
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("Danh mục voucher không hợp lệ: " + voucherCategory + 
+                    ". Các giá trị hợp lệ: NORMAL, SHIPPING");
+            }
+        }
+        
+        if (discountType != null && !discountType.isEmpty()) {
+            try {
+                org.datn.bookstation.entity.enums.DiscountType type = 
+                    org.datn.bookstation.entity.enums.DiscountType.valueOf(discountType.toUpperCase());
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("discountType"), type));
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("Loại giảm giá không hợp lệ: " + discountType + 
+                    ". Các giá trị hợp lệ: PERCENTAGE, FIXED_AMOUNT");
+            }
         }
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
@@ -148,36 +186,53 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     public void addVoucher(VoucherRepuest request) {
+        // Validate input
+        validateVoucherRequest(request, false);
+        
+        // Validate code unique
+        if (voucherRepository.existsByCode(request.getCode())) {
+            throw new RuntimeException("Mã voucher '" + request.getCode() + "' đã tồn tại, vui lòng chọn mã khác");
+        }
+        
         Voucher voucher = new Voucher();
-        voucher.setCode(request.getCode()); // Mã voucher
-        voucher.setName(request.getName()); // Tên voucher
-        voucher.setDescription(request.getDescription()); // Mô tả voucher
-        voucher.setVoucherCategory(request.getVoucherCategory()); // Category voucher (NORMAL, SHIPPING)
-        voucher.setDiscountType(request.getDiscountType()); // Discount type (PERCENTAGE, FIXED_AMOUNT)
-        voucher.setDiscountPercentage(request.getDiscountPercentage()); // Phần trăm giảm giá (nếu là loại phần trăm)
-        voucher.setDiscountAmount(request.getDiscountAmount()); // Số tiền giảm giá cố định (nếu là loại cố định)
-        voucher.setStartTime(request.getStartTime()); // Thời gian bắt đầu hiệu lực (epoch millis)
-        voucher.setEndTime(request.getEndTime()); // Thời gian kết thúc hiệu lực (epoch millis)
-        voucher.setMinOrderValue(request.getMinOrderValue()); // Giá trị đơn hàng tối thiểu để áp dụng voucher
+        voucher.setCode(request.getCode());
+        voucher.setName(request.getName());
+        voucher.setDescription(request.getDescription());
+        voucher.setVoucherCategory(request.getVoucherCategory());
+        voucher.setDiscountType(request.getDiscountType());
+        voucher.setDiscountPercentage(request.getDiscountPercentage());
+        voucher.setDiscountAmount(request.getDiscountAmount());
+        voucher.setStartTime(request.getStartTime());
+        voucher.setEndTime(request.getEndTime());
+        voucher.setMinOrderValue(request.getMinOrderValue());
         voucher.setMaxDiscountValue(
-                request.getMaxDiscountValue() != null ? request.getMaxDiscountValue() : BigDecimal.ZERO);// Giá trị giảm
-                                                                                                         // giá tối đa
-                                                                                                         // (nếu có)
-        voucher.setUsageLimit(request.getUsageLimit()); // Số lần voucher có thể sử dụng tổng cộng
-        voucher.setUsedCount(0); // Số lần voucher đã được sử dụng
-        voucher.setUsageLimitPerUser(request.getUsageLimitPerUser()); // Số lần tối đa một user có thể sử dụng voucher
-                                                                      // này
-        voucher.setStatus((byte) 1); // Trạng thái voucher (0: không hoạt động, 1: hoạt động, ...)
-        voucher.setCreatedBy(request.getCreatedBy()); // Người tạo voucher
-        voucher.setUpdatedBy(request.getUpdatedBy()); // Người cập nhật cuối cùng
-        // createdAt và updatedAt sẽ tự động set ở @PrePersist
+                request.getMaxDiscountValue() != null ? request.getMaxDiscountValue() : BigDecimal.ZERO);
+        voucher.setUsageLimit(request.getUsageLimit());
+        voucher.setUsedCount(0);
+        voucher.setUsageLimitPerUser(request.getUsageLimitPerUser());
+        voucher.setStatus((byte) 1);
+        voucher.setCreatedBy(request.getCreatedBy());
+        voucher.setUpdatedBy(request.getUpdatedBy());
+        
         voucherRepository.save(voucher);
     }
 
     @Override
     public void editVoucher(VoucherRepuest request) {
+        // Validate input
+        validateVoucherRequest(request, true);
+        
         Voucher voucher = voucherRepository.findById(request.getId())
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + request.getId()));
+        
+        // Validate code unique (trừ voucher hiện tại)
+        if (voucherRepository.existsByCode(request.getCode())) {
+            Voucher existingVoucher = voucherRepository.findByCode(request.getCode()).orElse(null);
+            if (existingVoucher != null && !existingVoucher.getId().equals(request.getId())) {
+                throw new RuntimeException("Mã voucher '" + request.getCode() + "' đã tồn tại, vui lòng chọn mã khác");
+            }
+        }
+        
         voucher.setCode(request.getCode());
         voucher.setName(request.getName());
         voucher.setDescription(request.getDescription());
@@ -191,17 +246,31 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setUsageLimit(request.getUsageLimit());
         voucher.setUsedCount(request.getUsedCount());
-        voucher.setUsageLimitPerUser(request.getUsageLimitPerUser());
         voucher.setStatus(request.getStatus());
+        voucher.setUsageLimitPerUser(request.getUsageLimitPerUser());
         voucher.setUpdatedBy(request.getUpdatedBy());
-        // updatedAt sẽ tự động set ở @PreUpdate
+        
         voucherRepository.save(voucher);
     }
 
     @Override
     public void updateStatus(Integer id, byte status, String updatedBy) {
+        // Validate input
+        if (id == null) {
+            throw new RuntimeException("ID voucher không được để trống");
+        }
+        
+        if (status != 0 && status != 1) {
+            throw new RuntimeException("Trạng thái voucher chỉ được là 0 (không hoạt động) hoặc 1 (hoạt động)");
+        }
+        
+        if (updatedBy == null || updatedBy.trim().isEmpty()) {
+            throw new RuntimeException("Người cập nhật không được để trống");
+        }
+        
         Voucher voucher = voucherRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + id));
+        
         voucher.setStatus(status);
         voucher.setUpdatedBy(updatedBy);
         voucherRepository.save(voucher);
@@ -209,8 +278,19 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     public void deleteVoucher(Integer id) {
+        // Validate input
+        if (id == null) {
+            throw new RuntimeException("ID voucher không được để trống");
+        }
+        
         Voucher voucher = voucherRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher với ID: " + id));
+        
+        // Kiểm tra có thể xóa được không (nếu voucher đã được sử dụng)
+        if (voucher.getUsedCount() != null && voucher.getUsedCount() > 0) {
+            throw new RuntimeException("Không thể xóa voucher đã được sử dụng " + voucher.getUsedCount() + " lần. Vui lòng ẩn voucher thay vì xóa");
+        }
+        
         voucherRepository.delete(voucher);
     }
 
@@ -339,5 +419,235 @@ public class VoucherServiceImpl implements VoucherService {
         response.setCreatedBy(voucher.getCreatedBy());
         response.setUpdatedBy(voucher.getUpdatedBy());
         return response;
+    }
+
+    /**
+     * Validate voucher request cho cả add và edit
+     */
+    private void validateVoucherRequest(VoucherRepuest request, boolean isEdit) {
+        // 1. Input Validation
+        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
+            throw new RuntimeException("Mã voucher không được để trống");
+        }
+        
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new RuntimeException("Tên voucher không được để trống");
+        }
+        
+        if (request.getStartTime() == null) {
+            throw new RuntimeException("Thời gian bắt đầu không được để trống");
+        }
+        
+        if (request.getEndTime() == null) {
+            throw new RuntimeException("Thời gian kết thúc không được để trống");
+        }
+        
+        if (request.getCreatedBy() == null || request.getCreatedBy().trim().isEmpty()) {
+            throw new RuntimeException("Người tạo voucher không được để trống");
+        }
+        
+        // 2. Business Logic Validation
+        // Thời gian hợp lệ: startTime < endTime
+        if (request.getStartTime() >= request.getEndTime()) {
+            throw new RuntimeException("Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc");
+        }
+        
+        // Giá trị đơn hàng tối thiểu > 0 và <= 10 triệu
+        if (request.getMinOrderValue() != null) {
+            if (request.getMinOrderValue().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Giá trị đơn hàng tối thiểu phải lớn hơn 0");
+            }
+            if (request.getMinOrderValue().compareTo(new BigDecimal("10000000")) > 0) {
+                throw new RuntimeException("Giá trị đơn hàng tối thiểu không được vượt quá 10 triệu đồng");
+            }
+        }
+        
+        // Giá trị giảm tối đa <= 10 triệu
+        if (request.getMaxDiscountValue() != null) {
+            if (request.getMaxDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Giá trị giảm tối đa không được âm");
+            }
+            if (request.getMaxDiscountValue().compareTo(new BigDecimal("10000000")) > 0) {
+                throw new RuntimeException("Giá trị giảm tối đa không được vượt quá 10 triệu đồng");
+            }
+        }
+        
+        // Giới hạn sử dụng > 0
+        if (request.getUsageLimit() != null && request.getUsageLimit() <= 0) {
+            throw new RuntimeException("Giới hạn sử dụng phải lớn hơn 0");
+        }
+        
+        if (request.getUsageLimitPerUser() != null && request.getUsageLimitPerUser() <= 0) {
+            throw new RuntimeException("Giới hạn sử dụng trên mỗi user phải lớn hơn 0");
+        }
+        
+        // 3. Discount Logic Validation
+        if (request.getDiscountType() == null) {
+            throw new RuntimeException("Loại giảm giá không được để trống");
+        }
+        
+        if (request.getVoucherCategory() == null) {
+            throw new RuntimeException("Danh mục voucher không được để trống");
+        }
+        
+        if (request.getDiscountType() == org.datn.bookstation.entity.enums.DiscountType.PERCENTAGE) {
+            // Nếu là PERCENTAGE thì discountAmount phải null
+            if (request.getDiscountAmount() != null) {
+                throw new RuntimeException("Voucher giảm theo phần trăm không được có giá trị giảm cố định");
+            }
+            
+            // Kiểm tra discountPercentage
+            if (request.getDiscountPercentage() == null) {
+                throw new RuntimeException("Phần trăm giảm giá không được để trống");
+            }
+            
+            if (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Phần trăm giảm giá phải lớn hơn 0");
+            }
+            
+            if (request.getDiscountPercentage().compareTo(new BigDecimal("100")) > 0) {
+                throw new RuntimeException("Phần trăm giảm giá không được vượt quá 100%");
+            }
+            
+        } else if (request.getDiscountType() == org.datn.bookstation.entity.enums.DiscountType.FIXED_AMOUNT) {
+            // Nếu là FIXED_AMOUNT thì discountPercentage phải null
+            if (request.getDiscountPercentage() != null) {
+                throw new RuntimeException("Voucher giảm giá cố định không được có phần trăm giảm");
+            }
+            
+            // Kiểm tra discountAmount
+            if (request.getDiscountAmount() == null) {
+                throw new RuntimeException("Giá trị giảm cố định không được để trống");
+            }
+            
+            if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Giá trị giảm cố định phải lớn hơn 0");
+            }
+            
+            if (request.getDiscountAmount().compareTo(new BigDecimal("10000000")) > 0) {
+                throw new RuntimeException("Giá trị giảm cố định không được vượt quá 10 triệu đồng");
+            }
+        }
+        
+        // 4. Edit Validation (chỉ khi edit)
+        if (isEdit) {
+            if (request.getId() == null) {
+                throw new RuntimeException("ID voucher không được để trống khi cập nhật");
+            }
+        }
+    }
+
+    @Override
+    public ApiResponse<String> distributeVouchersToSilverRank(Integer voucherId) {
+        try {
+            int[] result = distributeVouchersByRank(voucherId, "BẠC");
+            int distributedCount = result[0];
+            int skippedCount = result[1];
+            int totalCount = result[2];
+            
+            String message;
+            if (distributedCount == 0) {
+                message = "Tất cả " + totalCount + " người dùng hạng BẠC đã có voucher này";
+            } else if (skippedCount == 0) {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng BẠC";
+            } else {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng BẠC, " + skippedCount + " người bị bỏ qua (đã có voucher)";
+            }
+            
+            return new ApiResponse<>(200, message, "Thành công");
+        } catch (Exception e) {
+            return new ApiResponse<>(400, "Lỗi khi phát voucher: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<String> distributeVouchersToGoldRank(Integer voucherId) {
+        try {
+            int[] result = distributeVouchersByRank(voucherId, "VÀNG");
+            int distributedCount = result[0];
+            int skippedCount = result[1];
+            int totalCount = result[2];
+            
+            String message;
+            if (distributedCount == 0) {
+                message = "Tất cả " + totalCount + " người dùng hạng VÀNG đã có voucher này";
+            } else if (skippedCount == 0) {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng VÀNG";
+            } else {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng VÀNG, " + skippedCount + " người bị bỏ qua (đã có voucher)";
+            }
+            
+            return new ApiResponse<>(200, message, "Thành công");
+        } catch (Exception e) {
+            return new ApiResponse<>(400, "Lỗi khi phát voucher: " + e.getMessage(), null);
+        }
+    }
+
+    @Override
+    public ApiResponse<String> distributeVouchersToDiamondRank(Integer voucherId) {
+        try {
+            int[] result = distributeVouchersByRank(voucherId, "KIM CƯƠNG");
+            int distributedCount = result[0];
+            int skippedCount = result[1];
+            int totalCount = result[2];
+            
+            String message;
+            if (distributedCount == 0) {
+                message = "Tất cả " + totalCount + " người dùng hạng KIM CƯƠNG đã có voucher này";
+            } else if (skippedCount == 0) {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng KIM CƯƠNG";
+            } else {
+                message = "Đã phát voucher cho " + distributedCount + " người dùng hạng KIM CƯƠNG, " + skippedCount + " người bị bỏ qua (đã có voucher)";
+            }
+            
+            return new ApiResponse<>(200, message, "Thành công");
+        } catch (Exception e) {
+            return new ApiResponse<>(400, "Lỗi khi phát voucher: " + e.getMessage(), null);
+        }
+    }
+
+    private int[] distributeVouchersByRank(Integer voucherId, String rankName) {
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new RuntimeException("Voucher không tồn tại"));
+
+        Rank rank = rankRepository.findByRankName(rankName)
+                .orElseThrow(() -> new RuntimeException("Hạng không tồn tại"));
+
+        List<UserRank> userRanks = userRankRepository.findByRankId(rank.getId());
+        
+        if (userRanks.isEmpty()) {
+            throw new RuntimeException("Không có user nào thuộc hạng " + rankName);
+        }
+
+        List<UserRank> eligibleUsers = userRanks.stream()
+                .filter(userRank -> userRank.getUser().getRole() != null && 
+                        userRank.getUser().getRole().getRoleName() == org.datn.bookstation.entity.enums.RoleName.CUSTOMER)
+                .collect(java.util.stream.Collectors.toList());
+
+        if (eligibleUsers.isEmpty()) {
+            throw new RuntimeException("Không có user CUSTOMER nào thuộc hạng " + rankName);
+        }
+
+        int totalUsers = eligibleUsers.size();
+        int skippedUsers = 0;
+        List<UserVoucher> userVouchers = new java.util.ArrayList<>();
+
+        for (UserRank userRank : eligibleUsers) {
+            if (userVoucherRepository.existsByUser_IdAndVoucher_Id(userRank.getUser().getId(), voucherId)) {
+                skippedUsers++;
+            } else {
+                UserVoucher uv = new UserVoucher();
+                uv.setUser(userRank.getUser());
+                uv.setVoucher(voucher);
+                uv.setUsedCount(0);
+                userVouchers.add(uv);
+            }
+        }
+
+        if (!userVouchers.isEmpty()) {
+            userVoucherRepository.saveAll(userVouchers);
+        }
+
+        return new int[]{userVouchers.size(), skippedUsers, totalUsers};
     }
 }
