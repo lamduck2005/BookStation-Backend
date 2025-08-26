@@ -19,77 +19,98 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecificationExecutor<User> {
-    Optional<User> findByEmail(String email);
+        Optional<User> findByEmail(String email);
 
-    List<User> findByRole_RoleName(RoleName roleName);
+        List<User> findByRole_RoleName(RoleName roleName);
 
-    @Query("""
-            select new org.datn.bookstation.dto.request.UserRoleRequest(u.id, u.fullName, u.phoneNumber, u.role.id)
-            from User u
-            where u.role.id = 3
-            and (
-               lower(u.fullName) like lower(concat('%', :text, '%'))
-                or u.phoneNumber like concat('%', :text, '%')
-            )
-            """)
-    List<UserRoleRequest> getUserByIdRole(@Param("text") String text);
+        @Query("""
+                        select new org.datn.bookstation.dto.request.UserRoleRequest(u.id, u.fullName, u.phoneNumber, u.role.id)
+                        from User u
+                        where u.role.id = 3
+                        and (
+                           lower(u.fullName) like lower(concat('%', :text, '%'))
+                            or u.phoneNumber like concat('%', :text, '%')
+                        )
+                        """)
+        List<UserRoleRequest> getUserByIdRole(@Param("text") String text);
 
-    User getByPhoneNumber(@Size(max = 20) String phoneNumber);
+        User getByPhoneNumber(@Size(max = 20) String phoneNumber);
 
-    /**
-     * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
-     */
-    @Query("SELECT u FROM User u WHERE " +
-            "LOWER(u.fullName) LIKE LOWER(:searchTerm) OR " +
-            "LOWER(u.email) LIKE LOWER(:searchTerm)")
-    List<User> findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
-            @Param("searchTerm") String searchTerm,
-            @Param("searchTerm") String searchTerm2);
+        /**
+         * ✅ THÊM MỚI: Tìm kiếm khách hàng theo tên hoặc email
+         */
+        @Query("SELECT u FROM User u WHERE " +
+                        "LOWER(u.fullName) LIKE LOWER(:searchTerm) OR " +
+                        "LOWER(u.email) LIKE LOWER(:searchTerm)")
+        List<User> findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                        @Param("searchTerm") String searchTerm,
+                        @Param("searchTerm") String searchTerm2);
 
-    @Query("""
-                SELECT new org.datn.bookstation.dto.response.TopSpenderResponse(
-                    u.fullName,
-                    u.totalSpent,
-                    r.rankName
-                )
-                FROM User u
-                LEFT JOIN Rank r ON u.totalSpent >= r.minSpent
-                WHERE u.totalSpent IS NOT NULL
-                ORDER BY u.totalSpent DESC
-            """)
-    List<TopSpenderResponse> findTopSpenders(Pageable pageable);
+        @Query(value = """
+                        WITH user_revenue AS (
+                            SELECT
+                                o.user_id,
+                                COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((od.unit_price * od.quantity) / o.subtotal)), 0) -
+                                COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as actualSpent
+                            FROM order_detail od
+                            JOIN [order] o ON od.order_id = o.id
+                            LEFT JOIN (
+                                SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity
+                                FROM refund_item ri
+                                JOIN refund_request rr ON ri.refund_request_id = rr.id
+                                WHERE rr.status = 'COMPLETED'
+                                GROUP BY rr.order_id, ri.book_id
+                            ) refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id
+                            WHERE o.order_status IN ('DELIVERED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'PARTIALLY_REFUNDED')
+                            AND o.user_id IS NOT NULL
+                            GROUP BY o.user_id
+                        )
+                        SELECT TOP 5
+                            u.full_name,
+                            COALESCE(ur.actualSpent, 0) as actualSpent,
+                            COALESCE((SELECT TOP 1 r.rank_name
+                                      FROM user_rank urk
+                                      JOIN rank r ON r.id = urk.rank_id
+                                      WHERE urk.user_id = u.id AND urk.status = 1
+                                      ORDER BY r.min_spent DESC), 'No Rank')
+                        FROM [user] u
+                        LEFT JOIN user_revenue ur ON u.id = ur.user_id
+                        WHERE u.role_id = 3
+                        ORDER BY COALESCE(ur.actualSpent, 0) DESC
+                        """, nativeQuery = true)
+        List<TopSpenderResponse> findTopSpenders();
 
-    long count();
+        long count();
 
-    @Query("SELECT COUNT(u) FROM User u WHERE u.status = 1")
-    long countActiveUsers();
+        @Query("SELECT COUNT(u) FROM User u WHERE u.status = 1")
+        long countActiveUsers();
 
-    // ✅ THÊM MỚI: Đếm user mới trong khoảng thời gian
-    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :startTime AND :endTime")
-    long countByCreatedAtBetween(@Param("startTime") long startTime, @Param("endTime") long endTime);
+        // ✅ THÊM MỚI: Đếm user mới trong khoảng thời gian
+        @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :startTime AND :endTime")
+        long countByCreatedAtBetween(@Param("startTime") long startTime, @Param("endTime") long endTime);
 
-    // ✅ THÊM MỚI: Đếm user đã mua hàng
-    @Query("SELECT COUNT(DISTINCT o.createdBy) FROM Order o WHERE o.createdBy IS NOT NULL")
-    long countUsersWithOrders();
+        // ✅ THÊM MỚI: Đếm user đã mua hàng
+        @Query("SELECT COUNT(DISTINCT o.createdBy) FROM Order o WHERE o.createdBy IS NOT NULL")
+        long countUsersWithOrders();
 
-    // ✅ THÊM MỚI: Điểm trung bình mỗi user
-    @Query("SELECT AVG(u.totalPoint) FROM User u WHERE u.totalPoint IS NOT NULL")
-    Double getAveragePointsPerUser();
+        // ✅ THÊM MỚI: Điểm trung bình mỗi user
+        @Query("SELECT AVG(u.totalPoint) FROM User u WHERE u.totalPoint IS NOT NULL")
+        Double getAveragePointsPerUser();
 
-    // ✅ THÊM MỚI: Tổng điểm toàn hệ thống
-    @Query("SELECT COALESCE(SUM(u.totalPoint), 0) FROM User u")
-    Long getTotalSystemPoints();
+        // ✅ THÊM MỚI: Tổng điểm toàn hệ thống
+        @Query("SELECT COALESCE(SUM(u.totalPoint), 0) FROM User u")
+        Long getTotalSystemPoints();
 
-    // ✅ THÊM MỚI: Top user theo điểm
-    @Query(value = """
-            SELECT TOP 10 u.full_name, u.email, u.total_point, 
-                   (SELECT TOP 1 r.rank_name FROM user_rank ur 
-                    JOIN rank r ON r.id = ur.rank_id 
-                    WHERE ur.user_id = u.id AND ur.status = 1 
-                    ORDER BY r.min_spent DESC)
-            FROM [user] u 
-            WHERE u.total_point IS NOT NULL 
-            ORDER BY u.total_point DESC
-            """, nativeQuery = true)
-    List<Object[]> getTopUsersByPoint();
+        // ✅ THÊM MỚI: Top user theo điểm
+        @Query(value = """
+                        SELECT TOP 10 u.full_name, u.email, u.total_point,
+                               (SELECT TOP 1 r.rank_name FROM user_rank ur
+                                JOIN rank r ON r.id = ur.rank_id
+                                WHERE ur.user_id = u.id AND ur.status = 1
+                                ORDER BY r.min_spent DESC)
+                        FROM [user] u
+                        WHERE u.total_point IS NOT NULL
+                        ORDER BY u.total_point DESC
+                        """, nativeQuery = true)
+        List<Object[]> getTopUsersByPoint();
 }

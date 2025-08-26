@@ -2,6 +2,7 @@ package org.datn.bookstation.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.request.UserRetail;
 import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
@@ -83,6 +84,7 @@ public class UserServiceImpl implements UserService {
 
         Page<User> userPage = userRepository.findAll(spec, pageable);
         List<UserResponse> content = userPage.getContent().stream().map(this::toResponse).collect(Collectors.toList());
+        System.out.println(content+"content");
         return PaginationResponse.<UserResponse>builder()
                 .content(content)
                 .pageNumber(page)
@@ -236,17 +238,27 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public ApiResponse<User> addRetail(User req) {
-        if (userRepository.getByPhoneNumber(req.getPhoneNumber()) == null) {
-            Role role = roleRepository.findById(3).get();
-            req.setRole(role);
+    public ApiResponse<User> addRetail(UserRetail req) {
+        System.out.println(req);
+        User user = new User();
+        try {
+            if (userRepository.getByPhoneNumber(req.getPhoneNumber()) == null) {
+                Role role = roleRepository.findById(3).get();
+                user.setIsRetail((byte)1);
+                user.setFullName(req.getFullName());
+                user.setPhoneNumber(req.getPhoneNumber());
+                user.setRole(role);
+                System.out.println(user);
+                User userSave = userRepository.save(user);
+                return new ApiResponse<>(200, "Thêm khách vãng lai thành công", userSave);
+            } else {
+                return new ApiResponse<>(400, "Số điện thoại đã tồn tại ", null);
+            }
 
-            User userSave = userRepository.save(req);
-            return new ApiResponse<>(200, "Thêm khách vãng lai thành công", userSave);
-        } else {
-            return new ApiResponse<>(400, "Thêm khách lẻ thất bại ", null);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            return new ApiResponse<>(400,"thêm that bai",null);
         }
-
     }
 
     @Override
@@ -280,7 +292,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public ApiResponse<List<TopSpenderResponse>> getTopSpenders(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
-        List<TopSpenderResponse> result = userRepository.findTopSpenders(pageable);
+        List<TopSpenderResponse> result = userRepository.findTopSpenders();
         return new ApiResponse<>(200, "Thành công", result);
     }
 
@@ -329,6 +341,7 @@ public class UserServiceImpl implements UserService {
         res.setUpdated_at(formatTime(u.getUpdatedAt()));
         res.setTotal_spent(u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO);
         res.setTotal_point(u.getTotalPoint() != null ? u.getTotalPoint() : 0);
+        res.setIsRetail(u.getIsRetail() != null ? u.getIsRetail():0);
         return res;
     }
 

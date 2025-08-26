@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
+
 @Setter
 @Getter
 @AllArgsConstructor
@@ -14,6 +16,7 @@ public class BookSearchRequest {
     private Integer bookId;
     private String bookName;
     private BigDecimal price;
+    private List<String> images;
     private String coverImageUrl;
 
 }

@@ -17,4 +17,6 @@ public class UserResponse {
     private String updated_at;
     private BigDecimal total_spent;
     private Integer total_point;
+    private Byte isRetail;
+
 }

@@ -1,9 +1,10 @@
-    package org.datn.bookstation.controller;
+package org.datn.bookstation.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 
 import org.datn.bookstation.dto.request.UserRequest;
+import org.datn.bookstation.dto.request.UserRetail;
 import org.datn.bookstation.dto.request.UserRoleRequest;
 import org.datn.bookstation.dto.response.ApiResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
@@ -30,26 +31,19 @@ import org.datn.bookstation.repository.RoleRepository;
 import org.datn.bookstation.dto.response.RoleResponse;
 import org.datn.bookstation.dto.response.RoleDropdownResponse;
 
-
-
-
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
-    
+
     @Autowired
     private UserRankRepository userRankRepo;
-    @Autowired  
+    @Autowired
     private UserRepository userRepository;
     @Autowired
     private RoleRepository roleRepository;
-
-
-     
-
 
     // Lấy danh sách user (phân trang, lọc)
     @GetMapping
@@ -61,20 +55,28 @@ public class UserController {
             @RequestParam(required = false) String phone_number,
             @RequestParam(required = false) Integer role_id,
             @RequestParam(required = false) String status,
-                        @RequestParam(required = false) Integer userId
+            @RequestParam(required = false) Integer userId
 
-            ) {
+    ) {
         PaginationResponse<UserResponse> users = userService.getAllWithPagination(
-                page, size, full_name, email, phone_number, role_id, status,userId);
+                page, size, full_name, email, phone_number, role_id, status, userId);
         ApiResponse<PaginationResponse<UserResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Thành công",
                 users);
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/addretail")
+    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody UserRetail user) {
+        return ResponseEntity.ok(userService.addRetail(user));
+    }
+
     /**
-     * API lấy danh sách khách hàng dạng dropdown (id, name, email) cho frontend làm khoá ngoại
+     * API lấy danh sách khách hàng dạng dropdown (id, name, email) cho frontend làm
+     * khoá ngoại
      * Hỗ trợ tìm kiếm theo tên hoặc email
-     * @param search Từ khóa tìm kiếm (tên hoặc email), nếu không truyền thì lấy tất cả khách hàng
+     * 
+     * @param search Từ khóa tìm kiếm (tên hoặc email), nếu không truyền thì lấy tất
+     *               cả khách hàng
      */
     @GetMapping("/dropdown")
     public ResponseEntity<ApiResponse<List<CustomerDropdownResponse>>> getDropdownCustomers(
@@ -186,11 +188,6 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserPOS(text));
     }
 
-    @PostMapping("/addretail")
-    public ResponseEntity<ApiResponse<User>> addRetail(@RequestBody User user) {
-        return ResponseEntity.ok(userService.addRetail(user));
-    }
-
     @GetMapping("/userRank")
     public ResponseEntity<ApiResponse<List<UserRank>>> getUserRankByUserId(@RequestParam Integer userID) {
         List<UserRank> userRank = userRankRepo.getByUserId(userID);
@@ -234,48 +231,51 @@ public class UserController {
                 customers);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * API lấy danh sách các vai trò để làm dropdown filter
      */
     @GetMapping("/roles")
     public ResponseEntity<ApiResponse<List<RoleResponse>>> getRoles() {
         List<RoleResponse> roles = roleRepository.findAll().stream()
-            .map(role -> new RoleResponse(
-                role.getId(),
-                role.getRoleName().name(),
-                role.getDescription(),
-                role.getStatus()
-            ))
-            .toList();
-        
+                .map(role -> new RoleResponse(
+                        role.getId(),
+                        role.getRoleName().name(),
+                        role.getDescription(),
+                        role.getStatus()))
+                .toList();
+
         ApiResponse<List<RoleResponse>> response = new ApiResponse<>(
-            HttpStatus.OK.value(), 
-            "Lấy danh sách vai trò thành công", 
-            roles
-        );
+                HttpStatus.OK.value(),
+                "Lấy danh sách vai trò thành công",
+                roles);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * API lấy danh sách vai trò (id, tên tiếng Việt) cho dropdown filter
      */
     @GetMapping("/dropdown-roles")
     public ResponseEntity<ApiResponse<List<RoleDropdownResponse>>> getRoleDropdown() {
         List<RoleDropdownResponse> roles = roleRepository.findAll().stream()
-            .map(role -> new RoleDropdownResponse(role.getId(), getRoleNameVi(role.getRoleName().name())))
-            .collect(Collectors.toList());
-        ApiResponse<List<RoleDropdownResponse>> response = new ApiResponse<>(HttpStatus.OK.value(), "Lấy danh sách vai trò thành công", roles);
+                .map(role -> new RoleDropdownResponse(role.getId(), getRoleNameVi(role.getRoleName().name())))
+                .collect(Collectors.toList());
+        ApiResponse<List<RoleDropdownResponse>> response = new ApiResponse<>(HttpStatus.OK.value(),
+                "Lấy danh sách vai trò thành công", roles);
         return ResponseEntity.ok(response);
     }
 
     // Hàm chuyển đổi tên vai trò sang tiếng Việt
     private String getRoleNameVi(String roleName) {
         switch (roleName) {
-            case "ADMIN": return "Quản trị viên";
-            case "CUSTOMER": return "Khách hàng";
-            case "STAFF": return "Nhân viên";
-            default: return roleName;
+            case "ADMIN":
+                return "Quản trị viên";
+            case "CUSTOMER":
+                return "Khách hàng";
+            case "STAFF":
+                return "Nhân viên";
+            default:
+                return roleName;
         }
     }
 }

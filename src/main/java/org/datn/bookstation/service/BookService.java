@@ -52,7 +52,7 @@ public interface BookService {
 
         ApiResponse<List<BookCategoryRequest>> getBooksByCategoryId(Integer id, String text);
 
-        ApiResponse<List<BookSearchRequest>> getBookByName(String text);
+        ApiResponse<List<FlashSaleItemBookRequest>> getBookByName(String text);
 
         /**
          * 🔥 API tính giá sách cho Frontend

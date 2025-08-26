@@ -20,14 +20,5 @@ public class BookCategoryMapper {
                 .toList();
     }
 
-    public List<BookSearchRequest> bookSearchMapper(List<Book> books) {
-        return books.stream()
-                .map(book -> new BookSearchRequest(
-                        book.getId(),
-                        book.getBookName(),
-                        book.getPrice(),
-                        book.getCoverImageUrl()
-                ))
-                .toList();
-    }
+
 }
