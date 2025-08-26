@@ -277,7 +277,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             WHERE b.status = 1
                   AND b.stockQuantity > 0
                   AND (
-                      flashSale.id IS NOT NULL OR 
+                      flashSale.id IS NOT NULL OR
                       (b.discountActive = true AND (b.discountValue > 0 OR b.discountPercent > 0)) OR
                       (flashSale.id IS NOT NULL AND ((b.price - flashSale.discountPrice) / b.price * 100) >= 50)
                   )
@@ -377,7 +377,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                   AND fs.startTime <= :currentTime
                   AND fs.endTime >= :currentTime
                   AND fsi.stockQuantity > 0
-            ORDER BY 
+            ORDER BY
                 (COALESCE(reviews.avgRating, 0) * 2 + COALESCE(sold.soldCount, 0) * 0.1) DESC,
                 fsi.discountPrice ASC
             """)
@@ -437,7 +437,26 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     @Query("SELECT COALESCE(SUM(b.stockQuantity), 0) FROM Book b WHERE b.status = 1")
     Long getTotalStockBooks();
 
-    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderStatus = 'DELIVERED'")
+   
+
+    @Query(value = """
+            WITH revenue_calc AS (
+                SELECT
+                    COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((od.unit_price * od.quantity) / o.subtotal)), 0) -
+                    COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as netRevenue
+                FROM order_detail od
+                JOIN [order] o ON od.order_id = o.id
+                LEFT JOIN (
+                    SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity
+                    FROM refund_item ri
+                    JOIN refund_request rr ON ri.refund_request_id = rr.id
+                    WHERE rr.status = 'COMPLETED'
+                    GROUP BY rr.order_id, ri.book_id
+                ) refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id
+                WHERE o.order_status IN ('DELIVERED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'PARTIALLY_REFUNDED')
+            )
+            SELECT COALESCE(netRevenue, 0) FROM revenue_calc
+            """, nativeQuery = true)
     BigDecimal getTotalRevenue();
 
     @Query("SELECT new org.datn.bookstation.dto.response.TopBookSoldResponse(b.bookName, SUM(od.quantity)) " +
