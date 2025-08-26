@@ -452,10 +452,10 @@ public class VoucherServiceImpl implements VoucherService {
             throw new RuntimeException("Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc");
         }
         
-        // Giá trị đơn hàng tối thiểu > 0 và <= 10 triệu
+        // Giá trị đơn hàng tối thiểu >= 0 và <= 10 triệu
         if (request.getMinOrderValue() != null) {
-            if (request.getMinOrderValue().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Giá trị đơn hàng tối thiểu phải lớn hơn 0");
+            if (request.getMinOrderValue().compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Giá trị đơn hàng tối thiểu không được nhỏ hơn 0");
             }
             if (request.getMinOrderValue().compareTo(new BigDecimal("10000000")) > 0) {
                 throw new RuntimeException("Giá trị đơn hàng tối thiểu không được vượt quá 10 triệu đồng");
