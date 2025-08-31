@@ -264,8 +264,7 @@ public class RefundServiceImpl implements RefundService {
         
         //  VALIDATION NGHIÊM NGẶT: CHỈ hoàn tiền khi hàng đã về kho
         if (order.getOrderStatus() != OrderStatus.GOODS_RETURNED_TO_WAREHOUSE) {
-            throw new RuntimeException("Chỉ có thể hoàn tiền khi hàng đã về kho (GOODS_RETURNED_TO_WAREHOUSE). " +
-                    "Trạng thái hiện tại: " + order.getOrderStatus() + ". " +
+            throw new RuntimeException("Chỉ có thể hoàn tiền khi hàng đã về kho  " +
                     "Vui lòng chuyển trạng thái đơn hàng đến 'Hàng đã về kho' trước khi hoàn tiền.");
         }
 

@@ -5,7 +5,12 @@ import org.datn.bookstation.dto.response.*;
 public interface OrderStatisticsService {
     
     /**
-     * API cho các card thống kê tổng quan dashboard
+     * API tổng quan đơn giản chỉ gồm: số đơn hôm nay/tháng, doanh thu thuần, số đơn hoàn trả/hủy
+     */
+    OrderOverviewResponse getOrderOverview();
+    
+    /**
+     * API cho các card thống kê tổng quan dashboard (giữ lại cho backward compatibility)
      * Bao gồm: Tổng số đơn, doanh thu, lợi nhuận, chi phí vận chuyển, tỷ lệ COD, đơn hoàn trả/hủy
      */
     OrderStatisticsResponse getOrderStatistics();

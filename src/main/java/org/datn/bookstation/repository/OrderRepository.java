@@ -49,6 +49,17 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       "AND rr.status = 'COMPLETED'")
   BigDecimal sumRefundedAmountByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
+  //  THÊM MỚI: Query riêng cho PARTIALLY_REFUNDED orders
+  @Query("SELECT COALESCE(SUM(rr.totalRefundAmount), 0) FROM RefundRequest rr " +
+      "WHERE rr.order.orderDate >= :startTime AND rr.order.orderDate <= :endTime " +
+      "AND rr.order.orderStatus = 'PARTIALLY_REFUNDED' " +
+      "AND rr.status = 'COMPLETED'")
+  BigDecimal sumRefundedAmountFromPartialOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
+
+  // Tính tổng giảm giá (discountAmount + discountShipping)
+  @Query("SELECT COALESCE(SUM(o.discountAmount + o.discountShipping), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
+  BigDecimal sumTotalDiscountsByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
+
   // Tính tổng phí vận chuyển theo khoảng thời gian và trạng thái
   @Query("SELECT COALESCE(SUM(o.shippingFee), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
   BigDecimal sumShippingFeeByDateRangeAndStatuses(@Param("startTime") Long startTime,

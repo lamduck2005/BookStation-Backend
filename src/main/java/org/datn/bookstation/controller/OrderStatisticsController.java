@@ -16,10 +16,17 @@ public class OrderStatisticsController {
     private final OrderStatisticsService statisticsService;
     
     @GetMapping("/overview")
-    public ResponseEntity<ApiResponse<OrderStatisticsResponse>> getOverviewStatistics() {
-        log.info("Getting overview statistics");
+    public ResponseEntity<ApiResponse<OrderOverviewResponse>> getOverviewStatistics() {
+        log.info("Getting simple overview statistics");
+        OrderOverviewResponse response = statisticsService.getOrderOverview();
+        return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thống kê tổng quan đơn giản thành công", response));
+    }
+    
+    @GetMapping("/overview-detailed")
+    public ResponseEntity<ApiResponse<OrderStatisticsResponse>> getDetailedOverviewStatistics() {
+        log.info("Getting detailed overview statistics");
         OrderStatisticsResponse response = statisticsService.getOrderStatistics();
-        return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thống kê tổng quan thành công", response));
+        return ResponseEntity.ok(new ApiResponse<>(200, "Lấy thống kê tổng quan chi tiết thành công", response));
     }
     
     @GetMapping("/revenue-chart")

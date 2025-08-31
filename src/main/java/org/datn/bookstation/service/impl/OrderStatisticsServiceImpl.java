@@ -39,6 +39,48 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     );
 
     @Override
+    public OrderOverviewResponse getOrderOverview() {
+        log.info("Getting simple order overview statistics");
+        
+        Long todayStart = getStartOfDay(0);
+        Long todayEnd = getEndOfDay(0);
+        Long monthStart = getStartOfMonth(0);
+        Long monthEnd = getEndOfMonth(0);
+        
+        // Tổng số đơn hàng (TẤT CẢ trạng thái)
+        Long totalOrdersToday = orderRepository.countAllOrdersByDateRange(todayStart, todayEnd);
+        Long totalOrdersThisMonth = orderRepository.countAllOrdersByDateRange(monthStart, monthEnd);
+        
+        // Doanh thu thuần từ đơn đã DELIVERED trở lên (đã thu tiền thực sự)
+        // Chỉ trừ đi khi REFUNDED hoàn tất (chứ không phải REFUND_REQUESTED)
+        BigDecimal netRevenueToday = calculateTrueNetRevenue(todayStart, todayEnd);
+        BigDecimal netRevenueThisMonth = calculateTrueNetRevenue(monthStart, monthEnd);
+        
+        // Số đơn hoàn trả (đã hoàn thành việc hoàn trả)
+        Long refundedOrdersToday = orderRepository.countByDateRangeAndStatuses(todayStart, todayEnd, 
+            Arrays.asList(OrderStatus.REFUNDED, OrderStatus.PARTIALLY_REFUNDED));
+        Long refundedOrdersThisMonth = orderRepository.countByDateRangeAndStatuses(monthStart, monthEnd,
+            Arrays.asList(OrderStatus.REFUNDED, OrderStatus.PARTIALLY_REFUNDED));
+        
+        // Số đơn hủy
+        Long canceledOrdersToday = orderRepository.countByDateRangeAndStatuses(todayStart, todayEnd, 
+            Arrays.asList(OrderStatus.CANCELED));
+        Long canceledOrdersThisMonth = orderRepository.countByDateRangeAndStatuses(monthStart, monthEnd,
+            Arrays.asList(OrderStatus.CANCELED));
+        
+        return OrderOverviewResponse.builder()
+            .totalOrdersToday(totalOrdersToday)
+            .totalOrdersThisMonth(totalOrdersThisMonth)
+            .netRevenueToday(netRevenueToday)
+            .netRevenueThisMonth(netRevenueThisMonth)
+            .refundedOrdersToday(refundedOrdersToday)
+            .refundedOrdersThisMonth(refundedOrdersThisMonth)
+            .canceledOrdersToday(canceledOrdersToday)
+            .canceledOrdersThisMonth(canceledOrdersThisMonth)
+            .build();
+    }
+
+    @Override
     public OrderStatisticsResponse getOrderStatistics() {
         log.info("Getting order statistics");
         
@@ -412,7 +454,7 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     //   FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
     private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
-        log.info("🔍 DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
+        log.info(" DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
         
         //  SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
         // Query này đã tính proportional revenue và trừ refund chính xác
@@ -425,9 +467,65 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
             totalNetRevenue = totalNetRevenue.add(dayNetRevenue);
         }
         
-        log.info("🔍 DEBUG: Calculated total net revenue = {} (using same logic as summary API)", totalNetRevenue);
+        log.info(" DEBUG: Calculated total net revenue = {} (using same logic as summary API)", totalNetRevenue);
         
         return totalNetRevenue;
+    }
+    
+    /**
+     * FINAL FIX: Tính net revenue chính xác cho từng trạng thái order
+     */
+    private BigDecimal calculateTrueNetRevenue(Long startTime, Long endTime) {
+        log.info("DEBUG: FINAL FIX - Calculating net revenue for period {} to {}", startTime, endTime);
+        
+        BigDecimal totalNetRevenue = BigDecimal.ZERO;
+        
+        // 1. Các đơn chưa hoàn trả gì: Tính full subtotal - discounts
+        List<OrderStatus> fullRevenueStatuses = Arrays.asList(
+            OrderStatus.DELIVERED, OrderStatus.REFUND_REQUESTED, OrderStatus.AWAITING_GOODS_RETURN,  
+            OrderStatus.REFUNDING, OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER, OrderStatus.GOODS_RETURNED_TO_WAREHOUSE
+        );
+        
+        BigDecimal fullRevenue = orderRepository.sumRevenueByDateRangeAndStatuses(startTime, endTime, fullRevenueStatuses);
+        if (fullRevenue == null) fullRevenue = BigDecimal.ZERO;
+        
+        BigDecimal fullDiscounts = orderRepository.sumTotalDiscountsByDateRangeAndStatuses(startTime, endTime, fullRevenueStatuses);
+        if (fullDiscounts == null) fullDiscounts = BigDecimal.ZERO;
+        
+        totalNetRevenue = totalNetRevenue.add(fullRevenue.subtract(fullDiscounts));
+        
+        // 2. Các đơn PARTIALLY_REFUNDED: subtotal - discounts - actual refunded amount
+        List<OrderStatus> partialStatuses = Arrays.asList(OrderStatus.PARTIALLY_REFUNDED);
+        
+        BigDecimal partialSubtotal = orderRepository.sumRevenueByDateRangeAndStatuses(startTime, endTime, partialStatuses);
+        if (partialSubtotal == null) partialSubtotal = BigDecimal.ZERO;
+        
+        BigDecimal partialDiscounts = orderRepository.sumTotalDiscountsByDateRangeAndStatuses(startTime, endTime, partialStatuses);
+        if (partialDiscounts == null) partialDiscounts = BigDecimal.ZERO;
+        
+        // CHÍNH XÁC: Chỉ lấy refunded amount từ orders PARTIALLY_REFUNDED trong khoảng thời gian này
+        BigDecimal partialRefunded = getRefundedAmountFromPartialOrders(startTime, endTime);
+        
+        BigDecimal partialNetRevenue = partialSubtotal.subtract(partialDiscounts).subtract(partialRefunded);
+        totalNetRevenue = totalNetRevenue.add(partialNetRevenue);
+        
+        // 3. Các đơn REFUNDED: Net revenue = 0 (không tính vào)
+        
+        log.info("DEBUG: Full Revenue = {} - {} = {}, Partial = {} - {} - {} = {}, Total = {}", 
+                fullRevenue, fullDiscounts, fullRevenue.subtract(fullDiscounts),
+                partialSubtotal, partialDiscounts, partialRefunded, partialNetRevenue,
+                totalNetRevenue);
+        
+        return totalNetRevenue;
+    }
+    
+    /**
+     * Lấy chính xác số tiền đã hoàn từ các đơn PARTIALLY_REFUNDED
+     */
+    private BigDecimal getRefundedAmountFromPartialOrders(Long startTime, Long endTime) {
+        // Query chỉ lấy refunded amount từ orders có status = PARTIALLY_REFUNDED trong thời gian
+        BigDecimal result = orderRepository.sumRefundedAmountFromPartialOrdersByDateRange(startTime, endTime);
+        return result != null ? result : BigDecimal.ZERO;
     }
     
     //  THÊM: Tính doanh thu trung bình trên mỗi đơn
