@@ -93,33 +93,59 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "ORDER BY saleDate", nativeQuery = true)
     List<Object[]> findBookSalesSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
-    //  Book Statistics API - Top books by date range (FIXED: Net revenue with refunds deducted)
+    //  Book Statistics API - Top books by date range (FIXED: UNIFIED net revenue calculation - consistent với OrderStatisticsService)
     @Query(value = "SELECT TOP (:limit) " +
-           "    od.book_id as bookId, " +
-           "    b.book_code, " +
-           "    b.book_name, " +
-           "    b.isbn, " +
-           "    b.price, " +
-           "    SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) as quantitySold, " +
-           "    SUM((o.total_amount - o.shipping_fee) * ((od.unit_price * od.quantity) / o.subtotal)) - " +
-           "    COALESCE(SUM((o.total_amount - o.shipping_fee) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as revenue " +
-           "FROM order_detail od " +
-           "JOIN book b ON od.book_id = b.id " +
-           "JOIN [order] o ON od.order_id = o.id " +
-           "LEFT JOIN ( " +
+           "    book_agg.bookId, " +
+           "    book_agg.book_code, " +
+           "    book_agg.book_name, " +
+           "    book_agg.isbn, " +
+           "    book_agg.price, " +
+           "    book_agg.quantitySold, " +
+           "    book_agg.revenue " +
+           "FROM ( " +
            "    SELECT " +
-           "        rr.order_id, " +
-           "        ri.book_id, " +
-           "        SUM(ri.refund_quantity) as refund_quantity " +
-           "    FROM refund_item ri " +
-           "    JOIN refund_request rr ON ri.refund_request_id = rr.id " +
-           "    WHERE rr.status = 'COMPLETED' " +
-           "    GROUP BY rr.order_id, ri.book_id " +
-           ") refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id " +
-           "WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
-           "AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
-           "GROUP BY od.book_id, b.book_code, b.book_name, b.isbn, b.price " +
-           "HAVING SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) > 0 " +
-           "ORDER BY quantitySold DESC", nativeQuery = true)
+           "        od.book_id as bookId, " +
+           "        b.book_code, " +
+           "        b.book_name, " +
+           "        b.isbn, " +
+           "        b.price, " +
+           "        SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) as quantitySold, " +
+           "        SUM( " +
+           "            CASE " +
+           "                WHEN o.order_status = 'REFUNDED' THEN 0 " +
+           "                WHEN o.order_status = 'PARTIALLY_REFUNDED' THEN " +
+           "                    (o.subtotal - o.discount_amount - COALESCE(o.discount_shipping, 0)) * ((od.unit_price * od.quantity) / o.subtotal) - " +
+           "                    COALESCE(order_refunds.total_refund_amount * ((od.unit_price * od.quantity) / o.subtotal), 0) " +
+           "                ELSE " +
+           "                    (o.subtotal - o.discount_amount - COALESCE(o.discount_shipping, 0)) * ((od.unit_price * od.quantity) / o.subtotal) " +
+           "            END " +
+           "        ) as revenue " +
+           "    FROM order_detail od " +
+           "    JOIN book b ON od.book_id = b.id " +
+           "    JOIN [order] o ON od.order_id = o.id " +
+           "    LEFT JOIN ( " +
+           "        SELECT " +
+           "            rr.order_id, " +
+           "            ri.book_id, " +
+           "            SUM(ri.refund_quantity) as refund_quantity " +
+           "        FROM refund_item ri " +
+           "        JOIN refund_request rr ON ri.refund_request_id = rr.id " +
+           "        WHERE rr.status = 'COMPLETED' " +
+           "        GROUP BY rr.order_id, ri.book_id " +
+           "    ) refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id " +
+           "    LEFT JOIN ( " +
+           "        SELECT " +
+           "            rr.order_id, " +
+           "            SUM(rr.total_refund_amount) as total_refund_amount " +
+           "        FROM refund_request rr " +
+           "        WHERE rr.status = 'COMPLETED' " +
+           "        GROUP BY rr.order_id " +
+           "    ) order_refunds ON od.order_id = order_refunds.order_id " +
+           "    WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
+           "    AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUNDED') " +
+           "    GROUP BY od.book_id, b.book_code, b.book_name, b.isbn, b.price " +
+           "    HAVING SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) > 0 " +
+           ") book_agg " +
+           "ORDER BY book_agg.quantitySold DESC", nativeQuery = true)
     List<Object[]> findTopBooksByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate, @Param("limit") Integer limit);
 }

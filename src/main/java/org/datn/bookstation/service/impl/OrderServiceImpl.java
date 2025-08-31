@@ -22,6 +22,7 @@ import org.datn.bookstation.service.OrderService;
 import org.datn.bookstation.service.PointManagementService;
 import org.datn.bookstation.service.VoucherCalculationService;
 import org.datn.bookstation.service.FlashSaleService;
+import org.datn.bookstation.service.OrderStatisticsService;
 import org.datn.bookstation.utils.RefundReasonUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -67,6 +68,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderResponseMapper orderResponseMapper;
     private final VoucherCalculationService voucherCalculationService;
     private final FlashSaleService flashSaleService;
+    private final OrderStatisticsService orderStatisticsService;
 
     @Override
     public Optional<Integer> findIdByCode(String code) {
@@ -1552,7 +1554,7 @@ public class OrderServiceImpl implements OrderService {
                 Map<String, Object> errorData = new HashMap<>();
                 errorData.put("data", new ArrayList<>());
                 errorData.put("totalOrdersSum", 0);
-                errorData.put("totalRevenueSum", 0.0);
+                errorData.put("netRevenueSum", 0.0);
                 errorData.put("averageAOV", 0.0);
                 errorData.put("completionRate", 0.0);
                 return new ApiResponse<>(400, validationError, errorData);
@@ -1564,7 +1566,7 @@ public class OrderServiceImpl implements OrderService {
             // 3. Query dữ liệu từ database
             List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
             
-            // 4. Convert raw data thành Map
+            // 4. Convert raw data thành Map và FIXED: Recalculate netRevenue using TRUE logic
             Map<String, Map<String, Object>> dataMap = new HashMap<>();
             for (Object[] row : rawData) {
                 String date = row[0].toString(); // Date string từ DB
@@ -1572,18 +1574,29 @@ public class OrderServiceImpl implements OrderService {
                 Integer completedOrders = ((Number) row[2]).intValue();
                 Integer canceledOrders = ((Number) row[3]).intValue();
                 Integer refundedOrders = ((Number) row[4]).intValue();
-                BigDecimal netRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+                // Bỏ qua netRevenue từ query (row[5]) vì nó tính sai
+                
+                // ✅ RECALCULATE: Tính lại netRevenue chính xác cho ngày này
+                LocalDate dateLocal = LocalDate.parse(date);
+                Long dayStart = dateLocal.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                Long dayEnd = dateLocal.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                
+                // Sử dụng cùng logic với Overview API
+                BigDecimal correctNetRevenue = orderStatisticsService.calculateNetRevenueForPeriod(dayStart, dayEnd);
                 
                 Map<String, Object> dayData = new HashMap<>();
                 dayData.put("totalOrders", totalOrders);
                 dayData.put("completedOrders", completedOrders);
                 dayData.put("canceledOrders", canceledOrders);
                 dayData.put("refundedOrders", refundedOrders);
-                dayData.put("netRevenue", netRevenue);
+                dayData.put("netRevenue", correctNetRevenue); // ✅ FIXED: Sử dụng giá trị chính xác
                 // AOV = Average Order Value = Net Revenue / Total Orders
-                BigDecimal aov = totalOrders > 0 ? netRevenue.divide(new BigDecimal(totalOrders), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+                BigDecimal aov = totalOrders > 0 ? correctNetRevenue.divide(new BigDecimal(totalOrders), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
                 dayData.put("aov", aov);
                 dataMap.put(date, dayData);
+                
+                log.debug("📊 Fixed netRevenue for {}: {} (was: {})", date, correctNetRevenue, 
+                    row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO);
             }
             
             // 5. Generate full date range với 0 cho ngày không có data
@@ -1618,7 +1631,7 @@ public class OrderServiceImpl implements OrderService {
             Map<String, Object> errorData = new HashMap<>();
             errorData.put("data", new ArrayList<>());
             errorData.put("totalOrdersSum", 0);
-            errorData.put("totalRevenueSum", 0.0);
+            errorData.put("netRevenueSum", 0.0);
             errorData.put("averageAOV", 0.0);
             errorData.put("completionRate", 0.0);
             return new ApiResponse<>(500, "Lỗi khi lấy thống kê tổng quan đơn hàng", errorData);
@@ -1636,7 +1649,7 @@ public class OrderServiceImpl implements OrderService {
         if (summaryData.isEmpty()) {
             // Empty data case
             result.put("totalOrdersSum", 0);
-            result.put("totalRevenueSum", 0.00);
+            result.put("netRevenueSum", 0.00);
             result.put("averageAOV", 0.00);
             result.put("completionRate", 0.00);
             return result;
@@ -1672,7 +1685,7 @@ public class OrderServiceImpl implements OrderService {
         result.put("completedOrdersSum", completedOrdersSum);
         result.put("canceledOrdersSum", canceledOrdersSum);  
         result.put("refundedOrdersSum", refundedOrdersSum);
-        result.put("totalRevenueSum", totalRevenueSum);
+        result.put("netRevenueSum", totalRevenueSum);
         result.put("averageAOV", averageAOV);
         result.put("completionRate", completionRate);
         
@@ -1972,6 +1985,15 @@ public class OrderServiceImpl implements OrderService {
                 long monthEndMs = monthEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
                 return new OrderTimeRangeInfo(monthStartMs, monthEndMs);
                 
+            case "quarter":
+            case "quarterly":
+                // ✅ FIX: Add quarter calculation
+                LocalDate quarterStart = getQuarterStart(inputDate);
+                LocalDate quarterEnd = getQuarterEnd(quarterStart);
+                long quarterStartMs = quarterStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long quarterEndMs = quarterEnd.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                return new OrderTimeRangeInfo(quarterStartMs, quarterEndMs);
+                
             case "year":
             case "yearly":
                 LocalDate yearStart = inputDate.withDayOfYear(1);
@@ -1997,17 +2019,15 @@ public class OrderServiceImpl implements OrderService {
         for (Object[] row : orderData) {
             Map<String, Object> orderDetail = new HashMap<>();
             
-            // Giả sử query trả về: order_code, customer_name, customer_email, product_list_json
+            // Query returns: order_code, customer_name, customer_email, total_amount, order_status, created_at, product_info, net_revenue
             orderDetail.put("orderCode", (String) row[0]);
             orderDetail.put("customerName", (String) row[1]);
             orderDetail.put("customerEmail", (String) row[2]);
-            orderDetail.put("totalAmount", row[3]);
+            orderDetail.put("totalAmount", row[3]); // Keep for backward compatibility
             orderDetail.put("orderStatus", row[4]);
             orderDetail.put("createdAt", row[5]);
-            
-            // TODO: Parse product list from JSON or join query
-            // For now, placeholder
-            orderDetail.put("products", new ArrayList<>());
+            orderDetail.put("productInfo", row[6]);
+            orderDetail.put("netRevenue", row[7]); // ✅ ADD: Net Revenue field
             
             result.add(orderDetail);
         }

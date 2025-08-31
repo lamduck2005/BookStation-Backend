@@ -426,13 +426,20 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
          "o.order_date as createdAt, " +
          "( " +
          "  SELECT STRING_AGG( " +
-         "    CONCAT(b.book_name, ' (ISBN:', b.isbn, ', ID:', b.id, ')'), " +
+         "    CONCAT(b.book_name, ' (x', od.quantity, ')'), " +
          "    ', ' " +
          "  ) " +
          "  FROM order_detail od " +
          "  JOIN book b ON od.book_id = b.id " +
          "  WHERE od.order_id = o.id " +
-         ") as productInfo " +
+         ") as productInfo, " +
+         "CASE " +
+         "  WHEN o.order_status = 'REFUNDED' THEN 0 " +
+         "  WHEN o.order_status = 'PARTIALLY_REFUNDED' THEN " +
+         "    CAST(o.subtotal - COALESCE(o.discount_amount + o.discount_shipping, 0) - " +
+         "    COALESCE((SELECT SUM(rr.total_refund_amount) FROM refund_request rr WHERE rr.order_id = o.id AND rr.status = 'COMPLETED'), 0) AS DECIMAL(10,2)) " +
+         "  ELSE CAST(o.subtotal - COALESCE(o.discount_amount + o.discount_shipping, 0) AS DECIMAL(10,2)) " +
+         "END as netRevenue " +
          "FROM [order] o " +
          "JOIN [user] u ON o.user_id = u.id " +
          "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +

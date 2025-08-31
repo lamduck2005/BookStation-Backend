@@ -58,4 +58,13 @@ public interface OrderStatisticsService {
      * @param limit số sản phẩm gợi ý (mặc định 5)
      */
     CrossSellSuggestionResponse getCrossSellSuggestions(Integer orderId, Integer limit);
+    
+    /**
+     * Helper method: Tính net revenue chính xác cho khoảng thời gian
+     * Để đảm bảo consistency giữa các API statistics
+     * @param startTime thời gian bắt đầu (milliseconds)
+     * @param endTime thời gian kết thúc (milliseconds) 
+     * @return net revenue sau trừ refunds
+     */
+    java.math.BigDecimal calculateNetRevenueForPeriod(Long startTime, Long endTime);
 }

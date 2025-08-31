@@ -454,22 +454,11 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
     
     //   FIXED: Tính doanh thu ròng theo CÙNG logic như summary API để đảm bảo consistency
     private BigDecimal calculateNetRevenue(Long startTime, Long endTime) {
-        log.info(" DEBUG: Calculating NET revenue for period {} to {} using same logic as summary API", startTime, endTime);
+        log.info("🔧 DEBUG: Calculating NET revenue for period {} to {} using UNIFIED TRUE logic", startTime, endTime);
         
-        //  SỬ DỤNG CÙNG QUERY như summary API để tính netRevenue
-        // Query này đã tính proportional revenue và trừ refund chính xác
-        List<Object[]> rawData = orderRepository.findOrderStatisticsSummaryByDateRange(startTime, endTime);
-        
-        BigDecimal totalNetRevenue = BigDecimal.ZERO;
-        for (Object[] row : rawData) {
-            // row[5] là netRevenue từ query (đã tính proportional và trừ refund)
-            BigDecimal dayNetRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
-            totalNetRevenue = totalNetRevenue.add(dayNetRevenue);
-        }
-        
-        log.info(" DEBUG: Calculated total net revenue = {} (using same logic as summary API)", totalNetRevenue);
-        
-        return totalNetRevenue;
+        // ✅ SỬ DỤNG CHÍNH XÁC CÙNG LOGIC như getOrderOverview() 
+        // Để đảm bảo consistency giữa Overview và Summary APIs
+        return calculateTrueNetRevenue(startTime, endTime);
     }
     
     /**
@@ -526,6 +515,15 @@ public class OrderStatisticsServiceImpl implements OrderStatisticsService {
         // Query chỉ lấy refunded amount từ orders có status = PARTIALLY_REFUNDED trong thời gian
         BigDecimal result = orderRepository.sumRefundedAmountFromPartialOrdersByDateRange(startTime, endTime);
         return result != null ? result : BigDecimal.ZERO;
+    }
+    
+    /**
+     * 🔧 PUBLIC API: Helper method để đảm bảo consistency giữa các API statistics
+     * Expose calculateTrueNetRevenue logic cho OrderService sử dụng
+     */
+    @Override
+    public BigDecimal calculateNetRevenueForPeriod(Long startTime, Long endTime) {
+        return calculateTrueNetRevenue(startTime, endTime);
     }
     
     //  THÊM: Tính doanh thu trung bình trên mỗi đơn
