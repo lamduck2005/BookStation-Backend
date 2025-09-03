@@ -73,6 +73,7 @@ public class BookServiceImpl implements BookService {
     private final FlashSaleService flashSaleService;
     private final org.datn.bookstation.repository.ReviewRepository reviewRepository;
     private final BookSentimentMapper bookSentimentMapper;
+    private final org.datn.bookstation.service.OrderStatisticsService orderStatisticsService;
 
     @Override
     public PaginationResponse<BookResponse> getAllWithPagination(int page, int size, String bookName,
@@ -1298,11 +1299,20 @@ public class BookServiceImpl implements BookService {
             List<Object[]> rawData = orderDetailRepository.findBookSalesSummaryByDateRange(startTime, endTime);
             
             // 4. Convert raw data thành Map với cả netBooksSold và netRevenue
+            // 🔧 UNIFIED FIX: Recalculate netRevenue using calculateNetRevenueForPeriod for consistency
             Map<String, Map<String, Object>> dataMap = new HashMap<>();
             for (Object[] row : rawData) {
                 String date = row[0].toString(); // Date string từ DB
                 Integer netBooksSold = ((Number) row[1]).intValue(); // net books sold (after refunds)
-                BigDecimal netRevenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO; // net revenue (after voucher discount)
+                // OLD: BigDecimal netRevenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO; // net revenue (after voucher discount)
+                
+                // 🔧 NEW: Use unified calculation - convert date string to day start/end timestamps
+                java.time.LocalDate localDate = java.time.LocalDate.parse(date);
+                long dayStart = localDate.atStartOfDay().atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toInstant().toEpochMilli();
+                long dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
+                
+                BigDecimal netRevenue = orderStatisticsService.calculateNetRevenueForPeriod(dayStart, dayEnd);
+                log.info("🔧 UNIFIED FIX: Date {} -> netRevenue recalculated = {}", date, netRevenue);
                 
                 Map<String, Object> dayData = new HashMap<>();
                 dayData.put("totalBooksSold", netBooksSold);
@@ -1585,7 +1595,7 @@ public class BookServiceImpl implements BookService {
             bookDetail.put("title", bookName);  // Use "title" field for consistency with frontend
             bookDetail.put("isbn", isbn);
             bookDetail.put("currentPrice", price);
-            bookDetail.put("revenue", currentRevenue);
+            bookDetail.put("netRevenue", currentRevenue); // ✅ FIXED: Now uses unified calculation from updated query
             bookDetail.put("totalQuantity", currentQuantity);  // Use "totalQuantity" field for consistency
             
             // REMOVED: Tất cả logic growth calculation theo yêu cầu

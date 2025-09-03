@@ -49,6 +49,17 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
       "AND rr.status = 'COMPLETED'")
   BigDecimal sumRefundedAmountByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
 
+  //  THÊM MỚI: Query riêng cho PARTIALLY_REFUNDED orders
+  @Query("SELECT COALESCE(SUM(rr.totalRefundAmount), 0) FROM RefundRequest rr " +
+      "WHERE rr.order.orderDate >= :startTime AND rr.order.orderDate <= :endTime " +
+      "AND rr.order.orderStatus = 'PARTIALLY_REFUNDED' " +
+      "AND rr.status = 'COMPLETED'")
+  BigDecimal sumRefundedAmountFromPartialOrdersByDateRange(@Param("startTime") Long startTime, @Param("endTime") Long endTime);
+
+  // Tính tổng giảm giá (discountAmount + discountShipping)
+  @Query("SELECT COALESCE(SUM(o.discountAmount + o.discountShipping), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
+  BigDecimal sumTotalDiscountsByDateRangeAndStatuses(@Param("startTime") Long startTime, @Param("endTime") Long endTime, @Param("statuses") List<OrderStatus> statuses);
+
   // Tính tổng phí vận chuyển theo khoảng thời gian và trạng thái
   @Query("SELECT COALESCE(SUM(o.shippingFee), 0) FROM Order o WHERE o.orderDate >= :startTime AND o.orderDate <= :endTime AND o.orderStatus IN :statuses")
   BigDecimal sumShippingFeeByDateRangeAndStatuses(@Param("startTime") Long startTime,
@@ -415,13 +426,20 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
          "o.order_date as createdAt, " +
          "( " +
          "  SELECT STRING_AGG( " +
-         "    CONCAT(b.book_name, ' (ISBN:', b.isbn, ', ID:', b.id, ')'), " +
+         "    CONCAT(b.book_name, ' (x', od.quantity, ')'), " +
          "    ', ' " +
          "  ) " +
          "  FROM order_detail od " +
          "  JOIN book b ON od.book_id = b.id " +
          "  WHERE od.order_id = o.id " +
-         ") as productInfo " +
+         ") as productInfo, " +
+         "CASE " +
+         "  WHEN o.order_status = 'REFUNDED' THEN 0 " +
+         "  WHEN o.order_status = 'PARTIALLY_REFUNDED' THEN " +
+         "    CAST(o.subtotal - COALESCE(o.discount_amount + o.discount_shipping, 0) - " +
+         "    COALESCE((SELECT SUM(rr.total_refund_amount) FROM refund_request rr WHERE rr.order_id = o.id AND rr.status = 'COMPLETED'), 0) AS DECIMAL(10,2)) " +
+         "  ELSE CAST(o.subtotal - COALESCE(o.discount_amount + o.discount_shipping, 0) AS DECIMAL(10,2)) " +
+         "END as netRevenue " +
          "FROM [order] o " +
          "JOIN [user] u ON o.user_id = u.id " +
          "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +

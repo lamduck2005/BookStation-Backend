@@ -5,7 +5,12 @@ import org.datn.bookstation.dto.response.*;
 public interface OrderStatisticsService {
     
     /**
-     * API cho các card thống kê tổng quan dashboard
+     * API tổng quan đơn giản chỉ gồm: số đơn hôm nay/tháng, doanh thu thuần, số đơn hoàn trả/hủy
+     */
+    OrderOverviewResponse getOrderOverview();
+    
+    /**
+     * API cho các card thống kê tổng quan dashboard (giữ lại cho backward compatibility)
      * Bao gồm: Tổng số đơn, doanh thu, lợi nhuận, chi phí vận chuyển, tỷ lệ COD, đơn hoàn trả/hủy
      */
     OrderStatisticsResponse getOrderStatistics();
@@ -53,4 +58,13 @@ public interface OrderStatisticsService {
      * @param limit số sản phẩm gợi ý (mặc định 5)
      */
     CrossSellSuggestionResponse getCrossSellSuggestions(Integer orderId, Integer limit);
+    
+    /**
+     * Helper method: Tính net revenue chính xác cho khoảng thời gian
+     * Để đảm bảo consistency giữa các API statistics
+     * @param startTime thời gian bắt đầu (milliseconds)
+     * @param endTime thời gian kết thúc (milliseconds) 
+     * @return net revenue sau trừ refunds
+     */
+    java.math.BigDecimal calculateNetRevenueForPeriod(Long startTime, Long endTime);
 }
