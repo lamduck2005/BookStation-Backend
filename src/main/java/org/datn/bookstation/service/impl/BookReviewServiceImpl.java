@@ -7,7 +7,6 @@ import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.dto.response.ReviewResponse;
 import org.datn.bookstation.entity.Review;
 import org.datn.bookstation.entity.enums.ReviewStatus;
-import org.datn.bookstation.entity.enums.OrderStatus;
 import org.datn.bookstation.mapper.ReviewMapper;
 import org.datn.bookstation.repository.BookRepository;
 import org.datn.bookstation.repository.OrderDetailRepository;
@@ -151,9 +150,20 @@ public class BookReviewServiceImpl implements BookReviewService {
 
     @Override
     public ApiResponse<Boolean> canEdit(Integer bookId, Integer userId) {
-        Review review = reviewRepository.findByBookIdAndUserId(bookId, userId);
-        boolean canEdit = review != null && !ReviewStatus.EDITED.equals(review.getReviewStatus());
-        return new ApiResponse<>(200, "Kiểm tra thành công", canEdit);
+        try {
+            Review review = reviewRepository.findByBookIdAndUserId(bookId, userId);
+            boolean canEdit = review != null && !ReviewStatus.EDITED.equals(review.getReviewStatus());
+            return new ApiResponse<>(200, "Kiểm tra thành công", canEdit);
+        } catch (Exception e) {
+            // Nếu có nhiều review trùng lặp, lấy review đầu tiên
+            List<Review> reviews = reviewRepository.findAllByBookIdAndUserId(bookId, userId);
+            if (reviews.isEmpty()) {
+                return new ApiResponse<>(200, "Kiểm tra thành công", false);
+            }
+            Review review = reviews.get(0); // Lấy review đầu tiên
+            boolean canEdit = !ReviewStatus.EDITED.equals(review.getReviewStatus());
+            return new ApiResponse<>(200, "Kiểm tra thành công", canEdit);
+        }
     }
 
     @Override
@@ -164,11 +174,22 @@ public class BookReviewServiceImpl implements BookReviewService {
 
     @Override
     public ApiResponse<ReviewResponse> getReviewByUser(Integer bookId, Integer userId) {
-        Review review = reviewRepository.findByBookIdAndUserId(bookId, userId);
-        if (review == null) {
-            return new ApiResponse<>(200, "Người dùng chưa có đánh giá nào", null);
+        try {
+            Review review = reviewRepository.findByBookIdAndUserId(bookId, userId);
+            if (review == null) {
+                return new ApiResponse<>(200, "Người dùng chưa có đánh giá nào", null);
+            }
+            ReviewResponse response = reviewMapper.toResponse(review);
+            return new ApiResponse<>(200, "Lấy review thành công", response);
+        } catch (Exception e) {
+            // Nếu có nhiều review trùng lặp, lấy review đầu tiên
+            List<Review> reviews = reviewRepository.findAllByBookIdAndUserId(bookId, userId);
+            if (reviews.isEmpty()) {
+                return new ApiResponse<>(200, "Người dùng chưa có đánh giá nào", null);
+            }
+            Review review = reviews.get(0); // Lấy review đầu tiên
+            ReviewResponse response = reviewMapper.toResponse(review);
+            return new ApiResponse<>(200, "Lấy review thành công", response);
         }
-        ReviewResponse response = reviewMapper.toResponse(review);
-        return new ApiResponse<>(200, "Lấy review thành công", response);
     }
 } 
