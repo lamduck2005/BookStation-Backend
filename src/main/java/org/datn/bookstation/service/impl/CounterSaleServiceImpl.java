@@ -247,15 +247,7 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             throw new BusinessException("Staff ID không được để trống");
         }
         
-        // Nếu là khách vãng lai, phải có tên và số điện thoại
-        if (request.getUserId() == null) {
-            if (request.getCustomerName() == null || request.getCustomerName().trim().isEmpty()) {
-                throw new BusinessException("Tên khách hàng không được để trống cho khách vãng lai");
-            }
-            if (request.getCustomerPhone() == null || request.getCustomerPhone().trim().isEmpty()) {
-                throw new BusinessException("Số điện thoại không được để trống cho khách vãng lai");
-            }
-        }
+
         
         // Validate từng sản phẩm
         for (OrderDetailRequest detail : request.getOrderDetails()) {
