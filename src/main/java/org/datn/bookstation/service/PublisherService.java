@@ -1,24 +1,26 @@
 package org.datn.bookstation.service;
 
 import org.datn.bookstation.dto.request.PublisherRequest;
+import org.datn.bookstation.dto.response.ApiResponse;
+import org.datn.bookstation.dto.response.DropdownOptionResponse;
 import org.datn.bookstation.dto.response.PaginationResponse;
 import org.datn.bookstation.entity.Publisher;
 
 import java.util.List;
 
 public interface PublisherService {
-    PaginationResponse<PublisherRequest> getAllWithPagination(int page, int size, String publisherName, String email, String status);
+    ApiResponse<PaginationResponse<PublisherRequest>> getAllWithPagination(int page, int size, String publisherName, String email, String status);
 
-    void addPublisher(PublisherRequest request);
+    ApiResponse<Object> addPublisher(PublisherRequest request);
 
-    void editPublisher(PublisherRequest request);
+    ApiResponse<Object> editPublisher(PublisherRequest request, Integer id);
 
-    void deletePublisher(Integer id);
+    ApiResponse<Object> deletePublisher(Integer id);
 
-    void upStatus(Integer id, byte status, String updatedBy);
+    ApiResponse<Object> updateStatus(Integer id, byte status, String updatedBy);
     
-    List<Publisher> getActivePublishers(); // For dropdown
+    ApiResponse<List<DropdownOptionResponse>> getActivePublishers(); // For dropdown
 
-    List<Publisher> getAllPublisher();
+    ApiResponse<List<Publisher>> getAllPublisher();
 
 }
