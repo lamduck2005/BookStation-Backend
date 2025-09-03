@@ -246,7 +246,7 @@ public class VoucherServiceImpl implements VoucherService {
         voucher.setMaxDiscountValue(request.getMaxDiscountValue());
         voucher.setUsageLimit(request.getUsageLimit());
         voucher.setUsedCount(request.getUsedCount());
-        voucher.setStatus(request.getStatus());
+        voucher.setStatus((byte) 1); // Khi edit thì luôn để trạng thái là hoạt động
         voucher.setUsageLimitPerUser(request.getUsageLimitPerUser());
         voucher.setUpdatedBy(request.getUpdatedBy());
         
