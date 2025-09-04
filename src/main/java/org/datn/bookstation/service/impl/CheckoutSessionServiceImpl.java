@@ -368,7 +368,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             if (voucherIds != null && !voucherIds.isEmpty()) {
                 List<String> voucherErrors = validateSessionVouchers(voucherIds, userId);
                 if (!voucherErrors.isEmpty()) {
-                    return new ApiResponse<>(400, "Voucher validation failed: " + String.join(", ", voucherErrors), null);
+                    return new ApiResponse<>(400, "Voucher không hợp lệ: " + String.join(", ", voucherErrors), null);
                 }
             }
             
@@ -402,7 +402,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
             
         } catch (Exception e) {
             log.error("Error validating session: {}", sessionId, e);
-            return new ApiResponse<>(500, "Lỗi khi validate session: " + e.getMessage(), null);
+            return new ApiResponse<>(500, "Lỗi khi chúng tôi kiểm tra phiên thanh toán: " + e.getMessage(), null);
         }
     }
 
@@ -440,7 +440,7 @@ public class CheckoutSessionServiceImpl implements CheckoutSessionService {
                 session = getSessionEntity(sessionId, userId);
                 if (session == null || !session.isActive()) {
                     log.error(" Session {} no longer active for user {}", sessionId, userId);
-                    return new ApiResponse<>(400, "Session đã hết hạn hoặc không khả dụng", null);
+                    return new ApiResponse<>(400, "Phiên thanh toán đã hết hạn hoặc không khả dụng", null);
                 }
 
                 // 4. TẠO ORDER REQUEST VỚI ENHANCED VALIDATION
@@ -1090,21 +1090,22 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         
         if (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty()) {
             try {
-                log.info(" Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
+                log.info("📊 Starting voucher calculation with {} voucher IDs", request.getSelectedVoucherIds().size());
                 
                 // Create a temporary order for voucher calculation
                 Order tempOrder = new Order();
                 tempOrder.setSubtotal(calculatedSubtotal);
                 tempOrder.setShippingFee(shippingFee);
                 
-                log.debug(" Temp order for voucher calc: subtotal={}, shipping={}", calculatedSubtotal, shippingFee);
+                log.info("📊 Temp order for voucher calc: subtotal={}, shipping={}", calculatedSubtotal, shippingFee);
+                log.info("📊 Voucher IDs to apply: {}", request.getSelectedVoucherIds());
                 
                 VoucherCalculationService.VoucherCalculationResult voucherResult = 
                     voucherCalculationService.calculateVoucherDiscount(tempOrder, request.getSelectedVoucherIds(), userId);
                 
                 totalVoucherDiscount = voucherResult.getTotalProductDiscount().add(voucherResult.getTotalShippingDiscount());
                 
-                log.info(" Applied voucher discounts: product={}, shipping={}, total={}", 
+                log.info("📊 Applied voucher discounts: product={}, shipping={}, total={}", 
                     voucherResult.getTotalProductDiscount(), 
                     voucherResult.getTotalShippingDiscount(), 
                     totalVoucherDiscount);
@@ -1125,7 +1126,7 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
         BigDecimal totalAmount = calculatedSubtotal.add(shippingFee).subtract(totalVoucherDiscount);
         session.setTotalAmount(totalAmount.max(BigDecimal.ZERO));
         
-        log.info(" Final pricing with vouchers: subtotal={}, shipping={}, discount={}, total={}", 
+        log.info("📊 Final pricing with vouchers: subtotal={}, shipping={}, discount={}, total={}", 
             calculatedSubtotal, shippingFee, totalVoucherDiscount, session.getTotalAmount());
     }
 

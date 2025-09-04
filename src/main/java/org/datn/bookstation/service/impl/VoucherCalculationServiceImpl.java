@@ -170,11 +170,32 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
         
         //  NEW LOGIC: Use VoucherCategory to determine what to discount
         if (voucher.getVoucherCategory() == VoucherCategory.SHIPPING) {
-            // Shipping voucher always discounts shipping fee
-            discount = shippingFee != null ? shippingFee : BigDecimal.ZERO;
-            if (voucher.getMaxDiscountValue() != null && discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
+            // Shipping voucher discounts shipping fee based on discount type
+            BigDecimal baseShippingFee = shippingFee != null ? shippingFee : BigDecimal.ZERO;
+            
+            switch (voucher.getDiscountType()) {
+                case PERCENTAGE:
+                    discount = baseShippingFee.multiply(voucher.getDiscountPercentage())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    break;
+                    
+                case FIXED_AMOUNT:
+                    discount = voucher.getDiscountAmount() != null ? voucher.getDiscountAmount() : BigDecimal.ZERO;
+                    // Cap at shipping fee - can't discount more than shipping fee
+                    discount = discount.min(baseShippingFee);
+                    break;
+            }
+            
+            // Apply max discount limit for shipping vouchers
+            if (voucher.getMaxDiscountValue() != null && 
+                voucher.getMaxDiscountValue().compareTo(BigDecimal.ZERO) > 0 && 
+                discount.compareTo(voucher.getMaxDiscountValue()) > 0) {
                 discount = voucher.getMaxDiscountValue();
             }
+            
+            log.info("🎫 Shipping voucher {} discount: {} (from shipping fee: {})", 
+                voucher.getCode(), discount, baseShippingFee);
+                
         } else {
             // Normal voucher discounts product based on discount type
             switch (voucher.getDiscountType()) {
@@ -225,12 +246,12 @@ public class VoucherCalculationServiceImpl implements VoucherCalculationService 
                 .mapToInt(uv -> uv.getUsedCount() != null ? uv.getUsedCount() : 0)
                 .sum();
         
-        int availableCount = userVouchers.size() - totalUsedCount; // Số record chưa sử dụng
+        int remainingUses = voucher.getUsageLimitPerUser() - totalUsedCount; // Fix: So sánh với usageLimitPerUser
         
-        log.debug(" canUserUseVoucher: userId={}, voucherId={}, totalRecords={}, totalUsedCount={}, availableCount={}, usageLimitPerUser={}", 
-            userId, voucherId, userVouchers.size(), totalUsedCount, availableCount, voucher.getUsageLimitPerUser());
+        log.debug(" canUserUseVoucher: userId={}, voucherId={}, totalRecords={}, totalUsedCount={}, remainingUses={}, usageLimitPerUser={}", 
+            userId, voucherId, userVouchers.size(), totalUsedCount, remainingUses, voucher.getUsageLimitPerUser());
         
-        return availableCount > 0; // Can use if user has available vouchers
+        return remainingUses > 0; // Fix: User can use if still has remaining uses
     }
 
     @Override
