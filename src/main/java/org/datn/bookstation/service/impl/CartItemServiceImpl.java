@@ -589,30 +589,12 @@ public class CartItemServiceImpl implements CartItemService {
                 return new ApiResponse<>(400, "Flash sale không đủ hàng. Còn lại: " + flashSaleItem.getStockQuantity(), null);
             }
             
-            // 2.  ENHANCED: Validate flash sale purchase limit per user với hai loại thông báo
+            // 2. ✅ UPDATED: Validate flash sale cumulative limit (purchased + pending + request)
             if (userId != null && flashSaleItem.getMaxPurchasePerUser() != null) {
                 if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, requestedQuantity)) {
-                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
                     int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
-                
-                    //  LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
-                    if (currentPurchased >= maxAllowed) {
-                        return new ApiResponse<>(400, String.format(
-                            "Bạn đã mua đủ %d sản phẩm flash sale '%s' cho phép. Không thể thêm vào giỏ hàng.", 
-                            maxAllowed, book.getBookName()), null);
-                    }
-                    
-                    //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
-                    int remainingAllowed = maxAllowed - currentPurchased;
-                    if (requestedQuantity > remainingAllowed) {
-                        return new ApiResponse<>(400, String.format(
-                            "Bạn đã mua %d sản phẩm, chỉ được mua thêm tối đa %d sản phẩm flash sale '%s'.", 
-                            currentPurchased, remainingAllowed, book.getBookName()), null);
-                    }
-                    
-                    //  LOẠI 3: Thông báo chung
                     return new ApiResponse<>(400, String.format(
-                        "Bạn chỉ được mua tối đa %d sản phẩm flash sale '%s'.", 
+                        "Bạn đã đạt giới hạn mua tối đa %d sản phẩm flash sale '%s'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.", 
                         maxAllowed, book.getBookName()), null);
                 }
             }

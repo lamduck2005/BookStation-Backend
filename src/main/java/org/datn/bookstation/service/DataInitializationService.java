@@ -192,13 +192,14 @@ public class DataInitializationService implements CommandLineRunner {
         // }
         log.info("Points initialization is disabled - requires orders to exist first.");
 
-        // Kiểm tra và khởi tạo Reviews
-        if (reviewRepository.count() == 0) {
-            initializeReviews();
-            initializeTrendingReviewData(); // ✅ THÊM: Tạo thêm review cho trending
-        } else {
-            log.info("Reviews already exist, skipping initialization.");
-        }
+        // Kiểm tra và khởi tạo Reviews - DISABLED
+        // if (reviewRepository.count() == 0) {
+        //     initializeReviews();
+        //     initializeTrendingReviewData(); // ✅ THÊM: Tạo thêm review cho trending
+        // } else {
+        //     log.info("Reviews already exist, skipping initialization.");
+        // }
+        log.info("Review initialization is disabled - no review data will be created.");
         
         // ===== 🎮 MINIGAME INITIALIZATION =====
         // Kiểm tra và khởi tạo Campaigns
@@ -257,22 +258,13 @@ public class DataInitializationService implements CommandLineRunner {
     private void initializeUsers() {
         log.info("Initializing users...");
         Role adminRole = roleRepository.findByRoleName(RoleName.ADMIN).orElse(null);
-        Role staffRole = roleRepository.findByRoleName(RoleName.STAFF).orElse(null);
         Role customerRole = roleRepository.findByRoleName(RoleName.CUSTOMER).orElse(null);
 
         List<User> users = Arrays.asList(
             createUser("admin@bookstation.com", "admin123", "Admin BookStation", adminRole),
-            createUser("staff1@bookstation.com", "staff123", "Nguyễn Văn A", staffRole),
-            createUser("staff2@bookstation.com", "staff123", "Trần Thị B", staffRole),
-            createUser("customer1@gmail.com", "customer123", "Lê Văn C", customerRole),
-            createUser("customer2@gmail.com", "customer123", "Phạm Thị D", customerRole),
-            createUser("customer3@gmail.com", "customer123", "Hoàng Văn E", customerRole),
-            createUser("customer4@gmail.com", "customer123", "Ngô Thị F", customerRole),
-            createUser("customer5@gmail.com", "customer123", "Vũ Văn G", customerRole)
+            createUser("customer1@gmail.com", "customer123", "Lê Văn C", customerRole)
         );
         userRepository.saveAll(users);
-        // Thêm hàng loạt voucher test cho Lê Văn C
-        addTestVouchersForLeVanC();
     }
 
     /**
@@ -755,24 +747,12 @@ public class DataInitializationService implements CommandLineRunner {
         long oneMonth = 30L * 24 * 60 * 60 * 1000; // 30 ngày
         
         List<Voucher> vouchers = Arrays.asList(
-            createVoucher("WELCOME", "Voucher chào mừng", "Giảm 15% cho đơn hàng đầu tiên, tối đa 50K", 
-                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("15"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
-            createVoucher("WELCOME10", "Voucher chào mừng", "Giảm 10% cho đơn hàng đầu tiên", 
-                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("10"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("100000"), new BigDecimal("50000"), 100, 1, "admin"),
-            createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 500K", 
+            createVoucher("FREESHIP", "Giảm phí vận chuyển", "Giảm 10K phí vận chuyển cho đơn từ 0đ", 
+                VoucherCategory.SHIPPING, DiscountType.FIXED_AMOUNT, null, new BigDecimal("10000"), 
+                currentTime, currentTime + oneMonth, BigDecimal.ZERO, new BigDecimal("10000"), 100, 1, "admin"),
+            createVoucher("SAVE50K", "Voucher giảm 50K", "Giảm 50.000đ cho đơn từ 0đ", 
                 VoucherCategory.NORMAL, DiscountType.FIXED_AMOUNT, null, new BigDecimal("50000"), 
-                currentTime, currentTime + oneMonth, new BigDecimal("500000"), null, 50, 1, "admin"),
-            createVoucher("FREESHIP", "Miễn phí vận chuyển", "Miễn phí ship cho đơn từ 200K", 
-                VoucherCategory.SHIPPING, DiscountType.FIXED_AMOUNT, null, null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("200000"), null, 200, 1, "admin"),
-            createVoucher("SUMMER20", "Voucher hè", "Giảm 20% tối đa 100K", 
-                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("20"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("300000"), new BigDecimal("100000"), 75, 1, "admin"),
-            createVoucher("NEWBIE15", "Voucher thành viên mới", "Giảm 15% cho khách hàng mới", 
-                VoucherCategory.NORMAL, DiscountType.PERCENTAGE, new BigDecimal("15"), null, 
-                currentTime, currentTime + oneMonth, new BigDecimal("150000"), new BigDecimal("75000"), 150, 1, "admin")
+                currentTime, currentTime + oneMonth, BigDecimal.ZERO, null, 50, 1, "admin")
         );
         voucherRepository.saveAll(vouchers);
     }

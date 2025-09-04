@@ -117,26 +117,10 @@ public class PriceValidationServiceImpl implements PriceValidationService {
                         book.getBookName(), activeFlashSale.getStockQuantity(), quantity);
                 }
                 
-                // 1.2.  ENHANCED: Validate giới hạn mua per user với hai loại thông báo khác nhau
+                // 1.2. ✅ UPDATED: Validate giới hạn cumulative (purchased + pending + request)
                 if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(), userId, quantity)) {
-                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(activeFlashSale.getId().longValue(), userId);
                     int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
-                    
-                    //  LOẠI 1: Đã đạt giới hạn tối đa, không thể mua nữa
-                    if (currentPurchased >= maxAllowed) {
-                        return String.format("Bạn đã mua đủ %d sản phẩm flash sale '%s' cho phép. Không thể mua thêm.", 
-                            maxAllowed, book.getBookName());
-                    }
-                    
-                    //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
-                    int remainingAllowed = maxAllowed - currentPurchased;
-                    if (quantity > remainingAllowed) {
-                        return String.format("Bạn đã mua %d sản phẩm, chỉ được mua thêm tối đa %d sản phẩm flash sale '%s'.", 
-                            currentPurchased, remainingAllowed, book.getBookName());
-                    }
-                    
-                    //  LOẠI 3: Thông báo chung cho trường hợp đặc biệt khác
-                    return String.format("Bạn chỉ được mua tối đa %d sản phẩm flash sale '%s'.", 
+                    return String.format("Bạn đã đạt giới hạn mua tối đa %d sản phẩm flash sale '%s'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.", 
                         maxAllowed, book.getBookName());
                 }
             }

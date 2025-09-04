@@ -285,14 +285,12 @@ public class OrderServiceImpl implements OrderService {
                         .orElseThrow(() -> new BusinessException(
                                 "Không tìm thấy flash sale item với ID: " + detailRequest.getFlashSaleItemId()));
 
-                //  Validate flash sale purchase limit per user
+                // ✅ UPDATED: Validate flash sale cumulative limit 
                 if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), request.getUserId(),
                         quantityToOrder)) {
-                    int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(),
-                            request.getUserId());
                     int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
-                    throw new BusinessException("Bạn đã mua " + currentPurchased + "/" + maxAllowed +
-                            " sản phẩm flash sale này. Không thể mua thêm " + quantityToOrder + " sản phẩm.");
+                    throw new BusinessException("Bạn đã đạt giới hạn mua tối đa " + maxAllowed +
+                            " sản phẩm flash sale '" + book.getBookName() + "'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.");
                 }
 
                 // Validate flash sale stock
@@ -323,31 +321,12 @@ public class OrderServiceImpl implements OrderService {
                     int flashSaleStock = activeFlashSale.getStockQuantity();
 
                     if (flashSaleStock >= quantityToOrder) {
-                        //  ENHANCED: Validate flash sale purchase limit với hai loại thông báo
+                        // ✅ UPDATED: Validate flash sale cumulative limit
                         if (!flashSaleService.canUserPurchaseMore(activeFlashSale.getId().longValue(),
                                 request.getUserId(), quantityToOrder)) {
-                            int currentPurchased = flashSaleService
-                                    .getUserPurchasedQuantity(activeFlashSale.getId().longValue(), request.getUserId());
                             int maxAllowed = activeFlashSale.getMaxPurchasePerUser();
-
-                            //  LOẠI 1: Đã đạt giới hạn tối đa
-                            if (currentPurchased >= maxAllowed) {
-                                throw new BusinessException("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" +
-                                        book.getBookName() + "' cho phép. Không thể đặt hàng thêm.");
-                            }
-
-                            //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
-                            int remainingAllowed = maxAllowed - currentPurchased;
-                            if (quantityToOrder > remainingAllowed) {
-                                throw new BusinessException("Bạn đã mua " + currentPurchased
-                                        + " sản phẩm, chỉ được mua thêm tối đa " +
-                                        remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
-                            }
-
-                            //  LOẠI 3: Thông báo chung
-                            throw new BusinessException(
-                                    "Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" +
-                                            book.getBookName() + "'.");
+                            throw new BusinessException("Bạn đã đạt giới hạn mua tối đa " + maxAllowed + " sản phẩm flash sale '" +
+                                    book.getBookName() + "'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.");
                         }
 
                         // Đủ flash sale stock - dùng toàn bộ flash sale

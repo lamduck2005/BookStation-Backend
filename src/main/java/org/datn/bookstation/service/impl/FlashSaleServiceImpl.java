@@ -632,14 +632,18 @@ public class FlashSaleServiceImpl implements FlashSaleService {
 
     /**
      * FIX: Kiểm tra user đã mua bao nhiêu flash sale item này
-     * Tính từ OrderDetail với order DELIVERED trừ đi GOODS_RECEIVED_FROM_CUSTOMER
+     * Tính từ OrderDetail với order DELIVERED trừ đi số lượng đã hoàn trả COMPLETED
      */
     @Override
     public int getUserPurchasedQuantity(Long flashSaleItemId, Integer userId) {
         try {
-            // Tính từ OrderDetail: DELIVERED - GOODS_RECEIVED_FROM_CUSTOMER
-            return orderDetailRepository.calculateUserPurchasedQuantityForFlashSaleItem(flashSaleItemId.intValue(),
-                    userId);
+            //  SỬA: Sử dụng method đã fix để tính chính xác
+            Integer result = orderDetailRepository.calculateActualUserPurchasedQuantityForFlashSaleItem(userId, flashSaleItemId.intValue());
+            
+            log.info("Flash sale quantity check - User: {}, FlashSaleItem: {}, Result: {}", 
+                    userId, flashSaleItemId, result);
+                    
+            return result != null ? result : 0;
         } catch (Exception e) {
             log.error("Error getting user purchased quantity for flashSaleItem {} user {}: {}",
                     flashSaleItemId, userId, e.getMessage());
@@ -648,13 +652,17 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     }
 
     /**
-     * THÊM: Validate user có thể mua thêm số lượng này không
+     * NEW LOGIC: Validate theo flash sale cụ thể và tính cả pending + delivered orders
+     * - Chỉ tính các order đã giao thành công (trừ đi số hoàn hàng thành công)
+     * - Cộng thêm số lượng đang pending (chưa giao/hủy)
+     * - Kiểm tra theo flashSaleItemId cụ thể (không cross-check giữa các flash sale)
      */
     @Override
     public boolean canUserPurchaseMore(Long flashSaleItemId, Integer userId, Integer requestQuantity) {
         try {
             Optional<FlashSaleItem> flashSaleOpt = flashSaleItemRepository.findById(flashSaleItemId);
             if (flashSaleOpt.isEmpty()) {
+                log.warn("Flash sale item not found: {}", flashSaleItemId);
                 return false;
             }
 
@@ -664,18 +672,45 @@ public class FlashSaleServiceImpl implements FlashSaleService {
                 return true;
             }
 
-            int alreadyPurchased = getUserPurchasedQuantity(flashSaleItemId, userId);
-            int totalAfterPurchase = alreadyPurchased + requestQuantity;
-            boolean canPurchase = totalAfterPurchase <= flashSaleItem.getMaxPurchasePerUser();
+            // Tính số lượng thực tế đã mua thành công (delivered - refunded)
+            Integer actualPurchased = orderDetailRepository.calculateActualUserPurchasedQuantityForFlashSaleItem(
+                    userId, flashSaleItemId.intValue());
+            if (actualPurchased == null) actualPurchased = 0;
+
+            // Tính số lượng đang pending (chờ xử lý, chưa delivered/cancelled)
+            List<org.datn.bookstation.entity.enums.OrderStatus> pendingStatuses = List.of(
+                org.datn.bookstation.entity.enums.OrderStatus.PENDING,
+                org.datn.bookstation.entity.enums.OrderStatus.CONFIRMED,
+                org.datn.bookstation.entity.enums.OrderStatus.SHIPPED,
+                org.datn.bookstation.entity.enums.OrderStatus.DELIVERY_FAILED,
+                org.datn.bookstation.entity.enums.OrderStatus.REDELIVERING,
+                org.datn.bookstation.entity.enums.OrderStatus.RETURNING_TO_WAREHOUSE,
+                org.datn.bookstation.entity.enums.OrderStatus.REFUND_REQUESTED,
+                org.datn.bookstation.entity.enums.OrderStatus.AWAITING_GOODS_RETURN,
+                org.datn.bookstation.entity.enums.OrderStatus.GOODS_RECEIVED_FROM_CUSTOMER,
+                org.datn.bookstation.entity.enums.OrderStatus.GOODS_RETURNED_TO_WAREHOUSE,
+                org.datn.bookstation.entity.enums.OrderStatus.REFUNDING
+            );
+            
+            Integer pendingQuantity = orderDetailRepository.sumFlashSaleItemQuantityByUserAndStatuses(
+                    userId, flashSaleItemId.intValue(), pendingStatuses);
+            if (pendingQuantity == null) pendingQuantity = 0;
+
+            int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
+            int totalWillBe = actualPurchased + pendingQuantity + requestQuantity;
+            
+            boolean canPurchase = totalWillBe <= maxAllowed;
 
             log.info(
-                    "Flash sale limit check - Item: {}, User: {}, Already: {}, Request: {}, Limit: {}, CanPurchase: {}",
-                    flashSaleItemId, userId, alreadyPurchased, requestQuantity, flashSaleItem.getMaxPurchasePerUser(),
-                    canPurchase);
+                    "Flash sale cumulative limit check - FlashSaleItem: {}, User: {}, " +
+                    "ActualPurchased: {}, Pending: {}, Request: {}, MaxAllowed: {}, " +
+                    "TotalWillBe: {}, CanPurchase: {}",
+                    flashSaleItemId, userId, actualPurchased, pendingQuantity, 
+                    requestQuantity, maxAllowed, totalWillBe, canPurchase);
 
             return canPurchase;
         } catch (Exception e) {
-            log.error("Error checking user purchase limit for flashSaleItem {} user {}: {}",
+            log.error("Error checking user cumulative purchase limit for flashSaleItem {} user {}: {}",
                     flashSaleItemId, userId, e.getMessage());
             return false;
         }

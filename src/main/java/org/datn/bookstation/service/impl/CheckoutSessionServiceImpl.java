@@ -749,28 +749,12 @@ private List<String> validateSessionItemsForOrder(List<CheckoutSessionRequest.Bo
                         }
                     }
                     
-                    //  ENHANCED: Kiểm tra giới hạn mua per user với hai loại thông báo
+                    // ✅ UPDATED: Kiểm tra giới hạn cumulative (purchased + pending + request)
                     if (flashSaleItem.getMaxPurchasePerUser() != null) {
                         if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), userId, item.getQuantity())) {
-                            int currentPurchased = flashSaleService.getUserPurchasedQuantity(flashSaleItem.getId().longValue(), userId);
                             int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
-                            
-                            //  LOẠI 1: Đã đạt giới hạn tối đa
-                            if (currentPurchased >= maxAllowed) {
-                                errors.add("Bạn đã mua đủ " + maxAllowed + " sản phẩm flash sale '" + 
-                                    book.getBookName() + "' cho phép. Không thể mua thêm.");
-                            } else {
-                                //  LOẠI 2: Chưa đạt giới hạn nhưng đặt quá số lượng cho phép
-                                int remainingAllowed = maxAllowed - currentPurchased;
-                                if (item.getQuantity() > remainingAllowed) {
-                                    errors.add("Bạn đã mua " + currentPurchased + " sản phẩm, chỉ được mua thêm tối đa " + 
-                                        remainingAllowed + " sản phẩm flash sale '" + book.getBookName() + "'.");
-                                } else {
-                                    //  LOẠI 3: Thông báo chung
-                                    errors.add("Bạn chỉ được mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
-                                        book.getBookName() + "'.");
-                                }
-                            }
+                            errors.add("Bạn đã đạt giới hạn mua tối đa " + maxAllowed + " sản phẩm flash sale '" + 
+                                book.getBookName() + "'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.");
                         }
                     }
                 } else {

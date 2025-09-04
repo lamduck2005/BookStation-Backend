@@ -45,6 +45,9 @@ public class BookDetailResponse {
     private Long flashSaleEndTime;          // Timestamp kết thúc
     private Integer flashSaleSoldCount;     // Đã bán bao nhiêu
     
+    // ✅ THÊM MỚI: Thông tin bán hàng
+    private Integer soldCount;              // Tổng số lượng đã bán thực tế (delivered - refunded)
+    
     // 🔥 Direct Discount info (giảm giá cố định của book)
     private BigDecimal discountValue;       // Giảm theo giá trị (null nếu không có)
     private Integer discountPercent;        // Giảm theo phần trăm (null nếu không có)
