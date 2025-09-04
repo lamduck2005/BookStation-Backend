@@ -23,18 +23,17 @@ public class QrController {
                     : "1028549215";
             String finalAccountName = (accountName != null && !accountName.isEmpty()) ? accountName : "DOAN THE PHONG";
             String finalAmount = (amount != null && !amount.isEmpty()) ? amount : "50000";
-            String finalAddInfo = (addInfo != null && !addInfo.isEmpty()) ? addInfo : "Thanh toan sach";
+            String finalAddInfo = (addInfo != null && !addInfo.isEmpty()) ? addInfo : "Thanh toan don hang";
 
-            // Tạo URL VietQR với đầy đủ tham số
+            // ✅ SỬA: Đổi template và format URL theo chuẩn VietQR
             String vietQRUrl = String.format(
-                    "https://img.vietqr.io/image/%s-%s-compact2.jpg?amount=%s&addInfo=%s&accountName=%s",
+                    "https://img.vietqr.io/image/%s-%s-print.png?amount=%s&addInfo=%s&accountName=%s",
                     finalBankCode,
                     finalAccountNumber,
                     finalAmount,
                     URLEncoder.encode(finalAddInfo, StandardCharsets.UTF_8),
                     URLEncoder.encode(finalAccountName, StandardCharsets.UTF_8));
 
-            // Trả URL trực tiếp
             return new ApiResponse<>(200, "Tạo QR code thành công", vietQRUrl);
 
         } catch (Exception e) {

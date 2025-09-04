@@ -300,17 +300,17 @@
                     <div class="info-title">THÔNG TIN KHÁCH HÀNG</div>
                     <div class="info-item">
                         <span class="info-label">Họ tên:</span>
-                        <span th:text="${customerName}"></span>
+                        <span th:text="${customerName != null and customerName != '' ? customerName : 'Khách hàng không lưu thông tin'}"></span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Điện thoại:</span>
-                        <span th:text="${customerPhone}"></span>
+                        <span th:text="${customerPhone != null and customerPhone != '' ? customerPhone : 'Khách Hàng không điền thông tin'}"></span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Email:</span>
-                        <span th:text="${customerEmail}"></span>
+                        <span th:text="${customerEmail != null and customerEmail != '' ? customerEmail : 'Khách Hàng không điền thông tin'}"></span>
                     </div>
-                    <div class="info-item" th:if="${deliveryAddress}">
+                    <div class="info-item" th:if="${deliveryAddress != null and deliveryAddress != ''}">
                         <span class="info-label">Địa chỉ:</span>
                         <span th:text="${deliveryAddress}"></span>
                     </div>
@@ -326,12 +326,23 @@
                         <span th:switch="${orderType}">
                             <span th:case="'ONLINE'">Đặt hàng online</span>
                             <span th:case="'COUNTER'">Bán tại quầy</span>
-                            <span th:case="*" th:text="${orderType}"></span>
+                            <span th:case="*" th:text="${orderType != null ? orderType : 'Không xác định'}"></span>
                         </span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Thanh toán:</span>
-                        <span th:text="${paymentMethod}"></span>
+                        <span th:switch="${paymentMethod}">
+                            <span th:case="'COD'">Thanh toán khi nhận hàng</span>
+                            <span th:case="'ONLINE_PAYMENT'">Thanh toán online</span>
+                            <span th:case="'BANK_TRANSFER'">Chuyển khoản ngân hàng</span>
+                            <span th:case="'CASH'">Tiền mặt</span>
+                            <span th:case="'CARD'">Thẻ tín dụng/ghi nợ</span>
+                            <span th:case="'E_WALLET'">Ví điện tử</span>
+                            <span th:case="'QR_CODE'">Quét mã QR</span>
+                            <span th:case="*">
+                                <span th:text="${paymentMethod != null and paymentMethod != '' ? paymentMethod : 'Tiền mặt'}"></span>
+                            </span>
+                        </span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Trạng thái:</span>
@@ -351,10 +362,10 @@
                             <span th:case="'REFUNDING'">Đang hoàn tiền</span>
                             <span th:case="'REFUNDED'">Đã hoàn tiền</span>
                             <span th:case="'PARTIALLY_REFUNDED'">Hoàn tiền một phần</span>
-                            <span th:case="*" th:text="${orderStatus}"></span>
+                            <span th:case="*" th:text="${orderStatus != null ? orderStatus : 'Không xác định'}"></span>
                         </span>
                     </div>
-                    <div class="info-item" th:if="${staffName}">
+                    <div class="info-item" th:if="${staffName != null and staffName != ''}">
                         <span class="info-label">Nhân viên:</span>
                         <span th:text="${staffName}"></span>
                     </div>

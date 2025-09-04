@@ -388,7 +388,8 @@ public class CounterSaleServiceImpl implements CounterSaleService {
         orderRequest.setSubtotal(counterRequest.getSubtotal());
         orderRequest.setShippingFee(BigDecimal.ZERO); // No shipping for counter sales
         orderRequest.setTotalAmount(counterRequest.getTotalAmount());
-        
+            orderRequest.setPaymentMethod(counterRequest.getPaymentMethod()); // Hoặc lấy từ counterRequest nếu có
+
         // Order type and notes
         orderRequest.setOrderType("COUNTER");
         orderRequest.setNotes(counterRequest.getNotes());
