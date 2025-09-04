@@ -631,15 +631,19 @@ public class FlashSaleServiceImpl implements FlashSaleService {
     }
 
     /**
-     * FIX: Kiểm tra user đã mua bao nhiêu flash sale item này
-     * Tính từ OrderDetail với order DELIVERED trừ đi GOODS_RECEIVED_FROM_CUSTOMER
+     * ✅ FIX: Kiểm tra user đã mua bao nhiêu flash sale item này
+     * Tính từ OrderDetail với order DELIVERED trừ đi số lượng đã hoàn trả COMPLETED
      */
     @Override
     public int getUserPurchasedQuantity(Long flashSaleItemId, Integer userId) {
         try {
-            // Tính từ OrderDetail: DELIVERED - GOODS_RECEIVED_FROM_CUSTOMER
-            return orderDetailRepository.calculateUserPurchasedQuantityForFlashSaleItem(flashSaleItemId.intValue(),
-                    userId);
+            // ✅ SỬA: Sử dụng method đã fix để tính chính xác
+            Integer result = orderDetailRepository.calculateActualUserPurchasedQuantityForFlashSaleItem(userId, flashSaleItemId.intValue());
+            
+            log.info("Flash sale quantity check - User: {}, FlashSaleItem: {}, Result: {}", 
+                    userId, flashSaleItemId, result);
+                    
+            return result != null ? result : 0;
         } catch (Exception e) {
             log.error("Error getting user purchased quantity for flashSaleItem {} user {}: {}",
                     flashSaleItemId, userId, e.getMessage());

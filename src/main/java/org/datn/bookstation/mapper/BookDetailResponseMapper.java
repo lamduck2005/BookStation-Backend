@@ -5,6 +5,7 @@ import org.datn.bookstation.dto.response.BookDetailResponse;
 import org.datn.bookstation.entity.Book;
 import org.datn.bookstation.entity.FlashSaleItem;
 import org.datn.bookstation.repository.FlashSaleItemRepository;
+import org.datn.bookstation.repository.OrderDetailRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,9 @@ public class BookDetailResponseMapper {
     
     @Autowired
     private FlashSaleItemRepository flashSaleItemRepository;
+    
+    @Autowired
+    private OrderDetailRepository orderDetailRepository;
     
     public BookDetailResponse toDetailResponse(Book book) {
         if (book == null) return null;
@@ -90,6 +94,10 @@ public class BookDetailResponseMapper {
         
         // 🔥 Xử lý giá và discount (Flash Sale → Direct Discount → Original Price)
         setPriceAndDiscountFields(response, book);
+        
+        // ✅ THÊM MỚI: Tính số lượng đã bán thực tế (delivered - refunded)
+        Integer actualSoldCount = orderDetailRepository.countActualSoldQuantityByBook(book.getId());
+        response.setSoldCount(actualSoldCount != null ? actualSoldCount : 0);
         
         // 🔥 Luôn set server time (chống hack client time)
         response.setServerTime(System.currentTimeMillis());

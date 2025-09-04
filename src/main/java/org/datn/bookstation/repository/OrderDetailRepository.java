@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Arrays;
 import java.util.List;
 
 public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderDetailId> {
@@ -24,6 +25,19 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
            "WHERE od.book.id = :bookId AND od.order.orderStatus IN ('DELIVERED', 'PARTIALLY_REFUNDED')")
     Integer countSoldQuantityByBook(@Param("bookId") Integer bookId);
+
+    /**
+     * ✅ THÊM MỚI: Tính số lượng đã bán thực tế (delivered - refunded)
+     * Công thức: Delivered quantity - Refunded quantity (từ COMPLETED/APPROVED refunds)
+     */
+    @Query("SELECT COALESCE(" +
+           "  (SELECT SUM(od.quantity) FROM OrderDetail od " +
+           "   WHERE od.book.id = :bookId AND od.order.orderStatus IN ('DELIVERED', 'PARTIALLY_REFUNDED')), 0) - " +
+           "  COALESCE(" +
+           "   (SELECT SUM(ri.refundQuantity) FROM RefundItem ri " +
+           "    JOIN ri.refundRequest rr " +
+           "    WHERE ri.book.id = :bookId AND rr.status IN ('COMPLETED')), 0)")
+    Integer countActualSoldQuantityByBook(@Param("bookId") Integer bookId);
 
     @Query("SELECT COUNT(od) > 0 FROM OrderDetail od WHERE od.order.user.id = :userId AND od.book.id = :bookId AND od.order.orderStatus = org.datn.bookstation.entity.enums.OrderStatus.DELIVERED")
     boolean existsDeliveredByUserAndBook(@Param("userId") Integer userId, @Param("bookId") Integer bookId);
@@ -62,6 +76,38 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     
     @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od WHERE od.order.user.id = :userId AND od.flashSaleItem.id = :flashSaleItemId")
     Integer calculateUserPurchasedQuantityForFlashSaleItem(@Param("userId") int userId, @Param("flashSaleItemId") Integer flashSaleItemId);
+    
+    /**
+     * ✅ THÊM MỚI: Tính số lượng flash sale user đã mua thực tế 
+     * 🔥 FIX BUG: Phải tính TẤT CẢ đơn từ CONFIRMED trở lên (bao gồm PENDING, PROCESSING, DELIVERED)
+     * Vì user đã "đặt hàng" rồi thì phải tính vào giới hạn, không chỉ đơn DELIVERED
+     */
+    @Query("SELECT COALESCE(SUM(od.quantity), 0) FROM OrderDetail od " +
+           "WHERE od.order.user.id = :userId AND od.flashSaleItem.id = :flashSaleItemId " +
+           "AND od.order.orderStatus IN :validStatuses")
+    Integer sumFlashSaleItemQuantityByUserAndStatuses(@Param("userId") Integer userId, 
+                                                     @Param("flashSaleItemId") Integer flashSaleItemId,
+                                                     @Param("validStatuses") List<OrderStatus> validStatuses);
+
+    @Query("SELECT COALESCE(SUM(ri.refundQuantity), 0) FROM RefundItem ri " +
+           "JOIN ri.refundRequest rr " +
+           "WHERE rr.user.id = :userId AND ri.book.id = " +
+           " (SELECT fsi.book.id FROM FlashSaleItem fsi WHERE fsi.id = :flashSaleItemId) " +
+           "AND rr.status IN ('COMPLETED')")
+    Integer sumCompletedRefundQuantityByUserAndFlashSaleItem(@Param("userId") Integer userId, @Param("flashSaleItemId") Integer flashSaleItemId);
+    
+    // ✅ WRAPPER METHOD: For backward compatibility
+    default Integer calculateActualUserPurchasedQuantityForFlashSaleItem(@Param("userId") Integer userId, @Param("flashSaleItemId") Integer flashSaleItemId) {
+        List<OrderStatus> validStatuses = Arrays.asList(
+            OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.SHIPPED, 
+            OrderStatus.DELIVERED, OrderStatus.PARTIALLY_REFUNDED
+        );
+        
+        Integer purchased = sumFlashSaleItemQuantityByUserAndStatuses(userId, flashSaleItemId, validStatuses);
+        Integer refunded = sumCompletedRefundQuantityByUserAndFlashSaleItem(userId, flashSaleItemId);
+        
+        return Math.max(0, (purchased != null ? purchased : 0) - (refunded != null ? refunded : 0));
+    }
     
     @Query("SELECT o FROM Order o JOIN o.orderDetails od WHERE od.book.id = :bookId AND o.orderStatus IN :statuses")
     List<Order> findProcessingOrdersByBookId(@Param("bookId") Integer bookId, @Param("statuses") List<OrderStatus> statuses);
