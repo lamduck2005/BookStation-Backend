@@ -246,6 +246,9 @@ public class CounterSaleServiceImpl implements CounterSaleService {
         if (request.getStaffId() == null) {
             throw new BusinessException("Staff ID không được để trống");
         }
+        
+
+        
 
         // Validate từng sản phẩm
         for (OrderDetailRequest detail : request.getOrderDetails()) {
