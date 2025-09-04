@@ -267,10 +267,10 @@ public interface OrderRepository extends JpaRepository<Order, Integer>, JpaSpeci
 
   @Query("""
 
-          SELECT COALESCE(SUM(od.quantity), 0)
-      FROM Order o
-      JOIN OrderDetail od ON od.order.id = o.id
-      WHERE o.orderStatus = 'DELIVERED'
+         SELECT COALESCE(SUM(od.quantity), 0)
+    FROM Order o
+    JOIN OrderDetail od ON od.order.id = o.id
+    WHERE o.orderStatus IN ('DELIVERED','REFUND_REQUESTED')
       """)
   Long countDeliveredOrders();
 
