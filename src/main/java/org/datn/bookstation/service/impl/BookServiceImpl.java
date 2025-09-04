@@ -279,20 +279,32 @@ public class BookServiceImpl implements BookService {
             int soldQuantity = book.getSoldCount() != null ? book.getSoldCount() : 0;
             // Số lượng tồn kho
             int stockQuantity = book.getStockQuantity() != null ? book.getStockQuantity() : 0;
-            //  SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
+            // SỬ DỤNG SERVICE MỚI: Tính processing quantity real-time
             int processingQuantity = bookProcessingQuantityService.getProcessingQuantity(book.getId());
 
             // Flash sale related data
             int flashSaleSold = flashSaleItem != null && flashSaleItem.getSoldCount() != null
                     ? flashSaleItem.getSoldCount()
                     : 0;
-            //  SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
+            // SỬ DỤNG SERVICE MỚI: Tính flash sale processing quantity real-time
             int flashSaleProcessing = flashSaleItem != null
                     ? bookProcessingQuantityService.getFlashSaleProcessingQuantity(flashSaleItem.getId())
                     : 0;
             int flashSaleStock = flashSaleItem != null && flashSaleItem.getStockQuantity() != null
                     ? flashSaleItem.getStockQuantity()
                     : 0;
+
+            // ✅ THÊM MỚI: Lấy ảnh sản phẩm
+            String imageUrl = book.getCoverImageUrl();
+            // Fallback nếu không có cover image, lấy ảnh đầu tiên từ images
+            if (imageUrl == null || imageUrl.trim().isEmpty()) {
+                if (book.getImages() != null && !book.getImages().trim().isEmpty()) {
+                    String[] images = book.getImages().split(",");
+                    if (images.length > 0) {
+                        imageUrl = images[0].trim();
+                    }
+                }
+            }
 
             org.datn.bookstation.dto.response.DropdownOptionResponse option = new org.datn.bookstation.dto.response.DropdownOptionResponse();
             option.setId(book.getId());
@@ -309,6 +321,9 @@ public class BookServiceImpl implements BookService {
             option.setFlashSaleProcessingQuantity(flashSaleProcessing);
             option.setFlashSaleStockQuantity(flashSaleStock);
             option.setOriginalPrice(originalPrice);
+            // ✅ THÊM MỚI: Set ảnh sản phẩm
+            option.setImageUrl(imageUrl);
+            
             result.add(option);
         }
         return result;
@@ -688,7 +703,7 @@ public class BookServiceImpl implements BookService {
             log.info(" HOT DISCOUNT - TEMPORARILY DISABLED FALLBACK - current count: {}", allDiscountBooks.size());
         }
 
-        // 3. Nếu vẫn cần thêm, thạm thời bỏ qua good price fallback để test
+        // 3. Nếu vẫn cần thêm, thạm chí bỏ qua good price fallback để test
         needMore = request.getSize() - allDiscountBooks.size();
         if (needMore > 0) {
             log.info(" HOT DISCOUNT - TEMPORARILY DISABLED GOOD PRICE FALLBACK - current count: {}", allDiscountBooks.size());
@@ -1303,7 +1318,8 @@ public class BookServiceImpl implements BookService {
             Map<String, Map<String, Object>> dataMap = new HashMap<>();
             for (Object[] row : rawData) {
                 String date = row[0].toString(); // Date string từ DB
-                Integer netBooksSold = ((Number) row[1]).intValue(); // net books sold (after refunds)
+                Integer netBooksSold = ((Number) row[1]).intValue(); // net revenue (after voucher discount)
+                
                 // OLD: BigDecimal netRevenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO; // net revenue (after voucher discount)
                 
                 // 🔧 NEW: Use unified calculation - convert date string to day start/end timestamps
@@ -1607,7 +1623,7 @@ public class BookServiceImpl implements BookService {
         
         return result;
     }
-
+    
     /**
      * DEPRECATED: Build response data với growth comparison (không dùng nữa)
      */
@@ -1673,22 +1689,6 @@ public class BookServiceImpl implements BookService {
                 
                 // Quantity growth - CÔNG THỨC TOÁN HỌC CHUẨN
                 if (previousQuantity > 0) {
-                    // Có giá trị trước > 0 → áp dụng công thức: (hiện tại - trước) / trước * 100%
-                    long quantityGrowth = currentQuantity - previousQuantity;
-                    double quantityGrowthPercent = ((double) quantityGrowth / previousQuantity) * 100.0;
-                    
-                    bookDetail.put("quantityGrowthPercent", Math.round(quantityGrowthPercent * 100.0) / 100.0);
-                    bookDetail.put("quantityGrowthValue", quantityGrowth);
-                    bookDetail.put("quantityGrowthLabel", ""); // Hiển thị % bình thường
-                } else if (currentQuantity > 0) {
-                    // Trường hợp đặc biệt: 0 → có số lượng = chia cho 0 = vô hạn (∞)
-                    // Frontend hiển thị "Tăng mới" thay vì % để user-friendly
-                    bookDetail.put("quantityGrowthPercent", null); // Không có %
-                    bookDetail.put("quantityGrowthValue", currentQuantity);
-                    bookDetail.put("quantityGrowthLabel", "Tăng mới"); // Text thay thế
-                } else {
-                    // Cả hai đều = 0
-                    bookDetail.put("quantityGrowthPercent", 0.0);
                     bookDetail.put("quantityGrowthValue", 0L);
                     bookDetail.put("quantityGrowthLabel", "");
                 }

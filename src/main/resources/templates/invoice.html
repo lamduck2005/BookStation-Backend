@@ -280,8 +280,8 @@
                 </td>
                 <td class="company-cell">
                     <div class="company-name">BOOKSTATION</div>
-                    <div class="company-address">Địa chỉ: 123 Đường ABC, Quận XYZ, TP. Hồ Chí Minh</div>
-                    <div class="company-address">Điện thoại: 0123-456-789 | Email: info@bookstation.com</div>
+                    <div class="company-address">Địa chỉ: Phú Kiều, Hà Nội, Việt Nam</div>
+                    <div class="company-address">Điện thoại: 0123456789 | Email: cskh@bookstation.com</div>
                 </td>
             </tr>
         </table>
@@ -323,7 +323,11 @@
                     </div>
                     <div class="info-item">
                         <span class="info-label">Loại đơn:</span>
-                        <span th:text="${orderType}"></span>
+                        <span th:switch="${orderType}">
+                            <span th:case="'ONLINE'">Đặt hàng online</span>
+                            <span th:case="'COUNTER'">Bán tại quầy</span>
+                            <span th:case="*" th:text="${orderType}"></span>
+                        </span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Thanh toán:</span>
@@ -331,7 +335,24 @@
                     </div>
                     <div class="info-item">
                         <span class="info-label">Trạng thái:</span>
-                        <span th:text="${orderStatus}"></span>
+                        <span th:switch="${orderStatus}">
+                            <span th:case="'PENDING'">Chờ xử lý</span>
+                            <span th:case="'CONFIRMED'">Đã xác nhận</span>
+                            <span th:case="'SHIPPED'">Đang giao hàng</span>
+                            <span th:case="'DELIVERED'">Giao hàng thành công</span>
+                            <span th:case="'DELIVERY_FAILED'">Giao hàng thất bại</span>
+                            <span th:case="'REDELIVERING'">Đang giao lại</span>
+                            <span th:case="'RETURNING_TO_WAREHOUSE'">Đang trả về kho</span>
+                            <span th:case="'CANCELED'">Đã hủy</span>
+                            <span th:case="'REFUND_REQUESTED'">Yêu cầu hoàn trả</span>
+                            <span th:case="'AWAITING_GOODS_RETURN'">Chờ lấy hàng hoàn trả</span>
+                            <span th:case="'GOODS_RECEIVED_FROM_CUSTOMER'">Đã nhận hàng hoàn trả</span>
+                            <span th:case="'GOODS_RETURNED_TO_WAREHOUSE'">Hàng đã về kho</span>
+                            <span th:case="'REFUNDING'">Đang hoàn tiền</span>
+                            <span th:case="'REFUNDED'">Đã hoàn tiền</span>
+                            <span th:case="'PARTIALLY_REFUNDED'">Hoàn tiền một phần</span>
+                            <span th:case="*" th:text="${orderStatus}"></span>
+                        </span>
                     </div>
                     <div class="info-item" th:if="${staffName}">
                         <span class="info-label">Nhân viên:</span>
@@ -415,7 +436,7 @@
     <!-- FOOTER -->
     <div class="footer">
         <p><strong>Cảm ơn quý khách đã mua hàng tại BookStation!</strong></p>
-        <p>Mọi thắc mắc xin liên hệ hotline: 0123-456-789</p>
+        <p>Mọi thắc mắc xin liên hệ hotline: 0123456789</p>
     </div>
 </body>
 </html>
