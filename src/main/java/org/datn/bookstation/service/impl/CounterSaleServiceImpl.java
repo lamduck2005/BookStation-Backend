@@ -14,6 +14,7 @@ import org.datn.bookstation.exception.BusinessException;
 import org.datn.bookstation.mapper.OrderResponseMapper;
 import org.datn.bookstation.repository.*;
 import org.datn.bookstation.service.CounterSaleService;
+import org.datn.bookstation.service.FlashSaleService;
 import org.datn.bookstation.service.OrderService;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,7 @@ public class CounterSaleServiceImpl implements CounterSaleService {
     private final FlashSaleItemRepository flashSaleItemRepository;
     private final UserRepository userRepository;
     private final OrderResponseMapper orderResponseMapper;
+    private final FlashSaleService flashSaleService;
     
     @Override
     public ApiResponse<CounterSaleResponse> createCounterSale(CounterSaleRequest request) {
@@ -75,9 +77,9 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             }
             log.debug("Step 4: Calculation completed successfully");
             
-            // 5. Tạo OrderRequest từ CounterSaleRequest
-            log.debug("Step 5: Building OrderRequest from CounterSaleRequest");
-            OrderRequest orderRequest = buildOrderRequestFromCounterSale(request, customer);
+            // 5. Tạo OrderRequest từ CounterSaleRequest và calculation
+            log.debug("Step 5: Building OrderRequest from CounterSaleRequest and calculation");
+            OrderRequest orderRequest = buildOrderRequestFromCounterSale(request, customer, calculation);
             log.debug("Step 5: OrderRequest built successfully");
             
             // 6. Tạo đơn hàng thông qua OrderService
@@ -145,17 +147,22 @@ public class CounterSaleServiceImpl implements CounterSaleService {
     @Override
     public ApiResponse<CounterSaleResponse> calculateCounterSale(CounterSaleRequest request) {
         try {
-            log.info("🧮 Calculating counter sale for {} items", request.getOrderDetails().size());
+            log.info("🧮 Calculating counter sale for {} items, userId: {}", request.getOrderDetails().size(), request.getUserId());
             
             // Validate request
+            log.debug("Step 1: Validating counter sale request");
             validateCounterSaleRequest(request);
+            log.debug("Step 1: Request validation passed");
             
             // Thực hiện tính toán
+            log.debug("Step 2: Performing counter sale calculation");
             CounterSaleResponse calculation = performCounterSaleCalculation(request);
             if (calculation == null) {
+                log.error("Step 2: performCounterSaleCalculation returned null");
                 return new ApiResponse<>(400, "Lỗi tính toán đơn hàng", null);
             }
-            
+            log.debug("Step 2: Calculation completed successfully");
+
             return new ApiResponse<>(200, "Tính toán thành công", calculation);
             
         } catch (BusinessException e) {
@@ -275,29 +282,84 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             Book book = bookRepository.findById(detail.getBookId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy sách với ID: " + detail.getBookId()));
             
-            // Kiểm tra tồn kho
-            if (book.getStockQuantity() < detail.getQuantity()) {
-                throw new BusinessException("Sách '" + book.getBookName() + "' không đủ tồn kho. Còn lại: " + book.getStockQuantity());
+            // ✅ BACKEND TÍNH GIÁ: Phân biệt khách vãng lai vs có tài khoản
+            BigDecimal actualUnitPrice = book.getPrice(); // Mặc định là giá gốc
+            FlashSaleItem flashSaleItem = null;
+            boolean isRegisteredCustomer = false;
+            
+            // ✅ LOGIC PHÂN BIỆT CUSTOMER:
+            // - isRetail = 1: Khách vãng lai (không flash sale)
+            // - isRetail != 1 hoặc null: Khách hàng thường (có flash sale)
+            if (request.getUserId() != null) {
+                User user = userRepository.findById(request.getUserId())
+                    .orElse(null);
+                if (user != null && (user.getIsRetail() == null || user.getIsRetail() != 1)) {
+                    isRegisteredCustomer = true; // isRetail = null hoặc != 1 được flash sale
+                    log.info("🔑 Regular customer account detected - userId: {}, isRetail: {}", user.getId(), user.getIsRetail());
+                } else if (user != null && user.getIsRetail() != null && user.getIsRetail() == 1) {
+                    log.info("🚶 Walk-in customer detected - userId: {}, isRetail: {}", user.getId(), user.getIsRetail());
+                }
+            } else {
+                log.info("🚶 Walk-in customer (no userId)");
             }
             
-            // ✅ BACKEND TÍNH GIÁ: Không tin frontend, tính giá hoàn toàn từ backend
-            BigDecimal actualUnitPrice = book.getPrice(); // Giá gốc từ database
-            FlashSaleItem flashSaleItem = null;
-            
-            // Kiểm tra flash sale nếu có
-            if (detail.getFlashSaleItemId() != null) {
-                flashSaleItem = flashSaleItemRepository.findById(detail.getFlashSaleItemId())
-                    .orElse(null);
+            // Logic phân biệt khách hàng
+            if (isRegisteredCustomer) {
+                // KHÁCH CÓ TÀI KHOẢN: Tự động tìm flash sale cho book này
+                log.info("🔍 Registered customer (userId={}) - checking for active flash sale for book: {}", request.getUserId(), book.getId());
+                long currentTime = System.currentTimeMillis();
+                log.info("🕐 Current time: {} ({})", currentTime, new java.util.Date(currentTime));
+                
+                List<FlashSaleItem> activeFlashSales = flashSaleItemRepository.findCurrentActiveFlashSaleByBookId(book.getId(), currentTime);
+                log.info("📊 Found {} active flash sales for book {}", activeFlashSales.size(), book.getId());
+                
+                if (!activeFlashSales.isEmpty()) {
+                    for (int i = 0; i < activeFlashSales.size(); i++) {
+                        FlashSaleItem item = activeFlashSales.get(i);
+                        log.info("  📢 Flash Sale {}: ID={}, price={}, stock={}, startTime={}, endTime={}", 
+                            i, item.getId(), item.getDiscountPrice(), item.getStockQuantity(),
+                            new java.util.Date(item.getFlashSale().getStartTime()),
+                            new java.util.Date(item.getFlashSale().getEndTime()));
+                    }
+                }
+                
+                flashSaleItem = activeFlashSales.isEmpty() ? null : activeFlashSales.get(0);
                 
                 if (flashSaleItem != null) {
-                    // Validate flash sale
+                    log.debug("📢 Found active flash sale: ID={}, price={}, stock={}", 
+                        flashSaleItem.getId(), flashSaleItem.getDiscountPrice(), flashSaleItem.getStockQuantity());
+                    
+                    // ✅ CUMULATIVE VALIDATION: Validate flash sale cumulative limit
+                    if (!flashSaleService.canUserPurchaseMore(flashSaleItem.getId().longValue(), 
+                            request.getUserId(), detail.getQuantity())) {
+                        int maxAllowed = flashSaleItem.getMaxPurchasePerUser();
+                        throw new BusinessException("Khách hàng đã đạt giới hạn mua tối đa " + maxAllowed + 
+                            " sản phẩm flash sale '" + book.getBookName() + "'. Vui lòng kiểm tra lại số lượng đã mua hoặc đang chờ xử lý.");
+                    }
+                    
+                    // Validate flash sale stock
                     if (flashSaleItem.getStockQuantity() < detail.getQuantity()) {
                         throw new BusinessException("Flash sale item '" + book.getBookName() + "' không đủ tồn kho. Còn lại: " + flashSaleItem.getStockQuantity());
                     }
                     
                     // Áp dụng giá flash sale
                     actualUnitPrice = flashSaleItem.getDiscountPrice();
+                    log.debug("💰 Applied flash sale price: {} (saved: {})", 
+                        actualUnitPrice, book.getPrice().subtract(actualUnitPrice));
+                } else {
+                    log.debug("📝 No active flash sale found for book: {}", book.getId());
+                    // Validate theo stock sách gốc
+                    if (book.getStockQuantity() < detail.getQuantity()) {
+                        throw new BusinessException("Sách '" + book.getBookName() + "' không đủ tồn kho. Còn lại: " + book.getStockQuantity());
+                    }
                 }
+            } else {
+                // KHÁCH VÃNG LAI: Luôn dùng giá gốc, validate theo stock sách gốc
+                log.debug("🚶 Walk-in customer - using regular price: {}", book.getPrice());
+                if (book.getStockQuantity() < detail.getQuantity()) {
+                    throw new BusinessException("Sách '" + book.getBookName() + "' không đủ tồn kho. Còn lại: " + book.getStockQuantity());
+                }
+                // flashSaleItem vẫn là null, actualUnitPrice = book.getPrice()
             }
             
             // ✅ VALIDATION: So sánh giá frontend với backend (optional - để warning)
@@ -316,7 +378,8 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             itemResponse.setTotalPrice(actualUnitPrice.multiply(BigDecimal.valueOf(detail.getQuantity())));
             itemResponse.setOriginalPrice(book.getPrice());
             
-            if (flashSaleItem != null) {
+            // Flash sale info chỉ hiển thị nếu là khách có tài khoản và có flash sale
+            if (isRegisteredCustomer && flashSaleItem != null) {
                 itemResponse.setFlashSale(true);
                 itemResponse.setFlashSaleItemId(flashSaleItem.getId());
                 BigDecimal saved = book.getPrice().subtract(actualUnitPrice).multiply(BigDecimal.valueOf(detail.getQuantity()));
@@ -338,7 +401,7 @@ public class CounterSaleServiceImpl implements CounterSaleService {
         return response;
     }
     
-    private OrderRequest buildOrderRequestFromCounterSale(CounterSaleRequest counterRequest, User customer) {
+    private OrderRequest buildOrderRequestFromCounterSale(CounterSaleRequest counterRequest, User customer, CounterSaleResponse calculation) {
         OrderRequest orderRequest = new OrderRequest();
         
         // User info
@@ -363,32 +426,55 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             orderRequest.setPhoneNumber(counterRequest.getCustomerPhone());
         }
         
-        // Order details
-        List<OrderDetailRequest> orderDetails = counterRequest.getOrderDetails().stream()
-            .map(detail -> {
-                OrderDetailRequest orderDetail = new OrderDetailRequest();
-                orderDetail.setBookId(detail.getBookId());
-                orderDetail.setQuantity(detail.getQuantity());
-                orderDetail.setUnitPrice(detail.getUnitPrice());
-                orderDetail.setFlashSaleItemId(detail.getFlashSaleItemId());
-                // Set frontend prices for validation - use unitPrice as fallback
-                orderDetail.setFrontendPrice(detail.getUnitPrice() != null ? detail.getUnitPrice() : BigDecimal.ZERO);
-                orderDetail.setFrontendFlashSalePrice(detail.getUnitPrice());
-                orderDetail.setFrontendFlashSaleId(detail.getFlashSaleItemId());
-                return orderDetail;
-            })
-            .collect(Collectors.toList());
+        // Order details - áp dụng logic phân biệt khách hàng (giống logic trong performCounterSaleCalculation)
+        final boolean isRegisteredCustomer;
+        if (customer != null && (customer.getIsRetail() == null || customer.getIsRetail() != 1)) {
+            isRegisteredCustomer = true; // isRetail = null hoặc != 1 được flash sale
+        } else {
+            isRegisteredCustomer = false; // isRetail = 1 hoặc không có customer = vãng lai
+        }
+        
+        List<OrderDetailRequest> orderDetails = new ArrayList<>();
+        for (int i = 0; i < counterRequest.getOrderDetails().size(); i++) {
+            OrderDetailRequest detail = counterRequest.getOrderDetails().get(i);
+            CounterSaleResponse.CounterSaleItemResponse calculatedItem = calculation.getItems().get(i);
+            
+            OrderDetailRequest orderDetail = new OrderDetailRequest();
+            orderDetail.setBookId(detail.getBookId());
+            orderDetail.setQuantity(detail.getQuantity());
+            
+            // ✅ USE CALCULATED PRICE from calculation instead of counterRequest
+            orderDetail.setUnitPrice(calculatedItem.getUnitPrice());
+            
+            // ✅ LOGIC PHÂN BIỆT: Chỉ set flash sale cho tài khoản thường (không phải vãng lai)
+            if (isRegisteredCustomer && calculatedItem.getFlashSaleItemId() != null) {
+                // Tài khoản thường: Dùng flash sale nếu có
+                orderDetail.setFlashSaleItemId(calculatedItem.getFlashSaleItemId());
+                orderDetail.setFrontendFlashSalePrice(calculatedItem.getUnitPrice());
+                orderDetail.setFrontendFlashSaleId(calculatedItem.getFlashSaleItemId());
+            } else {
+                // Khách vãng lai hoặc tài khoản vãng lai: Không dùng flash sale
+                orderDetail.setFlashSaleItemId(null);
+                orderDetail.setFrontendFlashSalePrice(null);
+                orderDetail.setFrontendFlashSaleId(null);
+            }
+            
+            // Set frontend prices for validation - use calculated price
+            orderDetail.setFrontendPrice(calculatedItem.getUnitPrice());
+            orderDetails.add(orderDetail);
+        }
         
         orderRequest.setOrderDetails(orderDetails);
         
         // Vouchers
         orderRequest.setVoucherIds(counterRequest.getVoucherIds());
         
-        // Financial info
-        orderRequest.setSubtotal(counterRequest.getSubtotal());
+        // Financial info - USE CALCULATION RESULTS instead of counterRequest
+        orderRequest.setSubtotal(calculation.getSubtotal());
         orderRequest.setShippingFee(BigDecimal.ZERO); // No shipping for counter sales
-        orderRequest.setTotalAmount(counterRequest.getTotalAmount());
-        
+        orderRequest.setTotalAmount(calculation.getTotalAmount());
+        orderRequest.setPaymentMethod(counterRequest.getPaymentMethod());
+
         // Order type and notes
         orderRequest.setOrderType("COUNTER");
         orderRequest.setNotes(counterRequest.getNotes());
@@ -419,10 +505,10 @@ public class CounterSaleServiceImpl implements CounterSaleService {
             response.setCustomerPhone(order.getPhoneNumber());
         }
         
-        // Financial info
-        response.setSubtotal(order.getSubtotal());
-        response.setDiscountAmount(order.getDiscountAmount());
-        response.setTotalAmount(order.getTotalAmount());
+        // Financial info - USE CALCULATION RESULTS instead of order amounts
+        response.setSubtotal(calculation.getSubtotal());
+        response.setDiscountAmount(calculation.getDiscountAmount());
+        response.setTotalAmount(calculation.getTotalAmount());
         response.setPaymentMethod("CASH"); // Default for counter sales
         
         // Staff info

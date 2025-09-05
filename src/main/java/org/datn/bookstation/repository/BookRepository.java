@@ -437,8 +437,6 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
     @Query("SELECT COALESCE(SUM(b.stockQuantity), 0) FROM Book b WHERE b.status = 1")
     Long getTotalStockBooks();
 
-   
-
     @Query(value = """
             WITH revenue_calc AS (
                 SELECT
@@ -459,12 +457,32 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
             """, nativeQuery = true)
     BigDecimal getTotalRevenue();
 
-    @Query("SELECT new org.datn.bookstation.dto.response.TopBookSoldResponse(b.bookName, SUM(od.quantity)) " +
-            "FROM Book b JOIN OrderDetail od ON b.id = od.book.id " +
-            "WHERE od.order.orderStatus = 'DELIVERED' " +
-            "GROUP BY b.bookName " +
-            "ORDER BY SUM(od.quantity) DESC")
-    List<TopBookSoldResponse> findTopBookSold(Pageable pageable);
+    @Query(value = """
+        SELECT b.book_name,
+               (
+                   COALESCE(SUM(od.quantity), 0) -
+                   COALESCE(SUM(refunds.refund_quantity), 0)
+               ) as net_quantity
+        FROM order_detail od
+        JOIN book b ON od.book_id = b.id
+        JOIN [order] o ON od.order_id = o.id
+        LEFT JOIN (
+            SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity
+            FROM refund_request rr
+            JOIN refund_item ri ON rr.id = ri.refund_request_id
+            WHERE rr.status = 'COMPLETED'
+            GROUP BY rr.order_id, ri.book_id
+        ) refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id
+        WHERE o.order_status IN ('DELIVERED', 'REFUND_REQUESTED', 'PARTIALLY_REFUNDED')
+        AND b.status = 1
+        GROUP BY b.id, b.book_name
+        HAVING (
+            COALESCE(SUM(od.quantity), 0) -
+            COALESCE(SUM(refunds.refund_quantity), 0)
+        ) > 0
+        ORDER BY net_quantity DESC
+        """, nativeQuery = true)
+List<Object[]> findTopBookSold(Pageable pageable);
 
     @Query("""
                 SELECT new org.datn.bookstation.dto.response.BookStockResponse(

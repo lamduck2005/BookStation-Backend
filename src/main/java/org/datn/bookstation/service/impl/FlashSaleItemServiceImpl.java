@@ -97,13 +97,11 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             return new ApiResponse<>(400, "Giá khuyến mãi không hợp lệ", null);
         }
         if (request.getDiscountPercentage() != null
-                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 0
-                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(100)) > 0)) {
-            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 0 đến 100", null);
+                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 1
+                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(30)) > 0)) {
+            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 1 đến 30", null);
         }
-        if (request.getStockQuantity() == null || request.getStockQuantity() < 0) {
-            return new ApiResponse<>(400, "Số lượng tồn kho không hợp lệ", null);
-        }
+        
         if (request.getMaxPurchasePerUser() != null && request.getMaxPurchasePerUser() < 0) {
             return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
         }
@@ -162,13 +160,11 @@ public class FlashSaleItemServiceImpl implements FlashSaleItemService {
             return new ApiResponse<>(400, "Giá khuyến mãi không hợp lệ", null);
         }
         if (request.getDiscountPercentage() != null
-                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 0
-                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(100)) > 0)) {
-            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 0 đến 100", null);
+                && (request.getDiscountPercentage().compareTo(BigDecimal.ZERO) < 1
+                        || request.getDiscountPercentage().compareTo(BigDecimal.valueOf(30)) > 0)) {
+            return new ApiResponse<>(400, "Phần trăm giảm giá phải từ 1 đến 30", null);
         }
-        if (request.getStockQuantity() != null && request.getStockQuantity() <= 0) {
-            return new ApiResponse<>(400, "Số lượng tồn kho không hợp lệ", null);
-        }
+       
         if (request.getMaxPurchasePerUser() != null && request.getMaxPurchasePerUser() < 0) {
             return new ApiResponse<>(400, "Giới hạn mua mỗi user không hợp lệ", null);
         }
