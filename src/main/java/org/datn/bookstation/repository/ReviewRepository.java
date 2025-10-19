@@ -49,14 +49,14 @@ public interface ReviewRepository extends JpaRepository<Review, Integer>, JpaSpe
                 SELECT 
                     book_id,
                     COUNT(*) as total_reviews,
-                    COUNT(CASE WHEN is_positive = 1 THEN 1 END) as positive_reviews,
-                    ROUND((COUNT(CASE WHEN is_positive = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as positive_percentage
+                    COUNT(CASE WHEN is_positive = true THEN 1 END) as positive_reviews,
+                    ROUND((COUNT(CASE WHEN is_positive = true THEN 1 END) * 100.0 / COUNT(*)), 2) as positive_percentage
                 FROM review 
                 WHERE review_status IN ('APPROVED', 'EDITED')
                     AND is_positive IS NOT NULL
                 GROUP BY book_id
                 HAVING COUNT(*) >= :minReviews 
-                    AND (COUNT(CASE WHEN is_positive = 1 THEN 1 END) * 100.0 / COUNT(*)) >= :threshold
+                    AND (COUNT(CASE WHEN is_positive = true THEN 1 END) * 100.0 / COUNT(*)) >= :threshold
             ) as book_stats
             ORDER BY positive_percentage DESC
             """, nativeQuery = true)
@@ -71,7 +71,7 @@ public interface ReviewRepository extends JpaRepository<Review, Integer>, JpaSpe
                 book_id,
                 ROUND(AVG(CAST(rating as float)), 2) as average_rating,
                 COUNT(*) as total_reviews,
-                COUNT(CASE WHEN is_positive = 1 THEN 1 END) as positive_reviews
+                COUNT(CASE WHEN is_positive = true THEN 1 END) as positive_reviews
             FROM review 
             WHERE review_status IN ('APPROVED', 'EDITED')
                 AND is_positive IS NOT NULL

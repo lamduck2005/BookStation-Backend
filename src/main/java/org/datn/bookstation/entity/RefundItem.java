@@ -37,7 +37,7 @@ public class RefundItem {
     @Column(name = "total_amount")
     private BigDecimal totalAmount; // Tổng tiền = refundQuantity * unitPrice
     
-    @Column(name = "reason", columnDefinition = "NVARCHAR(500)")
+    @Column(name = "reason", length = 500)
     private String reason; // Lý do hoàn trả sản phẩm này
     
     @Column(name = "created_at")

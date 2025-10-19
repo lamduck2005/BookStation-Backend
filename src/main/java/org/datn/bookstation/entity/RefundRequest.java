@@ -37,23 +37,23 @@ public class RefundRequest {
     @Column(name = "status")
     private RefundStatus status; // PENDING, APPROVED, REJECTED, COMPLETED
     
-    @Column(name = "reason", columnDefinition = "NVARCHAR(500)")
+    @Column(name = "reason", length = 500)
     private String reason; // Lý do hoàn trả
     
-    @Column(name = "customer_note", columnDefinition = "NVARCHAR(1000)")
+    @Column(name = "customer_note", length = 1000)
     private String customerNote; // Ghi chú từ khách hàng
     
-    @Column(name = "admin_note", columnDefinition = "NVARCHAR(1000)")
+    @Column(name = "admin_note", length = 1000)
     private String adminNote; // Ghi chú từ admin
     
     // ✅ THÊM MỚI: Thông tin từ chối chi tiết
-    @Column(name = "reject_reason", columnDefinition = "NVARCHAR(100)")
+    @Column(name = "reject_reason", length = 100)
     private String rejectReason; // Lý do từ chối (enum code)
     
-    @Column(name = "reject_reason_display", columnDefinition = "NVARCHAR(200)")
+    @Column(name = "reject_reason_display", length = 200)
     private String rejectReasonDisplay; // Hiển thị lý do từ chối
     
-    @Column(name = "suggested_action", columnDefinition = "NVARCHAR(500)")
+    @Column(name = "suggested_action", length = 500)
     private String suggestedAction; // Gợi ý hành động cho khách hàng
     
     @Column(name = "rejected_at")

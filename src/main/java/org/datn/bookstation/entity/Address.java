@@ -31,7 +31,6 @@ public class Address {
 
     @NotNull
     @Nationalized
-    @Lob
     @Column(name = "address_detail", nullable = false)
     private String addressDetail;
 
@@ -69,8 +68,7 @@ public class Address {
     @Column(name = "address_type", length = 20)
     private AddressType addressType;
 
-    @ColumnDefault("0")
-    @Column(name = "is_default")
+    @Column(name = "is_default", columnDefinition = "boolean default false")
     private Boolean isDefault;
 
     @Column(name = "created_at", nullable = false)

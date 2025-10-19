@@ -1,5 +1,6 @@
 package org.datn.bookstation.configuration;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -22,6 +23,10 @@ import java.util.Arrays;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+    
+    @Value("${frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+    
     private final String[] PUBLIC_ENDPOINTS = {
             
     };
@@ -46,7 +51,12 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*")); // Cho phép mọi port localhost
+        // Cho phép localhost cho development và frontend URL cho production
+        if (frontendUrl.contains("localhost")) {
+            configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:*", frontendUrl));
+        } else {
+            configuration.setAllowedOriginPatterns(Arrays.asList(frontendUrl));
+        }
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

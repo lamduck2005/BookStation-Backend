@@ -48,8 +48,7 @@ public class Book {
     @Column(name = "discount_percent")
     private Integer discountPercent; // Giảm giá theo phần trăm (VD: giảm 20%)
 
-    @ColumnDefault("0")
-    @Column(name = "discount_active")
+    @Column(name = "discount_active", columnDefinition = "boolean default false")
     private Boolean discountActive; // Trạng thái kích hoạt discount
 
     @NotNull

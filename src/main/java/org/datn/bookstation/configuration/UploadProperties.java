@@ -9,5 +9,5 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "upload")
 public class UploadProperties {
     private String path = "uploads/";
-    private String baseUrl = "http://localhost:8080/uploads/";
+    private String baseUrl = "${upload.base-url:http://localhost:8080/uploads/}";
 }

@@ -116,12 +116,12 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
     
     //  Book Statistics API - Summary by date range (FIXED VERSION with refunds and Vietnam timezone)
     @Query(value = "SELECT " +
-           "    CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) as saleDate, " +
+           "    CAST(to_timestamp(o.order_date / 1000) + INTERVAL '7 hours' AS DATE) as saleDate, " +
            "    COALESCE(SUM(od.quantity), 0) - COALESCE(SUM(refunds.refund_quantity), 0) as netBooksSold, " +
            "    COALESCE(SUM((o.total_amount - o.shipping_fee) * ((od.unit_price * od.quantity) / o.subtotal)), 0) - " +
            "    COALESCE(SUM((o.total_amount - o.shipping_fee) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as netRevenue " +
            "FROM order_detail od " +
-           "JOIN [order] o ON od.order_id = o.id " +
+           "JOIN \"order\" o ON od.order_id = o.id " +
            "LEFT JOIN ( " +
            "    SELECT " +
            "        rr.order_id, " +
@@ -132,14 +132,14 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "    WHERE rr.status = 'COMPLETED' " +
            "    GROUP BY rr.order_id, ri.book_id " +
            ") refunds ON od.order_id = refunds.order_id AND od.book_id = refunds.book_id " +
-           "WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
+           "WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
            "  AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED') " +
-           "GROUP BY CAST(DATEADD(HOUR, 7, DATEADD(SECOND, o.created_at / 1000, '1970-01-01')) AS DATE) " +
+           "GROUP BY CAST(to_timestamp(o.order_date / 1000) + INTERVAL '7 hours' AS DATE) " +
            "ORDER BY saleDate", nativeQuery = true)
     List<Object[]> findBookSalesSummaryByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate);
 
     //  Book Statistics API - Top books by date range (FIXED: UNIFIED net revenue calculation - consistent với OrderStatisticsService)
-    @Query(value = "SELECT TOP (:limit) " +
+    @Query(value = "SELECT " +
            "    book_agg.bookId, " +
            "    book_agg.book_code, " +
            "    book_agg.book_name, " +
@@ -167,7 +167,7 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "        ) as revenue " +
            "    FROM order_detail od " +
            "    JOIN book b ON od.book_id = b.id " +
-           "    JOIN [order] o ON od.order_id = o.id " +
+           "    JOIN \"order\" o ON od.order_id = o.id " +
            "    LEFT JOIN ( " +
            "        SELECT " +
            "            rr.order_id, " +
@@ -186,11 +186,12 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, OrderD
            "        WHERE rr.status = 'COMPLETED' " +
            "        GROUP BY rr.order_id " +
            "    ) order_refunds ON od.order_id = order_refunds.order_id " +
-           "    WHERE o.created_at >= :startDate AND o.created_at <= :endDate " +
+           "    WHERE o.order_date >= :startDate AND o.order_date <= :endDate " +
            "    AND o.order_status IN ('DELIVERED', 'PARTIALLY_REFUNDED', 'REFUNDED') " +
            "    GROUP BY od.book_id, b.book_code, b.book_name, b.isbn, b.price " +
            "    HAVING SUM(od.quantity) - COALESCE(SUM(refunds.refund_quantity), 0) > 0 " +
            ") book_agg " +
-           "ORDER BY book_agg.quantitySold DESC", nativeQuery = true)
+           "ORDER BY book_agg.quantitySold DESC " +
+           "LIMIT :limit", nativeQuery = true)
     List<Object[]> findTopBooksByDateRange(@Param("startDate") Long startDate, @Param("endDate") Long endDate, @Param("limit") Integer limit);
 }

@@ -443,7 +443,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                     COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((od.unit_price * od.quantity) / o.subtotal)), 0) -
                     COALESCE(SUM((o.total_amount - COALESCE(o.shipping_fee, 0)) * ((refunds.refund_quantity * od.unit_price) / o.subtotal)), 0) as netRevenue
                 FROM order_detail od
-                JOIN [order] o ON od.order_id = o.id
+                JOIN "order" o ON od.order_id = o.id
                 LEFT JOIN (
                     SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity
                     FROM refund_item ri
@@ -454,7 +454,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                 WHERE o.order_status IN ('DELIVERED', 'REFUND_REQUESTED', 'AWAITING_GOODS_RETURN', 'GOODS_RECEIVED_FROM_CUSTOMER', 'GOODS_RETURNED_TO_WAREHOUSE', 'PARTIALLY_REFUNDED')
             )
             SELECT COALESCE(netRevenue, 0) FROM revenue_calc
-            """, nativeQuery = true)
+""", nativeQuery = true)
     BigDecimal getTotalRevenue();
 
     @Query(value = """
@@ -465,7 +465,7 @@ public interface BookRepository extends JpaRepository<Book, Integer>, JpaSpecifi
                ) as net_quantity
         FROM order_detail od
         JOIN book b ON od.book_id = b.id
-        JOIN [order] o ON od.order_id = o.id
+        JOIN "order" o ON od.order_id = o.id
         LEFT JOIN (
             SELECT rr.order_id, ri.book_id, SUM(ri.refund_quantity) as refund_quantity
             FROM refund_request rr

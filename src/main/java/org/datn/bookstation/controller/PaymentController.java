@@ -7,6 +7,7 @@ import org.datn.bookstation.entity.CheckoutSession;
 import org.datn.bookstation.repository.CheckoutSessionRepository;
 import org.datn.bookstation.service.CheckoutSessionService;
 import org.datn.bookstation.service.VnPayService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,9 @@ public class PaymentController {
     private final VnPayService vnPayService;
     private final CheckoutSessionRepository checkoutSessionRepository;
     private final CheckoutSessionService checkoutSessionService;
+    
+    @Value("${frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     /**
      * FE gửi sessionId & userId để lấy link thanh toán VNPAY.
@@ -65,8 +69,8 @@ public class PaymentController {
      */
     @GetMapping("/vnpay-return")
     public void vnpayReturn(@RequestParam Map<String, String> allParams, HttpServletResponse response) throws IOException {
-        String failUrl = "http://localhost:5173/order/fail";
-        String successUrl = "http://localhost:5173/order/success";
+        String failUrl = frontendUrl + "/order/fail";
+        String successUrl = frontendUrl + "/order/success";
         // 1. Verify checksum
         String receivedHash = allParams.get("vnp_SecureHash");
         boolean valid = vnPayService.validateChecksum(

@@ -48,16 +48,17 @@ public class DataInitializationService implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     @Override
+    @Transactional
     public void run(String... args) {
         try {
             log.info("Starting data initialization...");
-            
+
             // Kiểm tra từng loại dữ liệu và chỉ khởi tạo nếu chưa có
             initializeIfEmpty();
 
             // Hiển thị trạng thái dữ liệu sau khi hoàn thành
             checkDataStatus();
-            
+
             log.info("Data initialization completed successfully!");
         } catch (Exception e) {
             log.error("Error during data initialization: ", e);
@@ -65,6 +66,7 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    @Transactional
     private void initializeIfEmpty() {
         // Kiểm tra và khởi tạo Roles
         if (roleRepository.count() == 0) {
@@ -217,6 +219,7 @@ public class DataInitializationService implements CommandLineRunner {
         }
     }
 
+    @Transactional
     private void initializeRoles() {
         log.info("Initializing roles...");
         List<Role> roles = Arrays.asList(
@@ -255,6 +258,7 @@ public class DataInitializationService implements CommandLineRunner {
         return rank;
     }
 
+    @Transactional
     private void initializeUsers() {
         log.info("Initializing users...");
         Role adminRole = roleRepository.findByRoleName(RoleName.ADMIN).orElse(null);
@@ -677,10 +681,11 @@ public class DataInitializationService implements CommandLineRunner {
         book.setCreatedBy(createdBy);
         book.setBookCode("BOOK" + System.currentTimeMillis());
         book.setStatus((byte) 1);
-        // Thêm dữ liệu mẫu cho images (nhiều ảnh, cách nhau bằng dấu phẩy)
-        book.setImages("https://yourdomain.com/uploads/products/sample1.jpg,https://yourdomain.com/uploads/products/sample2.jpg");
+        // Sử dụng Lorem Picsum làm placeholder cho ảnh sách mẫu
+        book.setImages("https://picsum.photos/400/600?random=1,https://picsum.photos/400/600?random=2");
         return book;
     }
+
 
     private Category findCategoryByName(List<Category> categories, String name) {
         return categories.stream()

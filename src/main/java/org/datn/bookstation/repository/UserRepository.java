@@ -51,7 +51,7 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
                 SELECT
                     o.user_id,
                     COALESCE(SUM(o.total_amount), 0) - COALESCE(SUM(refunds.total_refund_amount), 0) as actualSpent
-                FROM [order] o
+                FROM "order" o
                 LEFT JOIN (
                     SELECT rr.order_id, SUM(rr.total_refund_amount) as total_refund_amount
                     FROM refund_request rr
@@ -62,18 +62,20 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
                 AND o.user_id IS NOT NULL
                 GROUP BY o.user_id
             )
-            SELECT TOP 5
+            SELECT
                 u.full_name,
                 COALESCE(ur.actualSpent, 0) as actualSpent,
-                COALESCE((SELECT TOP 1 r.rank_name
+                COALESCE((SELECT r.rank_name
                           FROM user_rank urk
                           JOIN rank r ON r.id = urk.rank_id
                           WHERE urk.user_id = u.id AND urk.status = 1
-                          ORDER BY r.min_spent DESC), 'No Rank') as rankName
-            FROM [user] u
+                          ORDER BY r.min_spent DESC
+                          LIMIT 1), 'No Rank') as rankName
+            FROM "user" u
             LEFT JOIN user_revenue ur ON u.id = ur.user_id
             WHERE u.role_id = 3
             ORDER BY COALESCE(ur.actualSpent, 0) DESC
+            LIMIT 5
             """, nativeQuery = true)
     List<TopSpenderResponse> findTopSpenders();
 
@@ -100,14 +102,16 @@ public interface UserRepository extends JpaRepository<User, Integer>, JpaSpecifi
 
     // THÊM MỚI: Top user theo điểm
     @Query(value = """
-            SELECT TOP 10 u.full_name, u.email, u.total_point,
-                   (SELECT TOP 1 r.rank_name FROM user_rank ur
+            SELECT u.full_name, u.email, u.total_point,
+                   (SELECT r.rank_name FROM user_rank ur
                     JOIN rank r ON r.id = ur.rank_id
                     WHERE ur.user_id = u.id AND ur.status = 1
-                    ORDER BY r.min_spent DESC)
-            FROM [user] u
+                    ORDER BY r.min_spent DESC
+                    LIMIT 1)
+            FROM "user" u
             WHERE u.total_point IS NOT NULL
             ORDER BY u.total_point DESC
+            LIMIT 10
             """, nativeQuery = true)
     List<Object[]> getTopUsersByPoint();
 }

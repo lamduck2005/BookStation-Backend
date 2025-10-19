@@ -40,7 +40,6 @@ public class Supplier {
     private String email;
 
     @Nationalized
-    @Lob
     @Column(name = "address")
     private String address;
 

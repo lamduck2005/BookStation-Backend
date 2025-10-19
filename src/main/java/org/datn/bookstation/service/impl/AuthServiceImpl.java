@@ -19,7 +19,6 @@ import org.datn.bookstation.dto.request.LoginRequest;
 import org.datn.bookstation.dto.request.ForgotPasswordRequest;
 import org.datn.bookstation.dto.response.LoginResponse;
 import org.datn.bookstation.configuration.JwtUtil;
-import org.datn.bookstation.util.EmailUtil;
 import org.datn.bookstation.dto.request.ResetPasswordRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -34,7 +33,6 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
     private final JwtUtil jwtUtil;
-    private final EmailUtil emailUtil;
 
 
     @Override
@@ -54,40 +52,11 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(roleRepository.findByRoleName(RoleName.CUSTOMER).orElse(null));
         user.setStatus((byte) 1);
-        user.setEmailVerified((byte) 0); // Email chưa được xác nhận
+        user.setEmailVerified((byte) 1); // Email được coi như đã xác nhận (không cần xác thực)
         userRepository.save(user);
 
-        // Gửi email xác nhận
-        try {
-            String verificationToken = jwtUtil.generateVerificationToken(user);
-            
-            // Lấy origin từ header request
-            HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-            String origin = servletRequest.getHeader("Origin");
-            if (origin == null || origin.isEmpty()) {
-                origin = servletRequest.getHeader("Referer");
-            }
-            if (origin == null || origin.isEmpty()) {
-                origin = "http://localhost:5173"; // fallback
-            }
-            if (origin.endsWith("/")) {
-                origin = origin.substring(0, origin.length() - 1);
-            }
-
-            String verificationLink = origin + "/verify-email?token=" + verificationToken;
-
-            String html = "<p>Xin chào " + user.getFullName() + ",</p>"
-                    + "<p>Cảm ơn bạn đã đăng ký tài khoản tại BookStation. Vui lòng nhấn vào link bên dưới để xác nhận email của bạn:</p>"
-                    + "<p><a href='" + verificationLink + "'>Xác nhận email</a></p>"
-                    + "<br/><p>Nếu bạn không thực hiện đăng ký, hãy bỏ qua email này.</p>";
-            
-            emailUtil.sendHtmlEmail(user.getEmail(), "Xác nhận email - BookStation", html);
-        } catch (Exception e) {
-            // Nếu gửi email thất bại, vẫn tạo user nhưng thông báo
-            return new ApiResponse<>(201, "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.", authMapper.toRegisterResponse(user));
-        }
-
-        return new ApiResponse<>(201, "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.", authMapper.toRegisterResponse(user));
+        // Không cần gửi email xác nhận nữa - tài khoản đã sẵn sàng sử dụng
+        return new ApiResponse<>(201, "Đăng ký thành công! Tài khoản đã sẵn sàng sử dụng.", authMapper.toRegisterResponse(user));
     }
 
     @Override
@@ -106,11 +75,7 @@ public class AuthServiceImpl implements AuthService {
             return new ApiResponse<>(403, "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ admin để được hỗ trợ.", null);
         }
         
-        // Kiểm tra email đã được xác nhận chưa
-        // Chỉ kiểm tra với user mới (có trường emailVerified)
-        if (user.getEmailVerified() != null && user.getEmailVerified() != 1) {
-            return new ApiResponse<>(403, "Vui lòng xác nhận email trước khi đăng nhập!", null);
-        }
+        // Không cần kiểm tra email verification nữa - tất cả user đều có thể đăng nhập
         
         String token = jwtUtil.generateToken(user);
         LoginResponse res = new LoginResponse(token, authMapper.toRegisterResponse(user));
@@ -125,37 +90,9 @@ public class AuthServiceImpl implements AuthService {
             return new ApiResponse<>(404, "Email không tồn tại", null);
         }
 
-        User user = userOpt.get();
-        // Sinh reset token
-        String resetToken = jwtUtil.generateResetToken(user);
-
-        // Lấy origin (URL FE) từ header request (Origin hoặc Referer)
-        HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-        String origin = servletRequest.getHeader("Origin");
-        if (origin == null || origin.isEmpty()) {
-            origin = servletRequest.getHeader("Referer");
-        }
-        if (origin == null || origin.isEmpty()) {
-            origin = "http://localhost:5173"; // fallback
-        }
-        // loại bỏ dấu "/" cuối nếu có
-        if (origin.endsWith("/")) {
-            origin = origin.substring(0, origin.length() - 1);
-        }
-
-        String resetLink = origin + "/reset-password?token=" + resetToken;
-
-        String html = "<p>Xin chào " + user.getFullName() + ",</p>"
-                + "<p>Bạn vừa yêu cầu khôi phục mật khẩu. Nhấn vào link bên dưới để đặt lại mật khẩu (hiệu lực 15 phút):</p>"
-                + "<p><a href='" + resetLink + "'>Khôi phục mật khẩu</a></p>"
-                + "<br/><p>Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>";
-        try {
-            emailUtil.sendHtmlEmail(user.getEmail(), "Khôi phục mật khẩu", html);
-        } catch (Exception e) {
-            return new ApiResponse<>(500, "Lỗi gửi email: " + e.getMessage(), null);
-        }
-
-        return new ApiResponse<>(200, "Đã gửi link khôi phục mật khẩu tới email của bạn", null);
+        // Không cần gửi email reset password nữa
+        // Chỉ trả về thông báo thành công
+        return new ApiResponse<>(200, "Yêu cầu khôi phục mật khẩu đã được ghi nhận. Vui lòng liên hệ admin để được hỗ trợ.", null);
     }
 
     @Override
@@ -184,30 +121,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public ApiResponse<Void> verifyEmail(String token) {
-        // Validate token & type
-        if (!jwtUtil.validateToken(token) || !jwtUtil.isVerificationToken(token)) {
-            return new ApiResponse<>(400, "Token không hợp lệ hoặc đã hết hạn, vui lòng thử lại!", null);
-        }
-
-        Integer userId = jwtUtil.extractUserId(token);
-        if (userId == null) {
-            return new ApiResponse<>(400, "Token không chứa thông tin user", null);
-        }
-
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
-            return new ApiResponse<>(404, "Người dùng không tồn tại", null);
-        }
-
-        User user = userOpt.get();
-        if (user.getEmailVerified() == 1) {
-            return new ApiResponse<>(400, "Email đã được xác nhận trước đó", null);
-        }
-
-        user.setEmailVerified((byte) 1);
-        userRepository.save(user);
-
-        return new ApiResponse<>(200, "Xác nhận email thành công! Bạn có thể đăng nhập ngay bây giờ.", null);
+        // Email verification đã bị vô hiệu hóa - tất cả user đều được coi như đã xác nhận email
+        return new ApiResponse<>(200, "Email verification không cần thiết nữa. Tài khoản đã sẵn sàng sử dụng.", null);
     }
 
     @Override
